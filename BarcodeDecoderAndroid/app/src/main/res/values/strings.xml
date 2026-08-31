@@ -1,0 +1,30 @@
+<resources>
+    <string name="app_name">Barcode Decoder</string>
+    <string name="camera_permission_required">Для сканирования штрихкодов необходим доступ к камере</string>
+    <string name="grant_permission">Предоставить доступ</string>
+    <string name="scanning_hint">Наведите камеру на штрихкод компонента</string>
+    <string name="tap_barcode_hint">Нажмите на нужный штрихкод для выбора</string>
+    <string name="scan_again">Сканировать заново</string>
+    <string name="manual_input">Ввести вручную</string>
+    <string name="decode_button">Расшифровать</string>
+    <string name="clear_button">Очистить</string>
+    <string name="result_title">Результат расшифровки</string>
+    <string name="vendor_label">Производитель:</string>
+    <string name="comp_type_label">Тип компонента:</string>
+    <string name="unified_name_label">Унифицированное имя:</string>
+    <string name="extracted_params_label">Параметры:</string>
+    <string name="used_code_label">Распознанный код:</string>
+    <string name="not_recognized">❌ Код не распознан ни одним правилом</string>
+    <string name="copy_result">Копировать результат</string>
+    <string name="copied_to_clipboard">Скопировано в буфер обмена</string>
+    <string name="gallery_button">Галерея</string>
+    <string name="no_barcodes_found_in_image">Штрихкоды на изображении не найдены</string>
+    <string name="select_barcode_dialog_title">Выберите штрихкод</string>
+    <string name="image_processing_error">Ошибка при обработке изображения</string>
+    <string name="info_button">Инструкция / Дисклеймер</string>
+    <string name="disclaimer_accept">Я принимаю условия</string>
+    <string name="disclaimer_decline">Отклонить и выйти</string>
+    <string name="disclaimer_close">Закрыть</string>
+    <string name="disclaimer_sheet_warning">⚠️ Внимание: Программа предназначена только для SMD катушек резисторов и конденсаторов. Проверяйте номиналы по Datasheet перед пайкой. Использование на свой страх и риск.</string>
+    <string name="created_with_gemini">Создано совместно с нейросетью Gemini</string>
+</resources>

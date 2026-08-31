@@ -1,0 +1,44 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+*.pyc
+
+# Virtual Environments
+.env
+.venv
+env/
+venv/
+ENV/
+
+# IDEs and Editors
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Android / Gradle
+.gradle/
+**/build/
+**/captures/
+**/.externalNativeBuild/
+**/.cxx/
+local.properties
+**/local.properties
+*.iml
+
+# Keystores, Keys and Secrets
+*.jks
+*.keystore
+*.pem
+*.key
+rustore_config.json
+rustore_secrets.json
+
+# OS generated
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Temporary / Test artifacts
+test_output.xlsx
