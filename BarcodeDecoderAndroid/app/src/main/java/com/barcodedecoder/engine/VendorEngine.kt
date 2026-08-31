@@ -81,6 +81,21 @@ class VendorRule(
 ) {
     val pattern: Pattern = Pattern.compile(patternStr, Pattern.CASE_INSENSITIVE)
 
+    /** Список именованных групп, фактически присутствующих в шаблоне данного правила. */
+    private val presentGroupNames: List<String>
+
+    init {
+        // Извлекаем имена группы из regex один раз при создании правила,
+        // вместо try/catch перебора 33 имён при каждом совпадении (STYLE-1)
+        val groupNamePattern = Pattern.compile("""\(\?<([a-zA-Z_][a-zA-Z0-9_]*)>""")
+        val groupMatcher = groupNamePattern.matcher(patternStr)
+        val names = mutableListOf<String>()
+        while (groupMatcher.find()) {
+            groupMatcher.group(1)?.let { names.add(it) }
+        }
+        presentGroupNames = names
+    }
+
     /**
      * Выполняет сопоставление строки кода с регулярным выражением правила.
      * Возвращает карту извлеченных именованных групп или null.
@@ -90,24 +105,10 @@ class VendorRule(
         if (!matcher.matches()) return null
 
         val result = mutableMapOf<String, String>()
-        // Список известных именованных групп для извлечения параметров
-        val groupNames = listOf(
-            "size", "dielectric", "code", "tolerance", "voltage",
-            "type", "suffix", "series", "termination", "size_code", "sizeCode",
-            "size_tolerance", "sizeTolerance", "temp_code", "tempCode",
-            "cap_code", "capCode", "cap_tolerance", "capTolerance",
-            "thickness", "special", "packaging", "internal", "rest",
-            "pack", "value", "reel", "func", "term", "prefix",
-            "cga_size", "cgaSize", "power", "tcr"
-        )
-        for (name in groupNames) {
-            try {
-                val value = matcher.group(name)
-                if (value != null) {
-                    result[name] = value
-                }
-            } catch (_: IllegalArgumentException) {
-                // Имя группы отсутствует в данном конкретном шаблоне
+        for (groupName in presentGroupNames) {
+            val value = matcher.group(groupName)
+            if (value != null) {
+                result[groupName] = value
             }
         }
         return result
@@ -406,7 +407,7 @@ object RuleFactory {
             VendorRule(
                 name = "KEMET",
                 compType = "capacitor",
-                patternStr = """^C(?<size>\d{4})(?<type>[A-Z])(?<code>\d{3})(?<tolerance>[BCDFGJKMOPZ])(?<voltage>\d)(?<dielectric>[GRPUV])(?<suffix>[A-Z]{0,2})$""",
+                patternStr = """^C(?<size>\d{4})(?<type>[A-Z])(?<code>\d{3})(?<tolerance>[BCDFGJKMOPZ])(?<voltage>\d)(?<dielectric>[GRPUV])(?<suffix>[A-Z]{0,4})$""",
                 sizeMap = mapOf("0402" to "0402", "0603" to "0603", "0805" to "0805", "1206" to "1206", "1210" to "1210", "1812" to "1812", "1825" to "1825", "2220" to "2220", "2225" to "2225"),
                 dielectricMap = mapOf("G" to "C0G", "R" to "X7R", "P" to "X5R", "U" to "Z5U", "V" to "Y5V"),
                 voltageMap = mapOf("1" to "100V", "2" to "200V", "3" to "25V", "4" to "16V", "5" to "50V", "6" to "35V", "7" to "4V", "8" to "10V", "9" to "6.3V"),
