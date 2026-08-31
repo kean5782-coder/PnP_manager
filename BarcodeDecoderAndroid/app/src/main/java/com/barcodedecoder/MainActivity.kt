@@ -9,7 +9,6 @@ import android.content.Intent
 import android.content.pm.PackageManager
 import android.content.res.Configuration
 import android.net.Uri
-import java.net.URLEncoder
 import android.os.Bundle
 import android.view.KeyEvent
 import android.view.View
@@ -40,9 +39,18 @@ import com.google.mlkit.vision.barcode.BarcodeScannerOptions
 import com.google.mlkit.vision.barcode.BarcodeScanning
 import com.google.mlkit.vision.barcode.common.Barcode
 import com.google.mlkit.vision.common.InputImage
+import java.net.URLEncoder
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
 
+/**
+ * Главный экран приложения:
+ * - Инициализация CameraX и ML Kit для непрерывного распознавания штрихкодов в реальном времени.
+ * - Управление фонариком, ручным вводом и выбором изображений из галереи.
+ * - Обработка навигации с кнопок пульта Android TV (DPAD).
+ * - Отображение результатов расшифровки в интерактивной шторке (BottomSheet).
+ * - Формирование отчетов об ошибках и нераспознанных компонентах.
+ */
 class MainActivity : AppCompatActivity() {
 
     private lateinit var binding: ActivityMainBinding
@@ -53,6 +61,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var parser: VendorParser
     private var analyzer: BarcodeAnalyzer? = null
 
+    // Регистрация запроса разрешения на камеру
     private val requestPermissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestPermission()
     ) { isGranted: Boolean ->
@@ -64,6 +73,7 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    // Регистрация выбора картинки из галереи
     private val pickImageLauncher = registerForActivityResult(
         ActivityResultContracts.GetContent()
     ) { uri: Uri? ->
@@ -72,9 +82,12 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    private val PREFS_NAME = "barcode_decoder_prefs"
-    private val KEY_DISCLAIMER_ACCEPTED = "disclaimer_accepted"
+    private val prefsName = "barcode_decoder_prefs"
+    private val keyDisclaimerAccepted = "disclaimer_accepted"
 
+    /**
+     * Проверяет, запущено ли приложение на телевизоре (Android TV) или устройстве без сенсорного экрана.
+     */
     private fun isTvDevice(): Boolean {
         val uiModeManager = getSystemService(Context.UI_MODE_SERVICE) as? UiModeManager
         return (uiModeManager?.currentModeType == Configuration.UI_MODE_TYPE_TELEVISION) ||
@@ -89,7 +102,7 @@ class MainActivity : AppCompatActivity() {
         binding = ActivityMainBinding.inflate(layoutInflater)
         setContentView(binding.root)
 
-        // Initialize decoding engine
+        // Инициализация движка правил парсинга
         val rules = RuleFactory.createAllRules()
         parser = VendorParser(rules)
 
@@ -97,8 +110,8 @@ class MainActivity : AppCompatActivity() {
 
         setupListeners()
 
-        val prefs = getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-        if (!prefs.getBoolean(KEY_DISCLAIMER_ACCEPTED, false)) {
+        val prefs = getSharedPreferences(prefsName, Context.MODE_PRIVATE)
+        if (!prefs.getBoolean(keyDisclaimerAccepted, false)) {
             showDisclaimerDialog(isFirstLaunch = true)
         } else {
             checkPermissionsAndStart()
@@ -106,6 +119,9 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    /**
+     * Проверяет наличие отчета о предыдущем падении приложения и предлагает отправить его разработчику.
+     */
     private fun checkPendingCrashReport() {
         val crashLog = AppLogger.getPendingCrashLog(this)
         if (!crashLog.isNullOrBlank()) {
@@ -123,6 +139,9 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    /**
+     * Проверяет разрешение на камеру и запускает видоискатель.
+     */
     private fun checkPermissionsAndStart() {
         if (allPermissionsGranted()) {
             startCamera()
@@ -131,6 +150,9 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    /**
+     * Устанавливает обработчики нажатий на кнопки панели инструментов.
+     */
     private fun setupListeners() {
         binding.btnGrantPermission.setOnClickListener {
             requestPermissionLauncher.launch(Manifest.permission.CAMERA)
@@ -161,6 +183,9 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    /**
+     * Отображает диалог с дисклеймером и правилами использования.
+     */
     private fun showDisclaimerDialog(isFirstLaunch: Boolean) {
         val dialogView = layoutInflater.inflate(R.layout.dialog_disclaimer, null)
         val btnOpenFeedback = dialogView.findViewById<View>(R.id.btnOpenFeedbackFromDisclaimer)
@@ -174,9 +199,9 @@ class MainActivity : AppCompatActivity() {
 
         if (isFirstLaunch) {
             builder.setPositiveButton(getString(R.string.disclaimer_accept)) { _, _ ->
-                getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+                getSharedPreferences(prefsName, Context.MODE_PRIVATE)
                     .edit()
-                    .putBoolean(KEY_DISCLAIMER_ACCEPTED, true)
+                    .putBoolean(keyDisclaimerAccepted, true)
                     .apply()
                 checkPermissionsAndStart()
             }
@@ -193,6 +218,9 @@ class MainActivity : AppCompatActivity() {
         builder.show()
     }
 
+    /**
+     * Отображает диалог обратной связи с возможностью отправки отчета на Email или через меню «Поделиться».
+     */
     private fun showFeedbackDialog(defaultCode: String) {
         val dialogView = layoutInflater.inflate(R.layout.dialog_feedback, null)
         val etReportCode = dialogView.findViewById<EditText>(R.id.etReportCode)
@@ -242,6 +270,9 @@ class MainActivity : AppCompatActivity() {
         this, Manifest.permission.CAMERA
     ) == PackageManager.PERMISSION_GRANTED
 
+    /**
+     * Обработка физических кнопок навигации и пульта Android TV (DPAD).
+     */
     override fun onKeyDown(keyCode: Int, event: KeyEvent?): Boolean {
         when (keyCode) {
             KeyEvent.KEYCODE_DPAD_CENTER, KeyEvent.KEYCODE_ENTER, KeyEvent.KEYCODE_NUMPAD_ENTER, KeyEvent.KEYCODE_BUTTON_A -> {
@@ -277,6 +308,9 @@ class MainActivity : AppCompatActivity() {
         return super.onKeyDown(keyCode, event)
     }
 
+    /**
+     * Настраивает и связывает сценарии Preview и ImageAnalysis CameraX с жизненным циклом Activity.
+     */
     private fun startCamera() {
         val cameraProviderFuture = ProcessCameraProvider.getInstance(this)
 
@@ -329,6 +363,9 @@ class MainActivity : AppCompatActivity() {
         }, ContextCompat.getMainExecutor(this))
     }
 
+    /**
+     * Включает / выключает светодиодную подсветку камеры (фонарик).
+     */
     private fun toggleFlashlight() {
         val cam = camera ?: return
         if (cam.cameraInfo.hasFlashUnit()) {
@@ -345,6 +382,9 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    /**
+     * Обрабатывает выбор конкретного штрихкода: приостанавливает анализ и открывает шторку с результатом.
+     */
     private fun onBarcodeSelected(box: BarcodeBox) {
         analyzer?.isScanningEnabled = false
         binding.btnScanAgain.visibility = View.VISIBLE
@@ -354,6 +394,9 @@ class MainActivity : AppCompatActivity() {
         showResultBottomSheet(box.rawValue, parseResult)
     }
 
+    /**
+     * Сбрасывает выделение и возобновляет потоковый поиск штрихкодов.
+     */
     private fun resumeScanning() {
         binding.scannerOverlay.clear()
         analyzer?.isScanningEnabled = true
@@ -361,6 +404,9 @@ class MainActivity : AppCompatActivity() {
         binding.tvStatusHint.text = getString(R.string.scanning_hint)
     }
 
+    /**
+     * Отображает BottomSheetDialog со структурированной информацией о расшифрованном компоненте.
+     */
     private fun showResultBottomSheet(rawCode: String, result: ParseResult?) {
         val dialog = BottomSheetDialog(this)
         val view = layoutInflater.inflate(R.layout.bottom_sheet_result, null)
@@ -419,6 +465,7 @@ class MainActivity : AppCompatActivity() {
             copyText = "Код: $rawCode (Не распознан)"
         }
 
+        // Поиск в стандартном браузере без требования INTERNET разрешения
         btnSearchWeb.setOnClickListener {
             if (searchQuery.isNotEmpty()) {
                 try {
@@ -450,7 +497,6 @@ class MainActivity : AppCompatActivity() {
 
         btnCloseSheet.setOnClickListener {
             dialog.dismiss()
-            resumeScanning()
         }
 
         dialog.setOnDismissListener {
@@ -460,6 +506,9 @@ class MainActivity : AppCompatActivity() {
         dialog.show()
     }
 
+    /**
+     * Открывает диалог для ввода кода детали вручную.
+     */
     private fun showManualInputDialog() {
         val dialogView = layoutInflater.inflate(R.layout.dialog_manual_input, null)
         val etManualCode = dialogView.findViewById<EditText>(R.id.etManualCode)
@@ -477,6 +526,9 @@ class MainActivity : AppCompatActivity() {
             .show()
     }
 
+    /**
+     * Запускает системный Activity выбора изображения из галереи.
+     */
     private fun openGallery() {
         try {
             pickImageLauncher.launch("image/*")
@@ -485,6 +537,9 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    /**
+     * Декодирует статическое изображение, выбранное пользователем из галереи.
+     */
     private fun decodeImageFromUri(uri: Uri) {
         analyzer?.isScanningEnabled = false
         binding.scannerOverlay.clear()

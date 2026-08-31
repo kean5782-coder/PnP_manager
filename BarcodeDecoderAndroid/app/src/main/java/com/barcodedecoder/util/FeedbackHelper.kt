@@ -5,6 +5,9 @@ import android.content.Intent
 import android.net.Uri
 import android.widget.Toast
 
+/**
+ * Утилита для отправки обратной связи, баг-репортов и отчетов о нераспознанных кодах разработчику.
+ */
 object FeedbackHelper {
 
     const val DEVELOPER_EMAIL = "kean5782@yandex.ru"
@@ -15,16 +18,16 @@ object FeedbackHelper {
     private const val MAX_SUBJECT_LENGTH = 120
 
     /**
-     * Sanitizes user input: removes dangerous control characters, null bytes,
-     * strips potential HTML/scripts, and limits text length.
+     * Очищает пользовательский ввод: удаляет нуль-байты, опасные управляющие символы ASCII,
+     * HTML-теги и обрезает текст до максимальной длины.
      */
     fun sanitizeInput(input: String, maxLength: Int): String {
         if (input.isBlank()) return ""
         
         var clean = input
-            .replace("\u0000", "") // Remove NULL bytes
-            .replace(Regex("[\\x00-\\x08\\x0B\\x0C\\x0E-\\x1F]"), "") // Remove ASCII control characters
-            .replace(Regex("<[^>]*>"), "") // Strip HTML tags
+            .replace("\u0000", "") // Удаление NULL байтов
+            .replace(Regex("[\\x00-\\x08\\x0B\\x0C\\x0E-\\x1F]"), "") // Удаление непечатных управляющих кодов
+            .replace(Regex("<[^>]*>"), "") // Удаление возможных HTML тегов
             .trim()
 
         if (clean.length > maxLength) {
@@ -33,6 +36,9 @@ object FeedbackHelper {
         return clean
     }
 
+    /**
+     * Отправляет сформированный отчет через почтовый клиент (mailto).
+     */
     fun sendEmail(
         context: Context,
         subject: String,
@@ -52,7 +58,7 @@ object FeedbackHelper {
         try {
             context.startActivity(Intent.createChooser(intent, "Выберите почтовое приложение"))
         } catch (e: Exception) {
-            // Fallback to generic text send
+            // Fallback: пробуем общий интент отправки
             val fallbackIntent = Intent(Intent.ACTION_SEND).apply {
                 type = "message/rfc822"
                 putExtra(Intent.EXTRA_EMAIL, arrayOf(DEVELOPER_EMAIL))
@@ -68,6 +74,9 @@ object FeedbackHelper {
         }
     }
 
+    /**
+     * Позволяет поделиться текстом отчета через стандартное системное меню «Поделиться».
+     */
     fun shareText(context: Context, title: String, text: String) {
         val safeTitle = sanitizeInput(title, MAX_SUBJECT_LENGTH)
         val safeText = text.replace("\u0000", "")
@@ -84,6 +93,9 @@ object FeedbackHelper {
         }
     }
 
+    /**
+     * Формирует структурированный текст отчета о нераспознанном штрихкоде.
+     */
     fun buildUnrecognizedCodeReport(
         context: Context,
         rawCode: String,
@@ -109,6 +121,9 @@ object FeedbackHelper {
         """.trimIndent()
     }
 
+    /**
+     * Формирует структурированный текст отчета об общей проблеме или отзыве.
+     */
     fun buildGeneralFeedbackReport(
         context: Context,
         feedbackType: String,

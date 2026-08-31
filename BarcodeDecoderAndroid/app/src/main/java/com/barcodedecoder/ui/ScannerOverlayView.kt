@@ -4,7 +4,6 @@ import android.content.Context
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
-import android.graphics.Path
 import android.graphics.RectF
 import android.util.AttributeSet
 import android.view.MotionEvent
@@ -13,6 +12,10 @@ import androidx.core.content.ContextCompat
 import com.barcodedecoder.R
 import com.barcodedecoder.camera.BarcodeBox
 
+/**
+ * Кастомный View для отображения подсветок штрихкодов, угловых меток, информационных бейджей
+ * и обработки интерактивного выбора (тач-клики и навигация с пульта DPAD Android TV).
+ */
 class ScannerOverlayView @JvmOverloads constructor(
     context: Context,
     attrs: AttributeSet? = null,
@@ -22,8 +25,10 @@ class ScannerOverlayView @JvmOverloads constructor(
     private var boxes: List<BarcodeBox> = emptyList()
     private var selectedBox: BarcodeBox? = null
 
+    /** Callback при выборе пользователем конкретного штрихкода */
     var onBarcodeSelected: ((BarcodeBox) -> Unit)? = null
 
+    // Кисти для обычной подсветки обнаруженных рамок
     private val boxPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         style = Paint.Style.STROKE
         strokeWidth = 6f
@@ -35,6 +40,7 @@ class ScannerOverlayView @JvmOverloads constructor(
         color = ContextCompat.getColor(context, R.color.box_highlight_fill)
     }
 
+    // Кисти для выбранной / сфокусированной рамки
     private val selectedBoxPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         style = Paint.Style.STROKE
         strokeWidth = 8f
@@ -46,6 +52,7 @@ class ScannerOverlayView @JvmOverloads constructor(
         color = ContextCompat.getColor(context, R.color.box_selected_fill)
     }
 
+    // Кисти для бейджа с текстом значения
     private val badgeBgPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         style = Paint.Style.FILL
         color = ContextCompat.getColor(context, R.color.box_badge_bg)
@@ -62,11 +69,15 @@ class ScannerOverlayView @JvmOverloads constructor(
         textSize = 28f
     }
 
+    /** Индекс текущего сфокусированного штрихкода (для навигации стрелками пульта/клавиатуры) */
     var focusedBoxIndex: Int = -1
 
+    /**
+     * Обновляет список отображаемых рамок штрихкодов.
+     */
     fun setBoxes(newBoxes: List<BarcodeBox>) {
         if (selectedBox != null) {
-            // If already selected, do not overwrite until cleared
+            // Если уже выбран конкретный элемент, не перезаписываем до сброса
             return
         }
         this.boxes = newBoxes
@@ -76,11 +87,17 @@ class ScannerOverlayView @JvmOverloads constructor(
         invalidate()
     }
 
+    /**
+     * Устанавливает выбранный штрихкод.
+     */
     fun selectBox(box: BarcodeBox) {
         this.selectedBox = box
         invalidate()
     }
 
+    /**
+     * Переключает фокус на следующий обнаруженный штрихкод (DPAD RIGHT / DOWN).
+     */
     fun selectNextBox(): BarcodeBox? {
         if (boxes.isEmpty()) return null
         focusedBoxIndex = (focusedBoxIndex + 1) % boxes.size
@@ -88,6 +105,9 @@ class ScannerOverlayView @JvmOverloads constructor(
         return boxes[focusedBoxIndex]
     }
 
+    /**
+     * Переключает фокус на предыдущий обнаруженный штрихкод (DPAD LEFT / UP).
+     */
     fun selectPreviousBox(): BarcodeBox? {
         if (boxes.isEmpty()) return null
         focusedBoxIndex = if (focusedBoxIndex <= 0) boxes.size - 1 else focusedBoxIndex - 1
@@ -95,11 +115,17 @@ class ScannerOverlayView @JvmOverloads constructor(
         return boxes[focusedBoxIndex]
     }
 
+    /**
+     * Возвращает текущий сфокусированный или первый доступный штрихкод.
+     */
     fun getFocusedOrFirstBox(): BarcodeBox? {
         if (boxes.isEmpty()) return null
         return if (focusedBoxIndex in boxes.indices) boxes[focusedBoxIndex] else boxes.first()
     }
 
+    /**
+     * Очищает состояние оверлея и сбрасывает фокус.
+     */
     fun clear() {
         this.boxes = emptyList()
         this.selectedBox = null
@@ -112,7 +138,7 @@ class ScannerOverlayView @JvmOverloads constructor(
             val x = event.x
             val y = event.y
 
-            // Touch padding of 40px for comfortable tap target
+            // Расширенная область нажатия (+40px) для комфортного тапа пальцем
             val touchPadding = 40f
 
             for (box in boxes) {
@@ -150,11 +176,11 @@ class ScannerOverlayView @JvmOverloads constructor(
 
             val cornerRadius = 16f
 
-            // Fill & border
+            // Отрисовка полупрозрачного фона и угловых визирных линий
             canvas.drawRoundRect(rect, cornerRadius, cornerRadius, fillPaint)
             drawCornerReticles(canvas, rect, strokePaint)
 
-            // Text badge on top or bottom
+            // Текст бейджа
             val text = if (box.rawValue.length > 22) {
                 box.rawValue.substring(0, 19) + "..."
             } else {
@@ -171,9 +197,14 @@ class ScannerOverlayView @JvmOverloads constructor(
             val badgeWidth = maxOf(textWidth, hintWidth) + 36f
             val badgeHeight = 80f
 
+            // Расчет позиции бейджа: сверху от рамки или снизу, если сверху нет места
             var badgeTop = rect.top - badgeHeight - 12f
             if (badgeTop < 20f) {
                 badgeTop = rect.bottom + 12f
+            }
+            // Ограничение по границам экрана
+            if (badgeTop + badgeHeight > height - 16f) {
+                badgeTop = maxOf(16f, rect.top - badgeHeight - 12f)
             }
             val badgeLeft = maxOf(16f, minOf(rect.left, width - badgeWidth - 16f))
             val badgeRect = RectF(badgeLeft, badgeTop, badgeLeft + badgeWidth, badgeTop + badgeHeight)
@@ -184,22 +215,25 @@ class ScannerOverlayView @JvmOverloads constructor(
         }
     }
 
+    /**
+     * Отрисовывает угловые маркеры видоискателя на рамке штрихкода.
+     */
     private fun drawCornerReticles(canvas: Canvas, rect: RectF, paint: Paint) {
         val cornerLength = minOf(rect.width() * 0.25f, rect.height() * 0.25f, 40f)
 
-        // Top-Left
+        // Верхний левый угол
         canvas.drawLine(rect.left, rect.top, rect.left + cornerLength, rect.top, paint)
         canvas.drawLine(rect.left, rect.top, rect.left, rect.top + cornerLength, paint)
 
-        // Top-Right
+        // Верхний правый угол
         canvas.drawLine(rect.right, rect.top, rect.right - cornerLength, rect.top, paint)
         canvas.drawLine(rect.right, rect.top, rect.right, rect.top + cornerLength, paint)
 
-        // Bottom-Left
+        // Нижний левый угол
         canvas.drawLine(rect.left, rect.bottom, rect.left + cornerLength, rect.bottom, paint)
         canvas.drawLine(rect.left, rect.bottom, rect.left, rect.bottom - cornerLength, paint)
 
-        // Bottom-Right
+        // Нижний правый угол
         canvas.drawLine(rect.right, rect.bottom, rect.right - cornerLength, rect.bottom, paint)
         canvas.drawLine(rect.right, rect.bottom, rect.right, rect.bottom - cornerLength, paint)
     }
