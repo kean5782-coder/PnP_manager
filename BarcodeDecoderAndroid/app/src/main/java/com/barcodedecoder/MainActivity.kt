@@ -379,14 +379,13 @@ class MainActivity : AppCompatActivity() {
         val btnSearchWeb = view.findViewById<View>(R.id.btnSearchWeb)
 
         val copyText: String
-        val searchQuery: String
+        val searchQuery = rawCode.trim()
 
         if (result != null) {
             btnReportUnrecognized.visibility = View.GONE
             tvUnifiedName.text = result.unifiedName
             tvVendor.text = result.rule.name
             tvCompType.text = result.rule.compType
-            searchQuery = result.usedCode
 
             val trimInfo = if (result.leftTrim > 0 || result.rightTrim > 0) {
                 "${result.usedCode} (очищено: -${result.leftTrim} сл, -${result.rightTrim} спр)"
@@ -407,7 +406,6 @@ class MainActivity : AppCompatActivity() {
                     "Код: ${result.usedCode}\n" +
                     paramsBuilder.toString()
         } else {
-            searchQuery = rawCode.trim()
             btnReportUnrecognized.visibility = View.VISIBLE
             btnReportUnrecognized.setOnClickListener {
                 showFeedbackDialog(defaultCode = rawCode)
