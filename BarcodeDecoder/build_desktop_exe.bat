@@ -1,9 +1,9 @@
 @echo off
 chcp 65001 >nul
-title Сборка BarcodeDecoder в единый .EXE (UPX)
+title Сборка BarcodeDecoder в единый .EXE (UPX + Иконка)
 
 echo ======================================================================
-echo    Сборка BarcodeDecoder v1.1 в единый .EXE файл с сжатием UPX
+echo    Сборка BarcodeDecoder v1.1 в единый .EXE с иконкой и сжатием UPX
 echo ======================================================================
 echo.
 
@@ -54,24 +54,34 @@ if exist "%SCRIPT_DIR%\BarcodeDecoder_1.1.py" (
     set "DIST_DIR=%SCRIPT_DIR%\dist"
     set "WORK_DIR=%SCRIPT_DIR%\build"
     set "SPEC_DIR=%SCRIPT_DIR%"
+    set "ICON_FILE=%SCRIPT_DIR%\icon.ico"
 ) else if exist "%SCRIPT_DIR%\BarcodeDecoder\BarcodeDecoder_1.1.py" (
     set "SOURCE_FILE=%SCRIPT_DIR%\BarcodeDecoder\BarcodeDecoder_1.1.py"
     set "DIST_DIR=%SCRIPT_DIR%\BarcodeDecoder\dist"
     set "WORK_DIR=%SCRIPT_DIR%\BarcodeDecoder\build"
     set "SPEC_DIR=%SCRIPT_DIR%\BarcodeDecoder"
+    set "ICON_FILE=%SCRIPT_DIR%\BarcodeDecoder\icon.ico"
 ) else (
     echo [ОШИБКА] Исходный файл BarcodeDecoder_1.1.py не найден!
     pause
     exit /b 1
 )
 
-echo [4/4] Запуск компиляции PyInstaller (Single File)...
+:: Определение аргументов иконки
+set "ICON_ARG="
+if exist "%ICON_FILE%" (
+    echo Иконка найдена: %ICON_FILE%
+    set "ICON_ARG=--icon \"%ICON_FILE%\" --add-data \"%ICON_FILE%;.\""
+)
+
+echo [4/4] Запуск компиляции PyInstaller (Single File + Icon + UPX)...
 "%PYTHON_EXE%" -m PyInstaller ^
     --noconfirm ^
     --onefile ^
     --windowed ^
     --name "BarcodeDecoder" ^
     --clean ^
+    %ICON_ARG% ^
     %UPX_ARG% ^
     --exclude-module unittest ^
     --exclude-module test ^
@@ -102,7 +112,7 @@ if errorlevel 1 (
 echo.
 echo ======================================================================
 echo [УСПЕХ] Сборка успешно завершена!
-echo Исполняемый файл: %DIST_DIR%\BarcodeDecoder.exe
+echo Исполняемый файл с иконкой: %DIST_DIR%\BarcodeDecoder.exe
 echo ======================================================================
 echo.
 pause
