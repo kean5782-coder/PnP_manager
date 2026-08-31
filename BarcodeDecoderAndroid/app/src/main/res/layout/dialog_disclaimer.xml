@@ -1,0 +1,267 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:padding="20dp">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical">
+
+        <!-- Header Icon & Title -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:gravity="center_vertical"
+            android:orientation="horizontal">
+
+            <ImageView
+                android:layout_width="36dp"
+                android:layout_height="36dp"
+                android:layout_marginEnd="12dp"
+                android:src="@android:drawable/ic_dialog_alert"
+                app:tint="#FF5252" />
+
+            <TextView
+                android:id="@+id/tvDisclaimerDialogTitle"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="Важное уведомление и отказ от ответственности"
+                android:textColor="#FFFFFF"
+                android:textSize="18sp"
+                android:textStyle="bold" />
+        </LinearLayout>
+
+        <!-- Purpose Warning Card -->
+        <com.google.android.material.card.MaterialCardView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="16dp"
+            app:cardBackgroundColor="#2A2A38"
+            app:cardCornerRadius="12dp"
+            app:strokeColor="#FFD600"
+            app:strokeWidth="1.5dp">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:padding="14dp">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="📌 НАЗНАЧЕНИЕ ПРОГРАММЫ"
+                    android:textColor="#FFD600"
+                    android:textSize="13sp"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="6dp"
+                    android:lineSpacingExtra="3dp"
+                    android:text="Программа предназначена ИСКЛЮЧИТЕЛЬНО для считывания и расшифровки штрихкодов / артикулов на этикетках заводских катушек (Reel / SMD лент) пассивных SMD компонентов: резисторов и конденсаторов. Программа НЕ предназначена для микросхем, транзисторов, диодов и других компонентов."
+                    android:textColor="#EEEEEE"
+                    android:textSize="13sp" />
+            </LinearLayout>
+        </com.google.android.material.card.MaterialCardView>
+
+        <!-- Legal Disclaimer Card -->
+        <com.google.android.material.card.MaterialCardView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="12dp"
+            app:cardBackgroundColor="#2E1B1B"
+            app:cardCornerRadius="12dp"
+            app:strokeColor="#FF5252"
+            app:strokeWidth="1.5dp">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:padding="14dp">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="⚖️ ПОЛНЫЙ ОТКАЗ ОТ ОТВЕТСТВЕННОСТИ (DISCLAIMER)"
+                    android:textColor="#FF5252"
+                    android:textSize="13sp"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="6dp"
+                    android:lineSpacingExtra="3dp"
+                    android:text="1. Программное обеспечение предоставляется «КАК ЕСТЬ» («AS IS»), без каких-либо явных или подразумеваемых гарантий правильности, точности или пригодности для конкретных производственных целей.\n\n2. ПОЛЬЗОВАТЕЛЬ ИСПОЛЬЗУЕТ ПРИЛОЖЕНИЕ ПОЛНОСТЬЮ НА СВОЙ СТРАХ И РИСК.\n\n3. Автор и разработчик НЕ НЕСУТ ОТВЕТСТВЕННОСТИ ни за какие прямые, косвенные, случайные или штрафные убытки, брак в радиомонтаже, повреждение печатных плат, оборудования или готовых изделий, финансовые и любые материальные потери, возникшие в результате использования или невозможности использования данного приложения.\n\n4. Пользователь ОБЯЗАН самостоятельно перепроверять номиналы, допуски и характеристики компонентов по официальной документации производителя (Datasheet) и с помощью поверенных измерительных приборов (LCR-метров) перед монтажом."
+                    android:textColor="#FFCDD2"
+                    android:textSize="12.5sp" />
+            </LinearLayout>
+        </com.google.android.material.card.MaterialCardView>
+
+        <!-- Trademark Notice Card -->
+        <com.google.android.material.card.MaterialCardView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="12dp"
+            app:cardBackgroundColor="#22222E"
+            app:cardCornerRadius="12dp"
+            app:strokeColor="#80CBC4"
+            app:strokeWidth="1.5dp">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:padding="14dp">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="🏷️ УВЕДОМЛЕНИЕ О ТОВАРНЫХ ЗНАКАХ"
+                    android:textColor="#80CBC4"
+                    android:textSize="13sp"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="6dp"
+                    android:lineSpacingExtra="3dp"
+                    android:text="Все упомянутые в приложении наименования производителей, товарные знаки и торговые марки (Samsung, Yageo, Murata, KEMET, Taiyo Yuden, TDK, Walsin, Viking, ROHM, Hottech и др.) принадлежат их законным правообладателям. Их текстовое упоминание носит исключительно информационно-справочный характер и служит для распознавания форматов маркировки компонентов. Приложение является независимым продуктом и не аффилировано с указанными компаниями."
+                    android:textColor="#E0F2F1"
+                    android:textSize="12.5sp" />
+            </LinearLayout>
+        </com.google.android.material.card.MaterialCardView>
+
+        <!-- Copyright & Proprietary Rights Card -->
+        <com.google.android.material.card.MaterialCardView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="12dp"
+            app:cardBackgroundColor="#212130"
+            app:cardCornerRadius="12dp"
+            app:strokeColor="#7C4DFF"
+            app:strokeWidth="1.5dp">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:padding="14dp">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="🔒 АВТОРСКИЕ ПРАВА И ОГРАНИЧЕНИЯ"
+                    android:textColor="#B388FF"
+                    android:textSize="13sp"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="6dp"
+                    android:lineSpacingExtra="3dp"
+                    android:text="Автор и правообладатель: kean5782 (Анохин Александр Александрович).\n\nСоздано совместно с нейросетью Gemini.\n\n© 2024–2026 kean5782. Все права защищены.\n\nПрограммное обеспечение защищено законами об авторском праве. Категорически ЗАПРЕЩАЕТСЯ любое несанкционированное распространение, передача третьим лицам, публикация на сторонних интернет-ресурсах, модификация, декомпиляция, реверс-инжиниринг (обратная разработка) или коммерческое использование данного приложения и его исходного кода без прямого предварительного письменного разрешения автора."
+                    android:textColor="#EDE7F6"
+                    android:textSize="12.5sp" />
+            </LinearLayout>
+        </com.google.android.material.card.MaterialCardView>
+
+        <!-- AI Collab Card -->
+        <com.google.android.material.card.MaterialCardView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="12dp"
+            app:cardBackgroundColor="#1A2332"
+            app:cardCornerRadius="12dp"
+            app:strokeColor="#4285F4"
+            app:strokeWidth="1.5dp">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:padding="14dp">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="✨ РАЗРАБОТКА И ТЕХНОЛОГИИ"
+                    android:textColor="#60A5FA"
+                    android:textSize="13sp"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="6dp"
+                    android:lineSpacingExtra="3dp"
+                    android:text="@string/created_with_gemini"
+                    android:textColor="#E8F0FE"
+                    android:textSize="13sp"
+                    android:textStyle="bold" />
+            </LinearLayout>
+        </com.google.android.material.card.MaterialCardView>
+
+        <!-- Quick Guide Card -->
+        <com.google.android.material.card.MaterialCardView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="12dp"
+            app:cardBackgroundColor="#1F2A38"
+            app:cardCornerRadius="12dp"
+            app:strokeColor="#00E676"
+            app:strokeWidth="1.5dp">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:padding="14dp">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="📖 КРАТКАЯ ИНСТРУКЦИЯ"
+                    android:textColor="#00E676"
+                    android:textSize="13sp"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="6dp"
+                    android:lineSpacingExtra="3dp"
+                    android:text="• Сканирование камерой: наведите видоискатель на штрихкод этикетки катушки. Нажмите на подсвеченную рамку пальцем (или кнопку OK/Enter на пульте TV).\n• Галерея: нажмите иконку галереи для распознавания штрихкода с сохранённого фото.\n• Ручной ввод: введите артикул производителя вручную, если штрихкод повреждён.\n• Поддерживаемые бренды: Yageo, Samsung, Murata, Kemet, Viking, Taiyo Yuden, TDK, Walsin, Hottech, ROHM, Российские Р1-12 / Р1-16."
+                    android:textColor="#EEEEEE"
+                    android:textSize="12.5sp" />
+            </LinearLayout>
+        </com.google.android.material.card.MaterialCardView>
+
+        <!-- Feedback Button inside Dialog -->
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btnOpenFeedbackFromDisclaimer"
+            style="@style/Widget.Material3.Button.TonalButton"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:minHeight="48dp"
+            android:paddingHorizontal="16dp"
+            android:paddingVertical="10dp"
+            android:layout_marginTop="16dp"
+            android:focusable="true"
+            android:clickable="true"
+            app:strokeColor="@color/btn_focus_stroke"
+            app:strokeWidth="1.5dp"
+            android:text="✉️ Написать автору (kean5782@yandex.ru)"
+            android:textColor="#FFFFFF" />
+
+    </LinearLayout>
+</ScrollView>

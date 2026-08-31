@@ -1,0 +1,241 @@
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.constraintlayout.widget.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:id="@+id/mainContainer"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="#000000">
+
+    <!-- Camera Preview View -->
+    <androidx.camera.view.PreviewView
+        android:id="@+id/previewView"
+        android:layout_width="0dp"
+        android:layout_height="0dp"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="parent"
+        app:scaleType="fillCenter" />
+
+    <!-- Interactive Overlay for detected bounding boxes -->
+    <com.barcodedecoder.ui.ScannerOverlayView
+        android:id="@+id/scannerOverlay"
+        android:layout_width="0dp"
+        android:layout_height="0dp"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="parent" />
+
+    <!-- Top Header Bar -->
+    <LinearLayout
+        android:id="@+id/topBar"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:background="#99000000"
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
+        android:paddingHorizontal="16dp"
+        android:paddingVertical="10dp"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="parent">
+
+        <TextView
+            android:id="@+id/tvAppTitle"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:layout_marginEnd="8dp"
+            android:ellipsize="end"
+            android:maxLines="1"
+            android:singleLine="true"
+            android:text="@string/app_name"
+            android:textColor="#FFFFFF"
+            android:textSize="18sp"
+            android:textStyle="bold" />
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btnFlashlight"
+            style="@style/Widget.Material3.Button.IconButton.Filled.Tonal"
+            android:layout_width="44dp"
+            android:layout_height="44dp"
+            android:layout_marginEnd="6dp"
+            android:insetLeft="0dp"
+            android:insetRight="0dp"
+            android:insetTop="0dp"
+            android:insetBottom="0dp"
+            android:padding="0dp"
+            app:iconSize="22dp"
+            app:iconGravity="textStart"
+            app:iconPadding="0dp"
+            android:focusable="true"
+            android:clickable="true"
+            android:contentDescription="Вспышка"
+            app:tooltipText="Вспышка"
+            android:nextFocusRight="@id/btnGallery"
+            app:strokeColor="@color/btn_focus_stroke"
+            app:strokeWidth="2dp"
+            app:icon="@drawable/ic_flashlight"
+            app:iconTint="#FFFFFF" />
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btnGallery"
+            style="@style/Widget.Material3.Button.IconButton.Filled.Tonal"
+            android:layout_width="44dp"
+            android:layout_height="44dp"
+            android:layout_marginEnd="6dp"
+            android:insetLeft="0dp"
+            android:insetRight="0dp"
+            android:insetTop="0dp"
+            android:insetBottom="0dp"
+            android:padding="0dp"
+            app:iconSize="22dp"
+            app:iconGravity="textStart"
+            app:iconPadding="0dp"
+            android:focusable="true"
+            android:clickable="true"
+            android:contentDescription="@string/gallery_button"
+            app:tooltipText="@string/gallery_button"
+            android:nextFocusLeft="@id/btnFlashlight"
+            android:nextFocusRight="@id/btnManualInput"
+            app:strokeColor="@color/btn_focus_stroke"
+            app:strokeWidth="2dp"
+            app:icon="@drawable/ic_gallery"
+            app:iconTint="#FFFFFF" />
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btnManualInput"
+            style="@style/Widget.Material3.Button.IconButton.Filled.Tonal"
+            android:layout_width="44dp"
+            android:layout_height="44dp"
+            android:layout_marginEnd="6dp"
+            android:insetLeft="0dp"
+            android:insetRight="0dp"
+            android:insetTop="0dp"
+            android:insetBottom="0dp"
+            android:padding="0dp"
+            app:iconSize="22dp"
+            app:iconGravity="textStart"
+            app:iconPadding="0dp"
+            android:focusable="true"
+            android:clickable="true"
+            android:contentDescription="@string/manual_input"
+            app:tooltipText="@string/manual_input"
+            android:nextFocusLeft="@id/btnGallery"
+            android:nextFocusRight="@id/btnInfo"
+            app:strokeColor="@color/btn_focus_stroke"
+            app:strokeWidth="2dp"
+            app:icon="@drawable/ic_keyboard_input"
+            app:iconTint="#FFFFFF" />
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btnInfo"
+            style="@style/Widget.Material3.Button.IconButton.Filled.Tonal"
+            android:layout_width="44dp"
+            android:layout_height="44dp"
+            android:insetLeft="0dp"
+            android:insetRight="0dp"
+            android:insetTop="0dp"
+            android:insetBottom="0dp"
+            android:padding="0dp"
+            app:iconSize="22dp"
+            app:iconGravity="textStart"
+            app:iconPadding="0dp"
+            android:focusable="true"
+            android:clickable="true"
+            android:contentDescription="@string/info_button"
+            app:tooltipText="@string/info_button"
+            android:nextFocusLeft="@id/btnManualInput"
+            app:strokeColor="@color/btn_focus_stroke"
+            app:strokeWidth="2dp"
+            app:icon="@drawable/ic_info"
+            app:iconTint="#FFFFFF" />
+    </LinearLayout>
+
+    <!-- Scanning status / hint badge -->
+    <com.google.android.material.card.MaterialCardView
+        android:id="@+id/cardStatus"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="16dp"
+        android:layout_marginHorizontal="24dp"
+        app:cardBackgroundColor="#CC1E1E24"
+        app:cardCornerRadius="20dp"
+        app:cardElevation="6dp"
+        app:layout_constrainedWidth="true"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@id/topBar"
+        app:strokeColor="#33FFFFFF"
+        app:strokeWidth="1dp">
+
+        <TextView
+            android:id="@+id/tvStatusHint"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:gravity="center"
+            android:paddingHorizontal="24dp"
+            android:paddingVertical="12dp"
+            android:text="@string/scanning_hint"
+            android:textColor="#FFFFFF"
+            android:textSize="14sp" />
+    </com.google.android.material.card.MaterialCardView>
+
+    <!-- Bottom Action Button (Scan Again) -->
+    <com.google.android.material.button.MaterialButton
+        android:id="@+id/btnScanAgain"
+        style="@style/Widget.Material3.Button.ElevatedButton"
+        android:layout_width="wrap_content"
+        android:layout_height="52dp"
+        android:layout_marginBottom="32dp"
+        android:focusable="true"
+        android:clickable="true"
+        android:text="@string/scan_again"
+        android:textColor="#FFFFFF"
+        android:textSize="15sp"
+        android:visibility="gone"
+        app:backgroundTint="@color/primary"
+        app:cornerRadius="26dp"
+        app:strokeColor="@color/btn_focus_stroke"
+        app:strokeWidth="2dp"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent" />
+
+    <!-- Permission Request Overlay -->
+    <LinearLayout
+        android:id="@+id/layoutPermission"
+        android:layout_width="0dp"
+        android:layout_height="0dp"
+        android:background="#E6121212"
+        android:gravity="center"
+        android:orientation="vertical"
+        android:padding="32dp"
+        android:visibility="gone"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="parent">
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:gravity="center"
+            android:text="@string/camera_permission_required"
+            android:textColor="#FFFFFF"
+            android:textSize="16sp" />
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btnGrantPermission"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="20dp"
+            android:focusable="true"
+            android:clickable="true"
+            app:strokeColor="@color/btn_focus_stroke"
+            app:strokeWidth="2dp"
+            android:text="@string/grant_permission" />
+    </LinearLayout>
+
+</androidx.constraintlayout.widget.ConstraintLayout>
