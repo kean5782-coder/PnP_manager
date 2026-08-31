@@ -1151,7 +1151,7 @@ class BarcodeDecoderApp:
         self.canvas.configure(yscrollcommand=self.scrollbar.set)
 
         self.canvas.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
-        self.scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+        # self.scrollbar показывается динамически через _update_scrollbar_visibility
 
         # Автоматическая подгонка ширины содержимого под ширину окна
         self.canvas.bind("<Configure>", self._on_canvas_configure)
@@ -1371,16 +1371,47 @@ class BarcodeDecoderApp:
     def _on_canvas_configure(self, event):
         """Обновляет ширину содержимого при изменении размера окна."""
         self.canvas.itemconfig(self.content_window, width=event.width)
+        self.root.after_idle(self._update_scrollbar_visibility)
 
     def _on_content_configure(self, event):
         """Обновляет область прокрутки canvas при изменении содержимого."""
-        self.canvas.configure(scrollregion=self.canvas.bbox("all"))
+        self.root.after_idle(self._update_scrollbar_visibility)
+
+    def _update_scrollbar_visibility(self):
+        """
+        Динамически скрывает полосу прокрутки, если окно больше или равно содержимому,
+        и показывает её только при нехватке места на экране.
+        Предотвращает появление пустых полос сверху и снизу.
+        """
+        if not hasattr(self, "canvas") or not hasattr(self, "scrollbar") or not hasattr(self, "content_frame"):
+            return
+
+        try:
+            bbox = self.canvas.bbox("all")
+            content_h = (bbox[3] - bbox[1]) if bbox else self.content_frame.winfo_reqheight()
+            canvas_h = self.canvas.winfo_height()
+
+            if canvas_h <= 1:
+                return
+
+            if content_h > canvas_h + 4:
+                # Содержимое больше окна: показываем скроллбар и задаем область прокрутки
+                if not self.scrollbar.winfo_ismapped():
+                    self.scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+                self.canvas.configure(scrollregion=(0, 0, bbox[2] if bbox else self.canvas.winfo_width(), content_h))
+            else:
+                # Содержимое полностью помещается: скрываем скроллбар, фиксируем вид сверху без пустот
+                if self.scrollbar.winfo_ismapped():
+                    self.scrollbar.pack_forget()
+                self.canvas.yview_moveto(0.0)
+                self.canvas.configure(scrollregion=(0, 0, self.canvas.winfo_width(), canvas_h))
+        except Exception:
+            pass
 
     def _on_mousewheel(self, event):
         """
         Универсальная плавная прокрутка колесиком мыши по всему телу приложения.
-        Если курсор находится над таблицей истории с большим списком записей — прокручивает таблицу,
-        во всех остальных случаях (карточки, кнопки, шапка, поля, фон) — прокручивает основную область.
+        Прокручивает окно только если его высота недостаточна для отображения всех элементов.
         """
         try:
             widget = event.widget
@@ -1394,13 +1425,20 @@ class BarcodeDecoderApp:
                 self.history_tree.yview_scroll(int(-1 * (event.delta / 120)), "units")
                 return "break"
 
-            # Прокрутка основного окна (Canvas)
+            # Прокрутка основного холста только при реальной необходимости
             if hasattr(self, "canvas") and self.canvas.winfo_exists():
-                delta = event.delta
-                if delta:
-                    scroll_units = int(-1 * (delta / 120)) * 2
-                    self.canvas.yview_scroll(scroll_units, "units")
-                    return "break"
+                bbox = self.canvas.bbox("all")
+                content_h = (bbox[3] - bbox[1]) if bbox else 0
+                canvas_h = self.canvas.winfo_height()
+
+                if content_h > canvas_h + 4:
+                    delta = event.delta
+                    if delta:
+                        scroll_units = int(-1 * (delta / 120)) * 2
+                        self.canvas.yview_scroll(scroll_units, "units")
+                        return "break"
+                else:
+                    self.canvas.yview_moveto(0.0)
         except Exception:
             pass
 
@@ -1418,8 +1456,15 @@ class BarcodeDecoderApp:
                 return "break"
 
             if hasattr(self, "canvas") and self.canvas.winfo_exists():
-                self.canvas.yview_scroll(units, "units")
-                return "break"
+                bbox = self.canvas.bbox("all")
+                content_h = (bbox[3] - bbox[1]) if bbox else 0
+                canvas_h = self.canvas.winfo_height()
+
+                if content_h > canvas_h + 4:
+                    self.canvas.yview_scroll(units, "units")
+                    return "break"
+                else:
+                    self.canvas.yview_moveto(0.0)
         except Exception:
             pass
 
@@ -1560,6 +1605,9 @@ class BarcodeDecoderApp:
 
         # Обновление индикатора раскладки
         self.update_layout_status()
+
+        # Динамическая проверка необходимости скроллбара
+        self.root.after_idle(self._update_scrollbar_visibility)
 
     # =========================================================================
     # Проверка системного состояния (раскладка и системная тема)
