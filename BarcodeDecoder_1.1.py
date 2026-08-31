@@ -20,6 +20,22 @@ MAX_TRIM_LEFT = 15
 MAX_TRIM_RIGHT = 80
 
 
+def format_g(num: float) -> str:
+    """
+    Форматирует число в компактную строку без научной нотации,
+    с удалением незначащих нулей — аналог Kotlin DecimalFormat("0.######").
+    Обеспечивает консистентность вывода между Python и Android версиями.
+    """
+    if num == 0:
+        return '0'
+    # До 6 знаков после запятой без научной нотации
+    result = f"{num:.6f}"
+    # Удаляем незначащие нули и лишнюю точку
+    if '.' in result:
+        result = result.rstrip('0').rstrip('.')
+    return result
+
+
 # =============================================================================
 # Парсинг российских обозначений резисторов (Р1-12, Р1-16)
 # =============================================================================
@@ -47,17 +63,17 @@ def parse_russian_resistor_value(raw: str) -> str:
         return raw
 
     if unit in ('к', 'k'):
-        return f"{num:.3g}K"
+        return f"{format_g(num)}K"
     elif unit in ('м', 'm'):
-        return f"{num:.3g}M"
+        return f"{format_g(num)}M"
     else:
         # Автоматическое масштабирование Ом в К / М при больших числах
         if num >= 1000000:
-            return f"{num / 1000000:.3g}M"
+            return f"{format_g(num / 1000000)}M"
         elif num >= 1000:
-            return f"{num / 1000:.3g}K"
+            return f"{format_g(num / 1000)}K"
         else:
-            return f"{num:.3g}R"
+            return f"{format_g(num)}R"
 
 
 # =============================================================================
@@ -250,11 +266,11 @@ class VendorParser:
             except (ValueError, TypeError):
                 val = 0.0
             if letter == 'R':
-                return f"{val:.3g}R"
+                return f"{format_g(val)}R"
             elif letter == 'K':
-                return f"{val:.3g}K"
+                return f"{format_g(val)}K"
             elif letter == 'M':
-                return f"{val:.3g}M"
+                return f"{format_g(val)}M"
 
         # Суффиксы единиц (R, K, M, L) на конце
         if raw and raw[-1] in suffix_map:
@@ -271,15 +287,15 @@ class VendorParser:
                 if unit == 'mΩ':
                     val = val / 1000.0
                 if val >= 1000000:
-                    return f"{val / 1000000:.3g}M"
+                    return f"{format_g(val / 1000000)}M"
                 elif val >= 1000:
-                    return f"{val / 1000:.3g}K"
+                    return f"{format_g(val / 1000)}K"
                 else:
-                    return f"{val:.3g}R"
+                    return f"{format_g(val)}R"
             elif unit == 'KΩ':
-                return f"{val:.3g}K"
+                return f"{format_g(val)}K"
             elif unit == 'MΩ':
-                return f"{val:.3g}M"
+                return f"{format_g(val)}M"
             else:
                 return f"{num_part}{unit}"
 
@@ -291,7 +307,7 @@ class VendorParser:
                     val = float(raw)
                 except (ValueError, TypeError):
                     val = 0.0
-                return f"{val:.3g}R"
+                return f"{format_g(val)}R"
             elif raw.isdigit():
                 try:
                     mantissa = int(raw[:2])
@@ -300,11 +316,11 @@ class VendorParser:
                 except (ValueError, TypeError):
                     return raw
                 if val >= 1000000:
-                    return f"{val / 1000000:.3g}M"
+                    return f"{format_g(val / 1000000)}M"
                 elif val >= 1000:
-                    return f"{val / 1000:.3g}K"
+                    return f"{format_g(val / 1000)}K"
                 else:
-                    return f"{val:.3g}R"
+                    return f"{format_g(val)}R"
                     
         # 4-значная цифровая кодировка (мантисса 3 цифры + множитель 10^N)
         elif len(raw) == 4:
@@ -314,7 +330,7 @@ class VendorParser:
                     val = float(raw)
                 except (ValueError, TypeError):
                     val = 0.0
-                return f"{val:.3g}R"
+                return f"{format_g(val)}R"
             elif raw.isdigit():
                 try:
                     mantissa = int(raw[:3])
@@ -323,11 +339,11 @@ class VendorParser:
                 except (ValueError, TypeError):
                     return raw
                 if val >= 1000000:
-                    return f"{val / 1000000:.3g}M"
+                    return f"{format_g(val / 1000000)}M"
                 elif val >= 1000:
-                    return f"{val / 1000:.3g}K"
+                    return f"{format_g(val / 1000)}K"
                 else:
-                    return f"{val:.3g}R"
+                    return f"{format_g(val)}R"
         return raw
 
     # ---------- Парсинг значений конденсаторов ----------
@@ -345,15 +361,15 @@ class VendorParser:
             except (ValueError, TypeError):
                 val = 0.0
             if val < 1:
-                return f"{val:.2g}pF"
+                return f"{format_g(val)}pF"
             elif val < 1000:
-                return f"{int(val)}pF" if val.is_integer() else f"{val:.2g}pF"
+                return f"{int(val)}pF" if val.is_integer() else f"{format_g(val)}pF"
             elif val < 1000000:
                 val_nf = val / 1000.0
-                return f"{int(val_nf)}nF" if val_nf.is_integer() else f"{val_nf:.2g}nF"
+                return f"{int(val_nf)}nF" if val_nf.is_integer() else f"{format_g(val_nf)}nF"
             else:
                 val_uf = val / 1000000.0
-                return f"{int(val_uf)}uF" if val_uf.is_integer() else f"{val_uf:.2g}uF"
+                return f"{int(val_uf)}uF" if val_uf.is_integer() else f"{format_g(val_uf)}uF"
         else:
             if len(raw) == 3 and raw.isdigit():
                 try:
@@ -363,13 +379,13 @@ class VendorParser:
                 except (ValueError, TypeError):
                     return raw
                 if val < 1000:
-                    return f"{int(val)}pF" if val.is_integer() else f"{val:.2g}pF"
+                    return f"{int(val)}pF" if val.is_integer() else f"{format_g(val)}pF"
                 elif val < 1000000:
                     val_nf = val / 1000.0
-                    return f"{int(val_nf)}nF" if val_nf.is_integer() else f"{val_nf:.2g}nF"
+                    return f"{int(val_nf)}nF" if val_nf.is_integer() else f"{format_g(val_nf)}nF"
                 else:
                     val_uf = val / 1000000.0
-                    return f"{int(val_uf)}uF" if val_uf.is_integer() else f"{val_uf:.2g}uF"
+                    return f"{int(val_uf)}uF" if val_uf.is_integer() else f"{format_g(val_uf)}uF"
             else:
                 return raw
 
@@ -403,7 +419,7 @@ def create_capacitor_rules():
                             tolerance_map=cctc_tolerance, is_resistor=False))
 
     # 2. KEMET
-    kemet_pattern = r'^C(?P<size>\d{4})(?P<type>[A-Z])(?P<code>\d{3})(?P<tolerance>[BCDFGJKMOPZ])(?P<voltage>\d)(?P<dielectric>[GRPUV])(?P<suffix>[A-Z]{0,2})$'
+    kemet_pattern = r'^C(?P<size>\d{4})(?P<type>[A-Z])(?P<code>\d{3})(?P<tolerance>[BCDFGJKMOPZ])(?P<voltage>\d)(?P<dielectric>[GRPUV])(?P<suffix>[A-Z]{0,4})$'
     kemet_size_map = {'0402': '0402', '0603': '0603', '0805': '0805', '1206': '1206', '1210': '1210',
                       '1812': '1812', '1825': '1825', '2220': '2220', '2225': '2225'}
     kemet_dielectric = {'G': 'C0G', 'R': 'X7R', 'P': 'X5R', 'U': 'Z5U', 'V': 'Y5V'}
@@ -662,6 +678,7 @@ def create_resistor_rules():
     rc_tolerance = {'B': '0.1%', 'D': '0.5%', 'F': '1%', 'J': '5%'}
     
     def rc_value_parser(raw: str) -> str:
+        """Парсер номиналов для серий RC Yageo и RI HOTTECH — делегирует в общий парсер."""
         raw = raw.upper()
         if 'R' in raw:
             val_str = raw.replace('R', '.')
@@ -670,11 +687,13 @@ def create_resistor_rules():
             except (ValueError, TypeError):
                 return raw
             if val >= 1000000:
-                return f"{val / 1000000:.3g}M"
+                return f"{format_g(val / 1000000)}M"
             elif val >= 1000:
-                return f"{val / 1000:.3g}K"
+                return f"{format_g(val / 1000)}K"
             else:
-                return f"{val:.3g}R"
+                return f"{format_g(val)}R"
+        # Инициализация val для предотвращения UnboundLocalError (BUG-3)
+        val = 0
         if len(raw) == 3 and raw.isdigit():
             try:
                 mantissa = int(raw[:2])
@@ -691,13 +710,13 @@ def create_resistor_rules():
                 return raw
         else:
             return raw
-            
+
         if val >= 1000000:
-            return f"{val / 1000000:.3g}M"
+            return f"{format_g(val / 1000000)}M"
         elif val >= 1000:
-            return f"{val / 1000:.3g}K"
+            return f"{format_g(val / 1000)}K"
         else:
-            return f"{val:.3g}R"
+            return f"{format_g(val)}R"
             
     rules.append(VendorRule('RC_Yageo', 'resistor', rc_pattern, rc_size_map,
                             tolerance_map=rc_tolerance, value_parser=rc_value_parser,
@@ -736,7 +755,7 @@ def create_resistor_rules():
             except (ValueError, TypeError):
                 return '?'
             val_ohm = val_mohm / 1000.0
-            return f"{val_ohm:.3g}R"
+            return f"{format_g(val_ohm)}R"
         else:
             return raw
             

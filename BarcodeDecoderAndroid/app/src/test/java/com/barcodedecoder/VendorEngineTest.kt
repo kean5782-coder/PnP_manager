@@ -61,6 +61,14 @@ class VendorEngineTest {
         val auto = parser.parse("GCM188R71H104KA57D")
         assertNotNull("Should parse Murata automotive capacitor", auto)
         assertEquals("C_0603_X7R_100nF_50V", auto!!.unifiedName)
+
+        val gqm = parser.parse("GQM1885C1H101JB01D")
+        assertNotNull("Should parse Murata GQM series Hi-Q capacitor", gqm)
+        assertEquals("C_0603_C0G_100pF_50V", gqm!!.unifiedName)
+
+        val gcj = parser.parse("GCJ21BR71H104KA01L")
+        assertNotNull("Should parse Murata GCJ series automotive capacitor", gcj)
+        assertEquals("C_0805_X7R_100nF_50V", gcj!!.unifiedName)
     }
 
     @Test
@@ -267,5 +275,70 @@ class VendorEngineTest {
         val dataMatrix1P = parser.parse("1PCRCW060310K0FKEA;Q5000;1T20230815")
         assertNotNull("Should parse Vishay 1P DataMatrix reel label", dataMatrix1P)
         assertEquals("R_0603_10K_1%", dataMatrix1P!!.unifiedName)
+    }
+
+    // =========================================================================
+    // ТЕСТЫ KEMET С ПОЛНЫМ СУФФИКСОМ (BUG-5 REGRESSION)
+    // =========================================================================
+
+    @Test
+    fun testKemetFullSuffix() {
+        // ACTU — 4 символа суффикса, ранее не проходил из-за {0,2}
+        val actu = parser.parse("C0805C106M8PACTU")
+        assertNotNull("Should parse KEMET with full ACTU suffix", actu)
+        assertEquals("C_0805_X5R_10uF_10V", actu!!.unifiedName)
+
+        val auto = parser.parse("C0603C104K5RAUTO")
+        assertNotNull("Should parse KEMET with AUTO suffix", auto)
+        assertEquals("C_0603_X7R_100nF_50V", auto!!.unifiedName)
+
+        // 2 символа — базовый случай, должен продолжать работать
+        val tu = parser.parse("C0805C225K4PTU")
+        assertNotNull("Should parse KEMET with 2-char suffix TU", tu)
+        assertEquals("C_0805_X5R_2.2uF_16V", tu!!.unifiedName)
+    }
+
+    // =========================================================================
+    // ТЕСТЫ 0Ω ДЖАМПЕРОВ ВСЕХ ПРОИЗВОДИТЕЛЕЙ
+    // =========================================================================
+
+    @Test
+    fun testZeroOhmJumpers() {
+        // Vishay 0Ω
+        val vishay = parser.parse("CRCW12060000Z0EA")
+        assertNotNull("Should parse Vishay 0Ω jumper", vishay)
+        assertEquals("R_1206_0R", vishay!!.unifiedName)
+
+        // Panasonic 0Ω
+        val panasonic = parser.parse("ERJ-3GEY0R00V")
+        assertNotNull("Should parse Panasonic 0Ω jumper", panasonic)
+        assertEquals("R_0603_0R", panasonic!!.unifiedName)
+
+        // Yageo RC 0Ω
+        val yageo = parser.parse("RC0402JR-070RL")
+        assertNotNull("Should parse Yageo RC 0Ω jumper", yageo)
+        assertEquals("R_0402_0R", yageo!!.unifiedName)
+    }
+
+    // =========================================================================
+    // ТЕСТЫ МЕГАОМНЫХ НОМИНАЛОВ (1M, 10M)
+    // =========================================================================
+
+    @Test
+    fun testMegaOhmValues() {
+        // Vishay 1MΩ
+        val vishay1M = parser.parse("CRCW06031M00FKEA")
+        assertNotNull("Should parse Vishay 1MΩ resistor", vishay1M)
+        assertEquals("R_0603_1M_1%", vishay1M!!.unifiedName)
+
+        // Samsung 1MΩ (4-значный код: 1004 = 100*10^4 = 1MΩ)
+        val samsung1M = parser.parse("RC1608F1004CS")
+        assertNotNull("Should parse Samsung 1MΩ resistor", samsung1M)
+        assertEquals("R_0603_1M_1%", samsung1M!!.unifiedName)
+
+        // Samsung 10MΩ (4-значный код: 1005 = 100*10^5 = 10MΩ)
+        val samsung10M = parser.parse("RC1608F1005CS")
+        assertNotNull("Should parse Samsung 10MΩ resistor", samsung10M)
+        assertEquals("R_0603_10M_1%", samsung10M!!.unifiedName)
     }
 }
