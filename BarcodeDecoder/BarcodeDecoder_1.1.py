@@ -10,6 +10,8 @@ BarcodeDecoder v1.1 — Десктопное приложение для дек�
   Конденсаторы: C_<Размер>_<Диэлектрик>_<Емкость>_<Напряжение> (например, C_0603_X7R_100nF_50V)
 """
 
+import os
+import sys
 import tkinter as tk
 from tkinter import ttk, messagebox
 import re
@@ -1018,6 +1020,9 @@ class BarcodeDecoderApp:
         self.root = root
         self.root.title("BarcodeDecoder — Декодер SMD компонентов")
 
+        # Установка иконки приложения (из файла или встроенного ресурса)
+        self._setup_app_icon()
+
         # Расчет оптимального размера и центрирование окна на экране
         self._setup_window_geometry()
 
@@ -1050,6 +1055,26 @@ class BarcodeDecoderApp:
 
         # Фоновый мониторинг системного состояния (раскладка + системная тема)
         self.check_system_state_periodically()
+
+    def _setup_app_icon(self):
+        """Устанавливает иконку приложения в заголовок окна и на панель задач."""
+        base_dir = os.path.dirname(os.path.abspath(__file__))
+        candidates = [
+            os.path.join(base_dir, "icon.ico"),
+            os.path.join(getattr(sys, "_MEIPASS", base_dir), "icon.ico"),
+            os.path.join(base_dir, "BarcodeDecoderAndroid", "app", "src", "main", "res", "mipmap-xxxhdpi", "ic_launcher.png")
+        ]
+        for path in candidates:
+            if os.path.exists(path):
+                try:
+                    if path.endswith(".ico"):
+                        self.root.iconbitmap(path)
+                    else:
+                        img = tk.PhotoImage(file=path)
+                        self.root.iconphoto(True, img)
+                    break
+                except Exception:
+                    pass
 
     def _setup_window_geometry(self):
         """Вычисляет пропорциональный размер окна в зависимости от разрешения экрана."""
