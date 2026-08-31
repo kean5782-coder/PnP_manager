@@ -42,3 +42,4 @@ desktop.ini
 
 # Temporary / Test artifacts
 test_output.xlsx
+gemini-code-*.py
