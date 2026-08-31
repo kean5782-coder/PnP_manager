@@ -4,6 +4,14 @@
 
 ---
 
+## 📥 Скачать приложение
+
+- 🚀 **[Скачать релизный APK (GitHub Releases)](https://github.com/kean5782-coder/BarcodeDecoder/releases/latest)** — прямая ссылка на установщик `.apk`.
+- 🛍️ **[Страница приложения в RuStore](https://www.rustore.ru/catalog/app/com.barcodedecoder)** — официальная страница в каталоге RuStore.
+- 📦 **[История всех версий и релизов](https://github.com/kean5782-coder/BarcodeDecoder/releases)**
+
+---
+
 ## 🎯 Назначение
 
 При сканировании заводских штрихкодов или Data Matrix кодов с этикеток катушек SMD, строки часто содержат технологические префиксы и суффиксы (например, `1P`, `Q`, `1T`, коды упаковок, суффиксы партий). 

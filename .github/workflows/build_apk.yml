@@ -1,0 +1,45 @@
+name: Build Android APK
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+  workflow_dispatch: # Позволяет запускать сборку вручную кнопкой "Run workflow"
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout Code
+      uses: actions/checkout@v4
+
+    - name: Set up JDK 17
+      uses: actions/setup-java@v4
+      with:
+        java-version: '17'
+        distribution: 'temurin'
+        cache: gradle
+
+    - name: Grant Execute Permission for Gradlew
+      working-directory: BarcodeDecoder/BarcodeDecoderAndroid
+      run: chmod +x gradlew
+
+    - name: Build Release & Debug APK
+      working-directory: BarcodeDecoder/BarcodeDecoderAndroid
+      run: ./gradlew assembleRelease assembleDebug --stacktrace
+
+    - name: Upload Release APK Artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: BarcodeDecoder-Release-APK
+        path: BarcodeDecoder/BarcodeDecoderAndroid/app/build/outputs/apk/release/*.apk
+        retention-days: 90
+
+    - name: Upload Debug APK Artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: BarcodeDecoder-Debug-APK
+        path: BarcodeDecoder/BarcodeDecoderAndroid/app/build/outputs/apk/debug/*.apk
+        retention-days: 30
