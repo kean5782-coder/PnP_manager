@@ -1,0 +1,6 @@
+cd F:\PythonProjects\BarcodeDecoder\BarcodeDecoderAndroid
+.\.venv\Scripts\python scripts/rustore_publisher.py publish --draft-only --whats-new "Версия 1.21:
+• Добавлена поддержка резисторов Vishay, Panasonic, Bourns, KOA Speer, Royal Ohm, ROHM MCR.
+• Добавлена поддержка конденсаторов AVX и TDK CGA.
+• Улучшено распознавание номиналов с буквенной нотацией и джамперов 0Ω.
+• Исправлен парсинг конденсаторов Taiyo Yuden, KEMET, Murata GQM/GCJ."
