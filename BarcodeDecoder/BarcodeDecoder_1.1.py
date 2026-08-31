@@ -1157,8 +1157,10 @@ class BarcodeDecoderApp:
         self.canvas.bind("<Configure>", self._on_canvas_configure)
         self.content_frame.bind("<Configure>", self._on_content_configure)
 
-        # Привязка колеса мыши для плавной прокрутки
+        # Привязка колеса мыши для плавной прокрутки по всему телу приложения
         self.root.bind_all("<MouseWheel>", self._on_mousewheel)
+        self.root.bind_all("<Button-4>", lambda e: self._on_mousewheel_btn(e, -2))
+        self.root.bind_all("<Button-5>", lambda e: self._on_mousewheel_btn(e, 2))
 
         # ---------------------------------------------------------------------
         # 2. КАРТОЧКА ВВОДА (Input Card)
@@ -1375,9 +1377,51 @@ class BarcodeDecoderApp:
         self.canvas.configure(scrollregion=self.canvas.bbox("all"))
 
     def _on_mousewheel(self, event):
-        """Плавная прокрутка содержимого колесиком мыши."""
-        if self.canvas.winfo_height() < self.content_frame.winfo_height():
-            self.canvas.yview_scroll(int(-1 * (event.delta / 120)), "units")
+        """
+        Универсальная плавная прокрутка колесиком мыши по всему телу приложения.
+        Если курсор находится над таблицей истории с большим списком записей — прокручивает таблицу,
+        во всех остальных случаях (карточки, кнопки, шапка, поля, фон) — прокручивает основную область.
+        """
+        try:
+            widget = event.widget
+            # Проверяем, находится ли курсор над таблицей истории
+            is_over_tree = False
+            if hasattr(self, "history_tree"):
+                if widget is self.history_tree or str(widget).startswith(str(self.history_tree)):
+                    is_over_tree = True
+
+            if is_over_tree and len(self.history_tree.get_children()) > 5:
+                self.history_tree.yview_scroll(int(-1 * (event.delta / 120)), "units")
+                return "break"
+
+            # Прокрутка основного окна (Canvas)
+            if hasattr(self, "canvas") and self.canvas.winfo_exists():
+                delta = event.delta
+                if delta:
+                    scroll_units = int(-1 * (delta / 120)) * 2
+                    self.canvas.yview_scroll(scroll_units, "units")
+                    return "break"
+        except Exception:
+            pass
+
+    def _on_mousewheel_btn(self, event, units: int):
+        """Обработка кнопок прокрутки колеса мыши для Linux/X11."""
+        try:
+            widget = event.widget
+            is_over_tree = False
+            if hasattr(self, "history_tree"):
+                if widget is self.history_tree or str(widget).startswith(str(self.history_tree)):
+                    is_over_tree = True
+
+            if is_over_tree and len(self.history_tree.get_children()) > 5:
+                self.history_tree.yview_scroll(units, "units")
+                return "break"
+
+            if hasattr(self, "canvas") and self.canvas.winfo_exists():
+                self.canvas.yview_scroll(units, "units")
+                return "break"
+        except Exception:
+            pass
 
     # =========================================================================
     # Управление темами оформления (Theme Engine)
