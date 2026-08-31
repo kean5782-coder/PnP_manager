@@ -124,7 +124,7 @@ class VendorParser:
 
     def convert_to_unified(self, code, rule, groups):
         if rule.is_resistor:
-            size_code = groups.get('size')
+            size_code = groups.get('size') or groups.get('cga_size')
             size = rule.size_map.get(size_code, size_code)
             raw_value = groups.get('value') or groups.get('code')
             if raw_value:
@@ -133,15 +133,17 @@ class VendorParser:
                 else:
                     value_str = self._parse_resistor_value(raw_value, rule.suffix_map)
             else:
-                value_str = '?'
-            tolerance_code = groups.get('tolerance')
+                value_str = '0R' if groups.get('tolerance') in ('Z', '0') else '?'
+            tolerance_code = groups.get('tolerance') or ''
             tolerance = rule.tolerance_map.get(tolerance_code, tolerance_code)
-            if value_str == '0R':
+            if value_str == '0R' or tolerance == '0%':
                 return f"R_{size}_0R"
-            else:
+            elif tolerance:
                 return f"R_{size}_{value_str}_{tolerance}"
+            else:
+                return f"R_{size}_{value_str}"
         else:
-            size_code = groups.get('size')
+            size_code = groups.get('size') or groups.get('cga_size')
             size = rule.size_map.get(size_code, size_code)
             dielectric_code = groups.get('dielectric')
             dielectric = rule.dielectric_map.get(dielectric_code, dielectric_code)
@@ -166,16 +168,18 @@ class VendorParser:
         raw = re.sub(r'Ω', '', raw)
         raw = re.sub(r'(?i)ом', '', raw)
 
-        if raw == '000' or raw == '0' or raw == '0R':
+        if raw in ('0000', '000', '00', '0', '0R', '0R00', '0R0'):
             return '0R'
 
-        match_inside = re.search(r'([KMR])(\d+)$', raw)
-        if match_inside and match_inside.start() < len(raw) - 1:
-            letter = match_inside.group(1)
-            num_part = raw[:match_inside.start()]
-            decimal_part = match_inside.group(2)
+        # Обозначения с буквой внутри: 10K0, 4K70, 100R, 1R00, 1M00, 2M2
+        match_inside = re.match(r'^(\d+)([RKM])(\d*)$', raw)
+        if match_inside:
+            num_part = match_inside.group(1)
+            letter = match_inside.group(2)
+            decimal_part = match_inside.group(3)
+            val_str = f"{num_part}.{decimal_part}" if decimal_part else num_part
             try:
-                val = float(f"{num_part}.{decimal_part}")
+                val = float(val_str)
             except:
                 val = 0
             if letter == 'R':
@@ -184,10 +188,8 @@ class VendorParser:
                 return f"{val:.3g}K"
             elif letter == 'M':
                 return f"{val:.3g}M"
-            else:
-                return f"{val:.3g}R"
 
-        if raw[-1] in suffix_map:
+        if raw and raw[-1] in suffix_map:
             suffix = raw[-1]
             num_part = raw[:-1]
             unit = suffix_map[suffix]
@@ -214,17 +216,14 @@ class VendorParser:
                 return f"{num_part}{unit}"
 
         if len(raw) == 3:
-            if raw[0] == 'R' or 'R' in raw:
+            if 'R' in raw:
                 raw = raw.replace('R', '.')
                 try:
                     val = float(raw)
                 except:
                     val = 0
-                if val < 1:
-                    return f"{val:.3g}R"
-                else:
-                    return f"{val:.3g}R"
-            else:
+                return f"{val:.3g}R"
+            elif raw.isdigit():
                 try:
                     mantissa = int(raw[:2])
                     multiplier = int(raw[2])
@@ -244,11 +243,8 @@ class VendorParser:
                     val = float(raw)
                 except:
                     val = 0
-                if val < 1:
-                    return f"{val:.3g}R"
-                else:
-                    return f"{val:.3g}R"
-            else:
+                return f"{val:.3g}R"
+            elif raw.isdigit():
                 try:
                     mantissa = int(raw[:3])
                     multiplier = int(raw[3])
@@ -261,8 +257,7 @@ class VendorParser:
                     return f"{val/1000:.3g}K"
                 else:
                     return f"{val:.3g}R"
-        else:
-            return raw
+        return raw
 
     # ---------- Парсинг значений конденсаторов ----------
     def _parse_capacitance_value(self, raw):
@@ -361,8 +356,8 @@ def create_capacitor_rules():
     rules.append(VendorRule('KEMET', 'capacitor', kemet_pattern, kemet_size_map,
                             kemet_dielectric, kemet_voltage, kemet_tolerance, None, None, False))
 
-    # TAIYO YUDEN
-    taiyo_pattern = r'^(?P<voltage>[PALJETGUHQSX])(?P<series>[MVW])(?P<termination>[KS])(?P<size_code>\d{3})(?P<size_tolerance>[A-E]?)(?P<temp_code>BJ|B7|C6|C7|LD|CG|UJ|UK)(?P<cap_code>\d+R\d+|\d{3})(?P<cap_tolerance>[ABCDFGJKMZ])(?P<thickness>[KHCEDPVWADGLNYM])(?P<special>[A-Z]?)-?(?P<packaging>[FTPRW]?)(?P<internal>[A-Z]?)$'
+    # TAIYO YUDEN (исправлены имена групп)
+    taiyo_pattern = r'^(?P<voltage>[PALJETGUHQSX])(?P<series>[MVW])(?P<termination>[KS])(?P<size>\d{3})(?P<size_tolerance>[A-E]?)(?P<dielectric>BJ|B7|C6|C7|LD|CG|UJ|UK)(?P<code>\d+R\d+|\d{3})(?P<tolerance>[ABCDFGJKMZ])(?P<thickness>[KHCEDPVWADGLNYM])(?P<special>[A-Z]?)-?(?P<packaging>[FTPRW]?)(?P<internal>[A-Z]?)$'
     taiyo_size_map = {
         '021':'008004', '042':'01005', '063':'0201', '105':'0402',
         '107':'0603', '212':'0805', '316':'1206', '325':'1210', '432':'1812'
@@ -443,17 +438,39 @@ def create_capacitor_rules():
     rules.append(VendorRule('Samsung_Cap', 'capacitor', samsung_cap_pattern, samsung_size_map,
                             samsung_dielectric, samsung_voltage, samsung_tolerance, None, None, False))
 
-    # TDK (расширен: добавлен C0G)
-    tdk_cap_pattern = r'^C(?P<size>\d{4})(?P<dielectric>COG|C0G|X5R|X6S|X7R|X7S|X7T)(?P<voltage>0G|0J|1A|1C|1E|1V|1H|1N)(?P<code>\d{3})(?P<tolerance>[BCDFGJKM])(?P<rest>.*)$'
-    tdk_size_map = {'0402': '01005', '0603': '0201', '1005': '0402', '1608': '0603', '2012': '0805', '3216': '1206',
-                    '3225': '1210', '4532': '1812', '5750': '2220'}
+    # TDK (включая автомобильную серию CGA)
+    tdk_cap_pattern = r'^(?:C(?P<size>\d{4})|CGA(?P<cga_size>[2-8])[A-Z0-9]{1,2})(?P<dielectric>COG|C0G|X5R|X6S|X7R|X7S|X7T)(?P<voltage>0G|0J|1A|1C|1E|1V|1H|1N|2A|2E)(?P<code>\d{3})(?P<tolerance>[BCDFGJKM])(?P<rest>.*)$'
+    tdk_size_map = {
+        '0402': '01005', '0603': '0201', '1005': '0402', '1608': '0603', '2012': '0805', '3216': '1206',
+        '3225': '1210', '4532': '1812', '5750': '2220',
+        '2': '0402', '3': '0603', '4': '0805', '5': '1206', '6': '1210', '8': '1812'
+    }
     tdk_dielectric = {'COG': 'C0G', 'C0G': 'C0G', 'X5R': 'X5R', 'X6S': 'X6S', 'X7R': 'X7R', 'X7S': 'X7S', 'X7T': 'X7T'}
-    tdk_voltage = {'0G': '4V', '0J': '6.3V', '1A': '10V', '1C': '16V', '1E': '25V', '1V': '35V', '1H': '50V', '1N': '75V'}
+    tdk_voltage = {'0G': '4V', '0J': '6.3V', '1A': '10V', '1C': '16V', '1E': '25V', '1V': '35V', '1H': '50V', '1N': '75V', '2A': '100V', '2E': '250V'}
     tdk_tolerance = {
         'B': '0.10pF', 'C': '0.25pF', 'D': '0.50pF', 'F': '1%', 'G': '2%', 'J': '5%', 'K': '10%', 'M': '20%'
     }
     rules.append(VendorRule('TDK_Cap', 'capacitor', tdk_cap_pattern, tdk_size_map,
                             tdk_dielectric, tdk_voltage, tdk_tolerance, None, None, False))
+
+    # AVX / Kyocera AVX MLCC
+    avx_cap_pattern = r'^(?P<size>0201|0402|0603|0805|1206|1210|1812|2220)(?P<voltage>[ZY3512V7])(?P<dielectric>[ACDFG])(?P<code>\d{3}|[0-9]R[0-9])(?P<tolerance>[BCDFGJKMZ])(?P<pack>[A-Z0-9]{3,4})$'
+    avx_size_map = {
+        '0201': '0201', '0402': '0402', '0603': '0603', '0805': '0805',
+        '1206': '1206', '1210': '1210', '1812': '1812', '2220': '2220'
+    }
+    avx_dielectric = {'A': 'C0G', 'C': 'X7R', 'D': 'X5R', 'F': 'X8R', 'G': 'Y5V'}
+    avx_voltage = {
+        'Z': '10V', 'Y': '16V', '3': '25V', '5': '50V',
+        '1': '100V', '2': '200V', 'V': '250V', '7': '500V'
+    }
+    avx_tolerance = {
+        'B': '0.10pF', 'C': '0.25pF', 'D': '0.50pF', 'F': '1%', 'G': '2%',
+        'J': '5%', 'K': '10%', 'M': '20%', 'Z': '-20/+80%'
+    }
+    rules.append(VendorRule('AVX', 'capacitor', avx_cap_pattern, avx_size_map,
+                            dielectric_map=avx_dielectric, voltage_map=avx_voltage,
+                            tolerance_map=avx_tolerance, is_resistor=False))
 
     # Walsin
     walsin_cap_pattern = r'^(?P<size>0201|0402|0603|0805|1206|1210|1812)(?P<dielectric>[NBXSA])(?P<code>\d{3})(?P<tolerance>[ABCDFGJKMZ])(?P<voltage>\d{3})(?P<rest>.*)$'
@@ -467,7 +484,7 @@ def create_capacitor_rules():
     rules.append(VendorRule('Walsin_Cap', 'capacitor', walsin_cap_pattern, walsin_size_map,
                             walsin_dielectric, walsin_voltage, walsin_tolerance, None, None, False))
 
-    # Yageo (конденсаторы) – расширен: добавлен префикс CQ, C0G, packing до 2 символов
+    # Yageo (конденсаторы)
     yageo_cap_pattern = r'^(?P<prefix>CC|AC|C|CQ)(?P<size>\d{4})(?P<tolerance>[BCDFGJKM])(?P<packing>[A-Z]{0,2})(?P<dielectric>X5R|X7R|X6S|X7S|X8R|X8G|COG|C0G|NP0|NPO|Y5V)(?P<voltage>[A-Z0-9]?)(?P<rest>[A-Z]{0,2})(?P<code>\d{3}|[0-9]R[0-9]{1,2})$'
     yageo_size_map = {
         '0201': '0201', '0402': '0402', '0603': '0603', '0805': '0805',
@@ -479,22 +496,9 @@ def create_capacitor_rules():
         'NP0': 'C0G', 'NPO': 'C0G', 'Y5V': 'Y5V'
     }
     yageo_voltage = {
-        '0': '100V',   # для AC серии
-        '4': '4V',
-        '5': '6.3V',
-        '6': '10V',
-        '7': '16V',
-        '8': '25V',
-        '9': '50V',
-        'C': '100V',
-        'D': '200V',
-        'E': '250V',
-        'F': '350V',
-        'G': '500V',
-        'H': '630V',
-        'I': '1000V',
-        'J': '2000V',
-        'K': '3000V'
+        '0': '100V', '4': '4V', '5': '6.3V', '6': '10V', '7': '16V',
+        '8': '25V', '9': '50V', 'C': '100V', 'D': '200V', 'E': '250V',
+        'F': '350V', 'G': '500V', 'H': '630V', 'I': '1000V', 'J': '2000V', 'K': '3000V'
     }
     yageo_tolerance = {
         'B': '0.10pF', 'C': '0.25pF', 'D': '0.50pF',
@@ -512,6 +516,67 @@ def create_capacitor_rules():
 # =============================================================================
 def create_resistor_rules():
     rules = []
+
+    # Vishay / Dale (CRCW series)
+    vishay_pattern = r'^CRCW(?P<size>0402|0603|0805|1206|1210|1218|2010|2512)(?P<code>\d{3,4}|\d+[RKM]\d*|0000)(?P<tolerance>[BDFJZN])(?P<tcr>[A-Z0-9]{1,2})(?P<pack>[A-Z]{2})$'
+    vishay_size_map = {
+        '0402': '0402', '0603': '0603', '0805': '0805', '1206': '1206',
+        '1210': '1210', '1218': '1218', '2010': '2010', '2512': '2512'
+    }
+    vishay_tolerance = {'B': '0.1%', 'D': '0.5%', 'F': '1%', 'J': '5%', 'Z': '0%', 'N': '0%'}
+    rules.append(VendorRule('Vishay', 'resistor', vishay_pattern, vishay_size_map,
+                            tolerance_map=vishay_tolerance, is_resistor=True))
+
+    # Panasonic (ERJ series)
+    panasonic_pattern = r'^ERJ-?(?P<size>1G|2G|2R|3G|3E|3R|6G|6E|6R|8G|8E|8R|14|12|1T)(?P<series>[A-Z]{0,2}?)(?:(?P<tolerance>[BDFGJKZ])|(?=[0-9R]))(?P<code>\d{3,4}|\d*R\d+|0R00)(?P<pack>[A-Z])$'
+    panasonic_size_map = {
+        '1G': '0201', '2G': '0402', '2R': '0402', '3G': '0603', '3E': '0603', '3R': '0603',
+        '6G': '0805', '6E': '0805', '6R': '0805', '8G': '1206', '8E': '1206', '8R': '1206',
+        '14': '1210', '12': '1812', '1T': '2512'
+    }
+    panasonic_tolerance = {'B': '0.1%', 'D': '0.5%', 'F': '1%', 'G': '2%', 'J': '5%', 'K': '10%', 'Z': '0%', '0': '0%', '': '0%'}
+    rules.append(VendorRule('Panasonic', 'resistor', panasonic_pattern, panasonic_size_map,
+                            tolerance_map=panasonic_tolerance, is_resistor=True))
+
+    # Bourns (CR, CRA, CRB, CHP, CMP series)
+    bourns_pattern = r'^(?P<series>CR|CRA|CRB|CHP|CMP)(?P<size>01005|0201|0402|0603|0805|1206|1210|2010|2512)-?(?P<tolerance>[BDFGJ])(?P<tcr>[A-Z/]{1,3})-?(?P<code>\d{3,4}|\d*R\d+|000)(?P<pack>[A-Z0-9]*)$'
+    bourns_size_map = {
+        '01005': '01005', '0201': '0201', '0402': '0402', '0603': '0603',
+        '0805': '0805', '1206': '1206', '1210': '1210', '2010': '2010', '2512': '2512'
+    }
+    bourns_tolerance = {'B': '0.1%', 'D': '0.5%', 'F': '1%', 'G': '2%', 'J': '5%'}
+    rules.append(VendorRule('Bourns', 'resistor', bourns_pattern, bourns_size_map,
+                            tolerance_map=bourns_tolerance, is_resistor=True))
+
+    # KOA Speer (RK73 series)
+    koa_pattern = r'^RK73(?P<type>[A-Z])(?P<size>1F|1H|1E|1J|2A|2B|2E|W2H|W3A)(?P<pack>[A-Z]{2,4})(?P<code>\d{3,4}|\d*R\d+|000|0)?(?P<tolerance>[BDFGJKZ])?$'
+    koa_size_map = {
+        '1F': '01005', '1H': '0201', '1E': '0402', '1J': '0603',
+        '2A': '0805', '2B': '1206', '2E': '1210', 'W2H': '2010', 'W3A': '2512'
+    }
+    koa_tolerance = {'B': '0.1%', 'D': '0.5%', 'F': '1%', 'G': '2%', 'J': '5%', 'K': '10%', 'Z': '0%', '': '0%'}
+    rules.append(VendorRule('KOA_Speer', 'resistor', koa_pattern, koa_size_map,
+                            tolerance_map=koa_tolerance, is_resistor=True))
+
+    # Royal Ohm (WA, W8, WG, W4, etc.)
+    royal_pattern = r'^(?P<size>0201|0402|0603|0805|1206|1210|2010|2512)(?P<power>[A-Z0-9]{2})(?P<tolerance>[BDFGJ])(?P<code>\d{3,4}|\d*R\d+|000)(?P<pack>[A-Z0-9]{3})$'
+    royal_size_map = {
+        '0201': '0201', '0402': '0402', '0603': '0603', '0805': '0805',
+        '1206': '1206', '1210': '1210', '2010': '2010', '2512': '2512'
+    }
+    royal_tolerance = {'B': '0.1%', 'D': '0.5%', 'F': '1%', 'G': '2%', 'J': '5%'}
+    rules.append(VendorRule('Royal_Ohm', 'resistor', royal_pattern, royal_size_map,
+                            tolerance_map=royal_tolerance, is_resistor=True))
+
+    # ROHM MCR
+    rohm_mcr_pattern = r'^MCR(?P<size>006|01|03|10|18|25|50|100)(?P<pack>[A-Z]{3,4})(?P<tolerance>[BDFGJ])(?P<tcr>[A-Z0-9]?)(?P<code>\d{3,4}|\d*R\d+|000)$'
+    rohm_mcr_size_map = {
+        '006': '0201', '01': '0402', '03': '0603', '10': '0805',
+        '18': '1206', '25': '1210', '50': '2010', '100': '2512'
+    }
+    rohm_mcr_tolerance = {'B': '0.1%', 'D': '0.5%', 'F': '1%', 'G': '2%', 'J': '5%'}
+    rules.append(VendorRule('ROHM_MCR', 'resistor', rohm_mcr_pattern, rohm_mcr_size_map,
+                            tolerance_map=rohm_mcr_tolerance, is_resistor=True))
 
     # Viking (CR series)
     viking_pattern = r'^CR-(?P<size>E5|01|02|03|05|06|10|0A|12|25|62)(?P<tolerance>[BDFJ])(?P<pack>[A-Z0-9]*?)-(?P<value>.+)$'
@@ -643,10 +708,7 @@ def create_resistor_rules():
             except:
                 return '?'
             val_ohm = val_mohm / 1000.0
-            if val_ohm >= 1:
-                return f"{val_ohm:.3g}R"
-            else:
-                return f"{val_ohm:.3g}R"
+            return f"{val_ohm:.3g}R"
         else:
             return raw
     rules.append(VendorRule('ROHM_PMR', 'resistor', rohm_pmr_pattern, rohm_pmr_size_map,

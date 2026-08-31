@@ -61,10 +61,12 @@ class VendorRule(
         // Named groups extraction
         val groupNames = listOf(
             "size", "dielectric", "code", "tolerance", "voltage",
-            "type", "suffix", "series", "termination", "size_code",
-            "size_tolerance", "temp_code", "cap_code", "cap_tolerance",
+            "type", "suffix", "series", "termination", "size_code", "sizeCode",
+            "size_tolerance", "sizeTolerance", "temp_code", "tempCode",
+            "cap_code", "capCode", "cap_tolerance", "capTolerance",
             "thickness", "special", "packaging", "internal", "rest",
-            "pack", "value", "reel", "func", "term", "prefix"
+            "pack", "value", "reel", "func", "term", "prefix",
+            "cga_size", "cgaSize", "power", "tcr"
         )
         for (name in groupNames) {
             try {
@@ -153,23 +155,26 @@ class VendorParser(val rules: List<VendorRule>) {
 
     fun convertToUnified(code: String, rule: VendorRule, groups: Map<String, String>): String {
         return if (rule.isResistor) {
-            val sizeCode = groups["size"] ?: ""
+            val sizeCode = groups["size"] ?: groups["cga_size"] ?: groups["cgaSize"] ?: ""
             val size = rule.sizeMap[sizeCode] ?: sizeCode
             val rawValue = groups["value"] ?: groups["code"] ?: ""
             val valueStr = if (rawValue.isNotEmpty()) {
                 rule.valueParser?.invoke(rawValue) ?: parseResistorValue(rawValue, rule.suffixMap)
             } else {
-                "?"
+                val tol = groups["tolerance"] ?: ""
+                if (tol == "Z" || tol == "0") "0R" else "?"
             }
             val toleranceCode = groups["tolerance"] ?: ""
             val tolerance = rule.toleranceMap[toleranceCode] ?: toleranceCode
-            if (valueStr == "0R") {
+            if (valueStr == "0R" || tolerance == "0%") {
                 "R_${size}_0R"
-            } else {
+            } else if (tolerance.isNotEmpty()) {
                 "R_${size}_${valueStr}_${tolerance}"
+            } else {
+                "R_${size}_${valueStr}"
             }
         } else {
-            val sizeCode = groups["size"] ?: ""
+            val sizeCode = groups["size"] ?: groups["cga_size"] ?: groups["cgaSize"] ?: ""
             val size = rule.sizeMap[sizeCode] ?: sizeCode
             val dielectricCode = groups["dielectric"] ?: ""
             val dielectric = rule.dielectricMap[dielectricCode] ?: dielectricCode
@@ -190,14 +195,16 @@ class VendorParser(val rules: List<VendorRule>) {
         raw = raw.replace("Ω", "")
         raw = raw.replace("(?i)ом".toRegex(), "")
 
-        if (raw == "000" || raw == "0" || raw == "0R") return "0R"
+        if (raw == "0000" || raw == "000" || raw == "00" || raw == "0" || raw == "0R" || raw == "0R00" || raw == "0R0") return "0R"
 
-        val matchInside = Pattern.compile("""([KMR])(\d+)$""").matcher(raw)
-        if (matchInside.find() && matchInside.start() < raw.length - 1) {
-            val letter = matchInside.group(1)
-            val numPart = raw.substring(0, matchInside.start())
-            val decimalPart = matchInside.group(2)
-            val valNum = "$numPart.$decimalPart".toDoubleOrNull() ?: 0.0
+        // Обозначения с буквой внутри: 10K0, 4K70, 100R, 1R00, 1M00, 2M2
+        val matchInside = Pattern.compile("""^(\d+)([RKM])(\d*)$""").matcher(raw)
+        if (matchInside.matches()) {
+            val numPart = matchInside.group(1) ?: ""
+            val letter = matchInside.group(2) ?: ""
+            val decimalPart = matchInside.group(3) ?: ""
+            val valStr = if (decimalPart.isNotEmpty()) "$numPart.$decimalPart" else numPart
+            val valNum = valStr.toDoubleOrNull() ?: 0.0
             return when (letter) {
                 "R" -> "${formatG(valNum)}R"
                 "K" -> "${formatG(valNum)}K"
@@ -338,12 +345,12 @@ object RuleFactory {
             )
         )
 
-        // Taiyo Yuden
+        // Taiyo Yuden (исправлены имена групп)
         rules.add(
             VendorRule(
                 name = "TaiyoYuden",
                 compType = "capacitor",
-                patternStr = """^(?<voltage>[PALJETGUHQSX])(?<series>[MVW])(?<termination>[KS])(?<sizeCode>\d{3})(?<sizeTolerance>[A-E]?)(?<tempCode>BJ|B7|C6|C7|LD|CG|UJ|UK)(?<capCode>\d+R\d+|\d{3})(?<capTolerance>[ABCDFGJKMZ])(?<thickness>[KHCEDPVWADGLNYM])(?<special>[A-Z]?)-?(?<packaging>[FTPRW]?)(?<internal>[A-Z]?)$""",
+                patternStr = """^(?<voltage>[PALJETGUHQSX])(?<series>[MVW])(?<termination>[KS])(?<size>\d{3})(?<sizeTolerance>[A-E]?)(?<dielectric>BJ|B7|C6|C7|LD|CG|UJ|UK)(?<code>\d+R\d+|\d{3})(?<tolerance>[ABCDFGJKMZ])(?<thickness>[KHCEDPVWADGLNYM])(?<special>[A-Z]?)-?(?<packaging>[FTPRW]?)(?<internal>[A-Z]?)$""",
                 sizeMap = mapOf("021" to "008004", "042" to "01005", "063" to "0201", "105" to "0402", "107" to "0603", "212" to "0805", "316" to "1206", "325" to "1210", "432" to "1812"),
                 dielectricMap = mapOf("BJ" to "X5R", "B7" to "X7R", "C6" to "X6S", "C7" to "X7S", "LD" to "X5R", "CG" to "C0G", "UJ" to "U2J", "UK" to "U2K"),
                 voltageMap = mapOf("P" to "2.5V", "A" to "4V", "J" to "6.3V", "L" to "10V", "E" to "16V", "T" to "25V", "G" to "35V", "U" to "50V", "H" to "100V", "Q" to "250V", "S" to "630V", "X" to "2000V"),
@@ -417,16 +424,43 @@ object RuleFactory {
             )
         )
 
-        // TDK Capacitor
+        // TDK Capacitor (включая CGA)
         rules.add(
             VendorRule(
                 name = "TDK_Cap",
                 compType = "capacitor",
-                patternStr = """^C(?<size>\d{4})(?<dielectric>COG|C0G|X5R|X6S|X7R|X7S|X7T)(?<voltage>0G|0J|1A|1C|1E|1V|1H|1N)(?<code>\d{3})(?<tolerance>[BCDFGJKM])(?<rest>.*)$""",
-                sizeMap = mapOf("0402" to "01005", "0603" to "0201", "1005" to "0402", "1608" to "0603", "2012" to "0805", "3216" to "1206", "3225" to "1210", "4532" to "1812", "5750" to "2220"),
+                patternStr = """^(?:C(?<size>\d{4})|CGA(?<cgaSize>[2-8])[A-Z0-9]{1,2})(?<dielectric>COG|C0G|X5R|X6S|X7R|X7S|X7T)(?<voltage>0G|0J|1A|1C|1E|1V|1H|1N|2A|2E)(?<code>\d{3})(?<tolerance>[BCDFGJKM])(?<rest>.*)$""",
+                sizeMap = mapOf(
+                    "0402" to "01005", "0603" to "0201", "1005" to "0402", "1608" to "0603",
+                    "2012" to "0805", "3216" to "1206", "3225" to "1210", "4532" to "1812", "5750" to "2220",
+                    "2" to "0402", "3" to "0603", "4" to "0805", "5" to "1206", "6" to "1210", "8" to "1812"
+                ),
                 dielectricMap = mapOf("COG" to "C0G", "C0G" to "C0G", "X5R" to "X5R", "X6S" to "X6S", "X7R" to "X7R", "X7S" to "X7S", "X7T" to "X7T"),
-                voltageMap = mapOf("0G" to "4V", "0J" to "6.3V", "1A" to "10V", "1C" to "16V", "1E" to "25V", "1V" to "35V", "1H" to "50V", "1N" to "75V"),
+                voltageMap = mapOf("0G" to "4V", "0J" to "6.3V", "1A" to "10V", "1C" to "16V", "1E" to "25V", "1V" to "35V", "1H" to "50V", "1N" to "75V", "2A" to "100V", "2E" to "250V"),
                 toleranceMap = mapOf("B" to "0.10pF", "C" to "0.25pF", "D" to "0.50pF", "F" to "1%", "G" to "2%", "J" to "5%", "K" to "10%", "M" to "20%"),
+                isResistor = false
+            )
+        )
+
+        // AVX / Kyocera AVX MLCC
+        rules.add(
+            VendorRule(
+                name = "AVX",
+                compType = "capacitor",
+                patternStr = """^(?<size>0201|0402|0603|0805|1206|1210|1812|2220)(?<voltage>[ZY3512V7])(?<dielectric>[ACDFG])(?<code>\d{3}|[0-9]R[0-9])(?<tolerance>[BCDFGJKMZ])(?<pack>[A-Z0-9]{3,4})$""",
+                sizeMap = mapOf(
+                    "0201" to "0201", "0402" to "0402", "0603" to "0603", "0805" to "0805",
+                    "1206" to "1206", "1210" to "1210", "1812" to "1812", "2220" to "2220"
+                ),
+                dielectricMap = mapOf("A" to "C0G", "C" to "X7R", "D" to "X5R", "F" to "X8R", "G" to "Y5V"),
+                voltageMap = mapOf(
+                    "Z" to "10V", "Y" to "16V", "3" to "25V", "5" to "50V",
+                    "1" to "100V", "2" to "200V", "V" to "250V", "7" to "500V"
+                ),
+                toleranceMap = mapOf(
+                    "B" to "0.10pF", "C" to "0.25pF", "D" to "0.50pF", "F" to "1%", "G" to "2%",
+                    "J" to "5%", "K" to "10%", "M" to "20%", "Z" to "-20/+80%"
+                ),
                 isResistor = false
             )
         )
@@ -464,6 +498,97 @@ object RuleFactory {
 
     fun createResistorRules(): List<VendorRule> {
         val rules = mutableListOf<VendorRule>()
+
+        // Vishay / Dale (CRCW series)
+        rules.add(
+            VendorRule(
+                name = "Vishay",
+                compType = "resistor",
+                patternStr = """^CRCW(?<size>0402|0603|0805|1206|1210|1218|2010|2512)(?<code>\d{3,4}|\d+[RKM]\d*|0000)(?<tolerance>[BDFJZN])(?<tcr>[A-Z0-9]{1,2})(?<pack>[A-Z]{2})$""",
+                sizeMap = mapOf(
+                    "0402" to "0402", "0603" to "0603", "0805" to "0805", "1206" to "1206",
+                    "1210" to "1210", "1218" to "1218", "2010" to "2010", "2512" to "2512"
+                ),
+                toleranceMap = mapOf("B" to "0.1%", "D" to "0.5%", "F" to "1%", "J" to "5%", "Z" to "0%", "N" to "0%"),
+                isResistor = true
+            )
+        )
+
+        // Panasonic (ERJ series)
+        rules.add(
+            VendorRule(
+                name = "Panasonic",
+                compType = "resistor",
+                patternStr = """^ERJ-?(?<size>1G|2G|2R|3G|3E|3R|6G|6E|6R|8G|8E|8R|14|12|1T)(?<series>[A-Z]{0,2}?)(?:(?<tolerance>[BDFGJKZ])|(?=[0-9R]))(?<code>\d{3,4}|\d*R\d+|0R00)(?<pack>[A-Z])$""",
+                sizeMap = mapOf(
+                    "1G" to "0201", "2G" to "0402", "2R" to "0402", "3G" to "0603", "3E" to "0603", "3R" to "0603",
+                    "6G" to "0805", "6E" to "0805", "6R" to "0805", "8G" to "1206", "8E" to "1206", "8R" to "1206",
+                    "14" to "1210", "12" to "1812", "1T" to "2512"
+                ),
+                toleranceMap = mapOf("B" to "0.1%", "D" to "0.5%", "F" to "1%", "G" to "2%", "J" to "5%", "K" to "10%", "Z" to "0%", "0" to "0%", "" to "0%"),
+                isResistor = true
+            )
+        )
+
+        // Bourns (CR, CRA, CRB, CHP, CMP series)
+        rules.add(
+            VendorRule(
+                name = "Bourns",
+                compType = "resistor",
+                patternStr = """^(?<series>CR|CRA|CRB|CHP|CMP)(?<size>01005|0201|0402|0603|0805|1206|1210|2010|2512)-?(?<tolerance>[BDFGJ])(?<tcr>[A-Z/]{1,3})-?(?<code>\d{3,4}|\d*R\d+|000)(?<pack>[A-Z0-9]*)$""",
+                sizeMap = mapOf(
+                    "01005" to "01005", "0201" to "0201", "0402" to "0402", "0603" to "0603",
+                    "0805" to "0805", "1206" to "1206", "1210" to "1210", "2010" to "2010", "2512" to "2512"
+                ),
+                toleranceMap = mapOf("B" to "0.1%", "D" to "0.5%", "F" to "1%", "G" to "2%", "J" to "5%"),
+                isResistor = true
+            )
+        )
+
+        // KOA Speer (RK73 series)
+        rules.add(
+            VendorRule(
+                name = "KOA_Speer",
+                compType = "resistor",
+                patternStr = """^RK73(?<type>[A-Z])(?<size>1F|1H|1E|1J|2A|2B|2E|W2H|W3A)(?<pack>[A-Z]{2,4})(?<code>\d{3,4}|\d*R\d+|000|0)?(?<tolerance>[BDFGJKZ])?$""",
+                sizeMap = mapOf(
+                    "1F" to "01005", "1H" to "0201", "1E" to "0402", "1J" to "0603",
+                    "2A" to "0805", "2B" to "1206", "2E" to "1210", "W2H" to "2010", "W3A" to "2512"
+                ),
+                toleranceMap = mapOf("B" to "0.1%", "D" to "0.5%", "F" to "1%", "G" to "2%", "J" to "5%", "K" to "10%", "Z" to "0%", "" to "0%"),
+                isResistor = true
+            )
+        )
+
+        // Royal Ohm (WA, W8, WG, W4, etc.)
+        rules.add(
+            VendorRule(
+                name = "Royal_Ohm",
+                compType = "resistor",
+                patternStr = """^(?<size>0201|0402|0603|0805|1206|1210|2010|2512)(?<power>[A-Z0-9]{2})(?<tolerance>[BDFGJ])(?<code>\d{3,4}|\d*R\d+|000)(?<pack>[A-Z0-9]{3})$""",
+                sizeMap = mapOf(
+                    "0201" to "0201", "0402" to "0402", "0603" to "0603", "0805" to "0805",
+                    "1206" to "1206", "1210" to "1210", "2010" to "2010", "2512" to "2512"
+                ),
+                toleranceMap = mapOf("B" to "0.1%", "D" to "0.5%", "F" to "1%", "G" to "2%", "J" to "5%"),
+                isResistor = true
+            )
+        )
+
+        // ROHM MCR
+        rules.add(
+            VendorRule(
+                name = "ROHM_MCR",
+                compType = "resistor",
+                patternStr = """^MCR(?<size>006|01|03|10|18|25|50|100)(?<pack>[A-Z]{3,4})(?<tolerance>[BDFGJ])(?<tcr>[A-Z0-9]?)(?<code>\d{3,4}|\d*R\d+|000)$""",
+                sizeMap = mapOf(
+                    "006" to "0201", "01" to "0402", "03" to "0603", "10" to "0805",
+                    "18" to "1206", "25" to "1210", "50" to "2010", "100" to "2512"
+                ),
+                toleranceMap = mapOf("B" to "0.1%", "D" to "0.5%", "F" to "1%", "G" to "2%", "J" to "5%"),
+                isResistor = true
+            )
+        )
 
         // Viking
         rules.add(
