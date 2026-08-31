@@ -1215,9 +1215,17 @@ class BarcodeDecoderApp:
         self.entry.bind("<Return>", self.on_decode)
         self.entry.bind("<KeyRelease>", self.on_key_release)
         self.entry.bind("<<Paste>>", self.on_paste_event)
+        self.entry.bind("<Control-v>", self.on_paste_event)
+        self.entry.bind("<Control-V>", self.on_paste_event)
+        self.entry.bind("<Control-KeyPress-v>", self.on_paste_event)
+        self.entry.bind("<Control-KeyPress-V>", self.on_paste_event)
+        self.entry.bind("<Shift-Insert>", self.on_paste_event)
         self.root.bind("<Escape>", self.clear_all)
         self.root.bind("<Control-l>", lambda e: self.entry.focus_set())
         self.root.bind("<Control-L>", lambda e: self.entry.focus_set())
+        self.root.bind("<Control-v>", self.on_paste_event)
+        self.root.bind("<Control-V>", self.on_paste_event)
+        self.root.bind("<<Paste>>", self.on_paste_event)
 
         # ---------------------------------------------------------------------
         # 3. КАРТОЧКА РЕЗУЛЬТАТА (Result Card)
@@ -1662,19 +1670,26 @@ class BarcodeDecoderApp:
     # Обработчики ввода и событий
     # =========================================================================
     def on_paste_btn(self):
-        """Вставка из буфера обмена кнопкой."""
+        """Вставка из буфера обмена кнопкой с полной заменой текущего текста."""
+        self.on_paste_event()
+
+    def on_paste_event(self, event=None):
+        """
+        Событие вставки через горячие клавиши (Ctrl+V, Shift+Insert, <<Paste>>).
+        Полностью очищает старый текст в поле ввода, вставляет новый из буфера и запускает декодирование.
+        """
         try:
             clipboard_text = self.root.clipboard_get().strip()
             if clipboard_text:
                 self.entry.delete(0, tk.END)
                 self.entry.insert(0, clipboard_text)
+                self.entry.focus_set()
+                self.entry.icursor(tk.END)
                 self.on_decode()
-        except tk.TclError:
+                return "break"
+        except Exception:
             pass
-
-    def on_paste_event(self, event):
-        """Событие вставки через Ctrl+V."""
-        self.root.after(20, self.schedule_decode)
+        return "break"
 
     def on_key_release(self, event):
         """Автоматический запуск распознавания при наборе текста."""
