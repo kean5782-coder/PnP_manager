@@ -1,9 +1,9 @@
 @echo off
 chcp 65001 >nul
-title Сборка BarcodeDecoder в .EXE (UPX)
+title Сборка BarcodeDecoder в единый .EXE (UPX)
 
 echo ======================================================================
-echo    Сборка BarcodeDecoder v1.1 в исполняемый .EXE с сжатием UPX
+echo    Сборка BarcodeDecoder v1.1 в единый .EXE файл с сжатием UPX
 echo ======================================================================
 echo.
 
@@ -65,10 +65,10 @@ if exist "%SCRIPT_DIR%\BarcodeDecoder\BarcodeDecoder_1.1.py" (
     exit /b 1
 )
 
-echo [4/4] Запуск компиляции PyInstaller...
+echo [4/4] Запуск компиляции PyInstaller (Single File)...
 "%PYTHON_EXE%" -m PyInstaller ^
     --noconfirm ^
-    --onedir ^
+    --onefile ^
     --windowed ^
     --name "BarcodeDecoder" ^
     --clean ^
@@ -102,8 +102,7 @@ if errorlevel 1 (
 echo.
 echo ======================================================================
 echo [УСПЕХ] Сборка успешно завершена!
-echo Папка с программой: %DIST_DIR%\BarcodeDecoder
-echo Исполняемый файл:   %DIST_DIR%\BarcodeDecoder\BarcodeDecoder.exe
+echo Исполняемый файл: %DIST_DIR%\BarcodeDecoder.exe
 echo ======================================================================
 echo.
 pause
