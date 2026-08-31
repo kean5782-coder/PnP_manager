@@ -202,11 +202,32 @@
             android:textSize="13sp"
             android:text="Сообщить автору о нераспознанном коде" />
 
+        <!-- Search in Browser Button -->
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btnSearchWeb"
+            style="@style/Widget.Material3.Button.TonalButton"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:minHeight="48dp"
+            android:layout_marginTop="12dp"
+            android:paddingHorizontal="16dp"
+            android:paddingVertical="10dp"
+            android:focusable="true"
+            android:clickable="true"
+            app:strokeColor="@color/accent"
+            app:strokeWidth="1.5dp"
+            app:icon="@drawable/ic_search"
+            app:iconTint="@color/accent"
+            app:iconGravity="textStart"
+            android:textColor="#FFFFFF"
+            android:textSize="14sp"
+            android:text="@string/search_in_browser" />
+
         <!-- Bottom Buttons -->
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="16dp"
+            android:layout_marginTop="12dp"
             android:orientation="horizontal">
 
             <com.google.android.material.button.MaterialButton

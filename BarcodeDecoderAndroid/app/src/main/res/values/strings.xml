@@ -27,4 +27,6 @@
     <string name="disclaimer_close">Закрыть</string>
     <string name="disclaimer_sheet_warning">⚠️ Внимание: Программа предназначена только для SMD катушек резисторов и конденсаторов. Проверяйте номиналы по Datasheet перед пайкой. Использование на свой страх и риск.</string>
     <string name="created_with_gemini">Создано совместно с нейросетью Gemini</string>
+    <string name="search_in_browser">Искать в браузере</string>
+    <string name="no_browser_found">Не найден браузер для открытия поиска</string>
 </resources>

@@ -5,9 +5,11 @@ import android.app.UiModeManager
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
+import android.content.Intent
 import android.content.pm.PackageManager
 import android.content.res.Configuration
 import android.net.Uri
+import java.net.URLEncoder
 import android.os.Bundle
 import android.view.KeyEvent
 import android.view.View
@@ -374,14 +376,17 @@ class MainActivity : AppCompatActivity() {
         val btnCopy = view.findViewById<View>(R.id.btnCopy)
         val btnCloseSheet = view.findViewById<View>(R.id.btnCloseSheet)
         val btnReportUnrecognized = view.findViewById<View>(R.id.btnReportUnrecognized)
+        val btnSearchWeb = view.findViewById<View>(R.id.btnSearchWeb)
 
         val copyText: String
+        val searchQuery: String
 
         if (result != null) {
             btnReportUnrecognized.visibility = View.GONE
             tvUnifiedName.text = result.unifiedName
             tvVendor.text = result.rule.name
             tvCompType.text = result.rule.compType
+            searchQuery = result.usedCode
 
             val trimInfo = if (result.leftTrim > 0 || result.rightTrim > 0) {
                 "${result.usedCode} (очищено: -${result.leftTrim} сл, -${result.rightTrim} спр)"
@@ -402,6 +407,7 @@ class MainActivity : AppCompatActivity() {
                     "Код: ${result.usedCode}\n" +
                     paramsBuilder.toString()
         } else {
+            searchQuery = rawCode.trim()
             btnReportUnrecognized.visibility = View.VISIBLE
             btnReportUnrecognized.setOnClickListener {
                 showFeedbackDialog(defaultCode = rawCode)
@@ -413,6 +419,28 @@ class MainActivity : AppCompatActivity() {
             tvUsedCode.text = rawCode
             tvExtractedParams.text = getString(R.string.not_recognized)
             copyText = "Код: $rawCode (Не распознан)"
+        }
+
+        btnSearchWeb.setOnClickListener {
+            if (searchQuery.isNotEmpty()) {
+                try {
+                    val encodedQuery = URLEncoder.encode(searchQuery, "UTF-8")
+                    val searchUri = Uri.parse("https://www.google.com/search?q=$encodedQuery")
+                    val browserIntent = Intent(Intent.ACTION_VIEW, searchUri)
+                    startActivity(browserIntent)
+                } catch (e: Exception) {
+                    try {
+                        val webSearchIntent = Intent(Intent.ACTION_WEB_SEARCH).apply {
+                            putExtra(android.app.SearchManager.QUERY, searchQuery)
+                        }
+                        startActivity(webSearchIntent)
+                    } catch (exc: Exception) {
+                        Toast.makeText(this, getString(R.string.no_browser_found), Toast.LENGTH_SHORT).show()
+                    }
+                }
+            } else {
+                Toast.makeText(this, "Пустой запрос для поиска", Toast.LENGTH_SHORT).show()
+            }
         }
 
         btnCopy.setOnClickListener {
