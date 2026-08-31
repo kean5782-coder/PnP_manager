@@ -84,8 +84,7 @@ def get_rustore_token(key_id: str, key_path: str) -> str:
 def get_headers(token: str) -> dict:
     """Формирует стандартные HTTP-заголовки авторизации RuStore."""
     return {
-        "Authorization": f"Bearer {token}",
-        "auth-token": token,
+        "public-token": token,
         "Accept": "application/json"
     }
 
@@ -107,12 +106,19 @@ def list_versions(token: str, package_name: str) -> None:
     if data.get("code") != "OK":
         raise RuntimeError(f"Ошибка получения версий: {data}")
 
-    body = data.get("body", [])
+    body = data.get("body", {})
+    if isinstance(body, dict):
+        versions_list = body.get("content", [])
+    elif isinstance(body, list):
+        versions_list = body
+    else:
+        versions_list = []
+
     print(f"\n=== Список версий приложения {package_name} ===")
-    if not body:
+    if not versions_list:
         print("Версии не найдены.")
     else:
-        for v in body:
+        for v in versions_list:
             v_id = v.get("versionId") or v.get("id")
             v_name = v.get("versionName", "—")
             v_code = v.get("versionCode", "—")
@@ -238,7 +244,8 @@ def main():
     parser.add_argument("--package-name", default="com.barcodedecoder", help="Имя пакета Android-приложения")
     parser.add_argument("--apk-path", default="app/build/outputs/apk/release/BarcodeDecoderForSmdResistorsAndCondensators_kean5782.apk", help="Путь к файлу release APK")
     parser.add_argument("--publish-type", default="MANUAL", choices=["MANUAL", "AUTOMATIC"], help="Тип публикации: MANUAL или AUTOMATIC после прохождения модерации")
-    parser.add_argument("--whats-new", default="Исправление выравнивания иконок и оптимизация интерфейса шторки результатов.", help="Текст списка изменений для релиза")
+    parser.add_argument("--whats-new", default="", help="Текст списка изменений для релиза")
+    parser.add_argument("--draft-only", action="store_true", help="Сохранить как черновик без отправки на модерацию")
 
     args = parser.parse_args()
     config = load_config()
@@ -268,8 +275,12 @@ def main():
         upload_apk(token, package_name, version_id, args.apk_path)
         if args.whats_new:
             update_whats_new(token, package_name, version_id, args.whats_new)
-        commit_version(token, package_name, version_id)
-        print("\nВсе этапы завершены! Новая версия передана на модерацию в RuStore.")
+        
+        if args.draft_only:
+            print(f"\n[УСПЕХ] Версия {version_id} сохранена как ЧЕРНОВИК в RuStore (без отправки на модерацию).")
+        else:
+            commit_version(token, package_name, version_id)
+            print("\nВсе этапы завершены! Новая версия передана на модерацию в RuStore.")
 
 
 if __name__ == "__main__":
