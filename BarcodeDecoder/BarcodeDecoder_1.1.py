@@ -864,43 +864,43 @@ def create_resistor_rules():
 # Главное приложение – декодер по коду с автоматической очисткой
 # =============================================================================
 # =============================================================================
-# Современная цветовая система и темы оформления
+# Современная цветовая палитра и темы оформления
 # =============================================================================
 THEMES = {
     "dark": {
-        "bg_app": "#0f1117",
-        "bg_card": "#181b26",
-        "bg_card_inner": "#222738",
-        "bg_input": "#13151f",
-        "border": "#2b3248",
+        "bg_app": "#0b0f19",
+        "bg_card": "#151c2c",
+        "bg_card_inner": "#1e293b",
+        "bg_input": "#101726",
+        "border": "#2b384e",
         "border_focus": "#3b82f6",
         "text_primary": "#f8fafc",
-        "text_secondary": "#94a3b8",
+        "text_secondary": "#cbd5e1",
         "text_muted": "#64748b",
         "accent": "#3b82f6",
         "accent_hover": "#2563eb",
         "accent_text": "#ffffff",
-        "btn_sec_bg": "#222738",
+        "btn_sec_bg": "#1e293b",
         "btn_sec_fg": "#e2e8f0",
-        "btn_sec_hover": "#2e354c",
-        "badge_res_bg": "#172b4d",
-        "badge_res_fg": "#60a5fa",
-        "badge_cap_bg": "#2e1e4f",
-        "badge_cap_fg": "#c084fc",
-        "badge_vendor_bg": "#16333d",
-        "badge_vendor_fg": "#38bdf8",
-        "success_bg": "#0f2f1d",
+        "btn_sec_hover": "#2e3d55",
+        "badge_res_bg": "#1e3a8a",
+        "badge_res_fg": "#93c5fd",
+        "badge_cap_bg": "#581c87",
+        "badge_cap_fg": "#d8b4fe",
+        "badge_vendor_bg": "#0e4a60",
+        "badge_vendor_fg": "#7dd3fc",
+        "success_bg": "#064e3b",
         "success_fg": "#4ade80",
-        "error_bg": "#38161e",
+        "error_bg": "#4c0519",
         "error_fg": "#f87171",
-        "warning_bg": "#38290f",
+        "warning_bg": "#451a03",
         "warning_fg": "#fbbf24",
-        "status_bg": "#13151f",
-        "tree_bg": "#181b26",
+        "status_bg": "#0d1322",
+        "tree_bg": "#151c2c",
         "tree_fg": "#f8fafc",
-        "tree_head_bg": "#222738",
+        "tree_head_bg": "#1e293b",
         "tree_head_fg": "#94a3b8",
-        "tree_sel_bg": "#3b82f6",
+        "tree_sel_bg": "#2563eb",
         "tree_sel_fg": "#ffffff",
         "is_dark": True
     },
@@ -912,30 +912,30 @@ THEMES = {
         "border": "#cbd5e1",
         "border_focus": "#2563eb",
         "text_primary": "#0f172a",
-        "text_secondary": "#475569",
-        "text_muted": "#94a3b8",
+        "text_secondary": "#334155",
+        "text_muted": "#64748b",
         "accent": "#2563eb",
         "accent_hover": "#1d4ed8",
         "accent_text": "#ffffff",
-        "btn_sec_bg": "#e2e8f0",
+        "btn_sec_bg": "#f1f5f9",
         "btn_sec_fg": "#1e293b",
-        "btn_sec_hover": "#cbd5e1",
+        "btn_sec_hover": "#e2e8f0",
         "badge_res_bg": "#eff6ff",
         "badge_res_fg": "#1d4ed8",
-        "badge_cap_bg": "#f5f3ff",
+        "badge_cap_bg": "#faf5ff",
         "badge_cap_fg": "#6d28d9",
         "badge_vendor_bg": "#f0f9ff",
-        "badge_vendor_fg": "#0369a1",
+        "badge_vendor_fg": "#0284c7",
         "success_bg": "#f0fdf4",
         "success_fg": "#15803d",
         "error_bg": "#fef2f2",
-        "error_fg": "#b91c1c",
+        "error_fg": "#dc2626",
         "warning_bg": "#fffbeb",
         "warning_fg": "#b45309",
         "status_bg": "#e2e8f0",
         "tree_bg": "#ffffff",
         "tree_fg": "#0f172a",
-        "tree_head_bg": "#f1f5f9",
+        "tree_head_bg": "#f8fafc",
         "tree_head_fg": "#475569",
         "tree_sel_bg": "#2563eb",
         "tree_sel_fg": "#ffffff",
@@ -945,7 +945,7 @@ THEMES = {
 
 
 def get_system_theme() -> str:
-    """Определяет текущую системную тему Windows (светлая/тёмная)."""
+    """Определяет системную тему Windows через реестр (AppsUseLightTheme)."""
     if winreg is not None:
         try:
             key = winreg.OpenKey(winreg.HKEY_CURRENT_USER, r"Software\Microsoft\Windows\CurrentVersion\Themes\Personalize")
@@ -977,21 +977,22 @@ def set_window_titlebar_theme(root: tk.Tk, is_dark: bool):
 
 
 # =============================================================================
-# Главное приложение – современный интерфейс BarcodeDecoder
+# Главное приложение – адаптивный современный интерфейс BarcodeDecoder
 # =============================================================================
 class BarcodeDecoderApp:
     """
-    Современный графический интерфейс для мгновенного декодирования SMD радиокомпонентов
-    с автоматической очисткой префиксов и поддержкой тем оформления.
+    Адаптивный графический интерфейс для мгновенного декодирования SMD радиокомпонентов.
+    Оптимизирован для любых мониторов (от ноутбуков до 2K/4K) и масштабов DPI.
     """
 
     def __init__(self, root: tk.Tk):
         self.root = root
         self.root.title("BarcodeDecoder — Декодер SMD компонентов")
-        self.root.geometry("880x740")
-        self.root.minsize(800, 640)
 
-        # Инициализация движка парсинга
+        # Расчет оптимального размера и центрирование окна на экране
+        self._setup_window_geometry()
+
+        # Инициализация движка правил
         rules = create_capacitor_rules() + create_resistor_rules()
         self.parser = VendorParser(rules)
 
@@ -1002,10 +1003,10 @@ class BarcodeDecoderApp:
         self.last_decoded_code = ""
         self.last_unified_name = ""
 
-        # История сессии
+        # История текущей сессии
         self.history = []
 
-        # Конфигурация стилей ttk
+        # Настройка ttk стилей
         self.style = ttk.Style()
         try:
             self.style.theme_use("clam")
@@ -1015,14 +1016,29 @@ class BarcodeDecoderApp:
         # Построение интерфейса
         self._build_ui()
 
-        # Применение начальной темы
+        # Первичное применение темы
         self.apply_theme()
 
-        # Периодическая проверка раскладки клавиатуры и системной темы
+        # Фоновый мониторинг системного состояния (раскладка + системная тема)
         self.check_system_state_periodically()
 
+    def _setup_window_geometry(self):
+        """Вычисляет пропорциональный размер окна в зависимости от разрешения экрана."""
+        screen_w = self.root.winfo_screenwidth()
+        screen_h = self.root.winfo_screenheight()
+
+        # Оптимальные размеры: ~1040x840 на 1080p/2K
+        target_w = min(1040, max(920, int(screen_w * 0.65)))
+        target_h = min(850, max(720, int(screen_h * 0.82)))
+
+        pos_x = max(0, (screen_w - target_w) // 2)
+        pos_y = max(10, (screen_h - target_h) // 2 - 25)
+
+        self.root.geometry(f"{target_w}x{target_h}+{pos_x}+{pos_y}")
+        self.root.minsize(860, 640)
+
     def _build_ui(self):
-        """Строит и компонует визуальные элементы интерфейса."""
+        """Создает и компонует все карточки и элементы интерфейса."""
         self.root.columnconfigure(0, weight=1)
         self.root.rowconfigure(0, weight=1)
 
@@ -1031,111 +1047,136 @@ class BarcodeDecoderApp:
         self.main_container.pack(fill=tk.BOTH, expand=True)
 
         # ---------------------------------------------------------------------
-        # 1. ШАПКА ПРИЛОЖЕНИЯ (Header Bar)
+        # 1. ШАПКА ПРИЛОЖЕНИЯ (Header Card) — Фиксирована сверху
         # ---------------------------------------------------------------------
         self.header_card = tk.Frame(self.main_container, padx=20, pady=12)
-        self.header_card.pack(fill=tk.X, padx=16, pady=(16, 10))
+        self.header_card.pack(fill=tk.X, padx=16, pady=(14, 8))
+        self.header_card.columnconfigure(0, weight=1)
+        self.header_card.columnconfigure(1, weight=0)
 
-        # Левая часть: логотип и заголовок
-        title_box = tk.Frame(self.header_card)
-        title_box.pack(side=tk.LEFT, fill=tk.Y)
+        # Левая колонка: Логотип и Название
+        self.title_box = tk.Frame(self.header_card)
+        self.title_box.grid(row=0, column=0, sticky="w")
 
-        self.logo_label = tk.Label(title_box, text="⚡", font=("Segoe UI", 18, "bold"))
+        self.logo_label = tk.Label(self.title_box, text="⚡", font=("Segoe UI", 18, "bold"))
         self.logo_label.pack(side=tk.LEFT, padx=(0, 10))
 
-        text_box = tk.Frame(title_box)
-        text_box.pack(side=tk.LEFT)
+        self.text_box = tk.Frame(self.title_box)
+        self.text_box.pack(side=tk.LEFT)
 
-        self.title_label = tk.Label(text_box, text="BarcodeDecoder", font=("Segoe UI", 15, "bold"))
+        self.title_label = tk.Label(self.text_box, text="BarcodeDecoder", font=("Segoe UI", 15, "bold"))
         self.title_label.pack(anchor="w")
 
         self.subtitle_label = tk.Label(
-            text_box, text="Декодер SMD резисторов и конденсаторов (MLCC)", font=("Segoe UI", 9)
+            self.text_box, text="Декодер маркировок SMD резисторов и конденсаторов (MLCC)", font=("Segoe UI", 9)
         )
         self.subtitle_label.pack(anchor="w")
 
-        # Правая часть: раскладка клавиатуры и переключатель темы
-        controls_box = tk.Frame(self.header_card)
-        controls_box.pack(side=tk.RIGHT, fill=tk.Y)
+        # Правая колонка: Раскладка и переключатель тем
+        self.controls_box = tk.Frame(self.header_card)
+        self.controls_box.grid(row=0, column=1, sticky="e")
 
-        # Индикатор раскладки клавиатуры (бейдж)
+        # Компактный бейдж раскладки (фиксированный размер, не сдвигает кнопки)
         self.layout_badge = tk.Label(
-            controls_box, text="EN", font=("Segoe UI", 9, "bold"), padx=10, pady=4
+            self.controls_box, text="🌐 EN", font=("Segoe UI", 9, "bold"),
+            width=7, anchor="center", padx=6, pady=4
         )
-        self.layout_badge.pack(side=tk.LEFT, padx=(0, 14))
+        self.layout_badge.pack(side=tk.LEFT, padx=(0, 10))
 
-        # Кнопки переключения темы (Сегментированный переключатель)
-        self.theme_btn_frame = tk.Frame(controls_box)
+        # Переключатель тем (сегментированный блок)
+        self.theme_btn_frame = tk.Frame(self.controls_box)
         self.theme_btn_frame.pack(side=tk.RIGHT)
 
         self.btn_theme_auto = tk.Button(
             self.theme_btn_frame, text="💻 Авто", font=("Segoe UI", 8, "bold"),
-            relief=tk.FLAT, bd=0, padx=8, pady=4, cursor="hand2",
+            relief=tk.FLAT, bd=0, padx=9, pady=4, cursor="hand2",
             command=lambda: self.set_theme_mode("auto")
         )
         self.btn_theme_auto.pack(side=tk.LEFT, padx=1)
 
         self.btn_theme_light = tk.Button(
             self.theme_btn_frame, text="☀️ Светлая", font=("Segoe UI", 8, "bold"),
-            relief=tk.FLAT, bd=0, padx=8, pady=4, cursor="hand2",
+            relief=tk.FLAT, bd=0, padx=9, pady=4, cursor="hand2",
             command=lambda: self.set_theme_mode("light")
         )
         self.btn_theme_light.pack(side=tk.LEFT, padx=1)
 
         self.btn_theme_dark = tk.Button(
             self.theme_btn_frame, text="🌙 Тёмная", font=("Segoe UI", 8, "bold"),
-            relief=tk.FLAT, bd=0, padx=8, pady=4, cursor="hand2",
+            relief=tk.FLAT, bd=0, padx=9, pady=4, cursor="hand2",
             command=lambda: self.set_theme_mode("dark")
         )
         self.btn_theme_dark.pack(side=tk.LEFT, padx=1)
 
         # ---------------------------------------------------------------------
+        # Скроллируемая центральная область для адаптивности на любых экранах
+        # ---------------------------------------------------------------------
+        self.canvas_frame = tk.Frame(self.main_container)
+        self.canvas_frame.pack(fill=tk.BOTH, expand=True, padx=16, pady=0)
+
+        self.canvas = tk.Canvas(self.canvas_frame, bd=0, highlightthickness=0)
+        self.scrollbar = ttk.Scrollbar(self.canvas_frame, orient=tk.VERTICAL, command=self.canvas.yview)
+        self.content_frame = tk.Frame(self.canvas)
+
+        self.content_window = self.canvas.create_window((0, 0), window=self.content_frame, anchor="nw")
+        self.canvas.configure(yscrollcommand=self.scrollbar.set)
+
+        self.canvas.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        self.scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+
+        # Автоматическая подгонка ширины содержимого под ширину окна
+        self.canvas.bind("<Configure>", self._on_canvas_configure)
+        self.content_frame.bind("<Configure>", self._on_content_configure)
+
+        # Привязка колеса мыши для плавной прокрутки
+        self.root.bind_all("<MouseWheel>", self._on_mousewheel)
+
+        # ---------------------------------------------------------------------
         # 2. КАРТОЧКА ВВОДА (Input Card)
         # ---------------------------------------------------------------------
-        self.input_card = tk.Frame(self.main_container, padx=20, pady=16)
-        self.input_card.pack(fill=tk.X, padx=16, pady=6)
+        self.input_card = tk.Frame(self.content_frame, padx=20, pady=14)
+        self.input_card.pack(fill=tk.X, pady=(0, 8))
 
-        input_header = tk.Frame(self.input_card)
-        input_header.pack(fill=tk.X, pady=(0, 8))
+        self.input_header = tk.Frame(self.input_card)
+        self.input_header.pack(fill=tk.X, pady=(0, 8))
 
         self.input_title = tk.Label(
-            input_header, text="Введите код компонента (со сканера штрихкода или вручную):",
+            self.input_header, text="Введите код компонента (со сканера штрихкода или вручную):",
             font=("Segoe UI", 10, "bold")
         )
         self.input_title.pack(side=tk.LEFT)
 
-        self.toast_label = tk.Label(input_header, text="", font=("Segoe UI", 9, "bold"))
+        self.toast_label = tk.Label(self.input_header, text="", font=("Segoe UI", 9, "bold"))
         self.toast_label.pack(side=tk.RIGHT)
 
-        # Контейнер для поля ввода
-        entry_row = tk.Frame(self.input_card)
-        entry_row.pack(fill=tk.X, pady=4)
+        # Строка поля ввода и кнопок действий
+        self.entry_row = tk.Frame(self.input_card)
+        self.entry_row.pack(fill=tk.X, pady=2)
 
-        self.entry_frame = tk.Frame(entry_row, bd=1, relief=tk.SOLID)
+        self.entry_frame = tk.Frame(self.entry_row, bd=1, relief=tk.SOLID)
         self.entry_frame.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(0, 10))
 
         self.entry = tk.Entry(
             self.entry_frame, font=("Consolas", 13), bd=0, relief=tk.FLAT
         )
-        self.entry.pack(fill=tk.BOTH, expand=True, padx=10, pady=8)
+        self.entry.pack(fill=tk.BOTH, expand=True, padx=10, pady=7)
         self.entry.focus_set()
 
-        # Кнопки действий ввода
         self.btn_decode = tk.Button(
-            entry_row, text="⚡ Расшифровать", font=("Segoe UI", 10, "bold"),
-            relief=tk.FLAT, bd=0, padx=16, pady=8, cursor="hand2", command=self.on_decode
+            self.entry_row, text="⚡ Расшифровать", font=("Segoe UI", 10, "bold"),
+            relief=tk.FLAT, bd=0, padx=16, pady=7, cursor="hand2", command=self.on_decode
         )
         self.btn_decode.pack(side=tk.LEFT, padx=(0, 6))
 
         self.btn_paste = tk.Button(
-            entry_row, text="📋 Вставить", font=("Segoe UI", 9, "bold"),
-            relief=tk.FLAT, bd=0, padx=12, pady=8, cursor="hand2", command=self.on_paste_btn
+            self.entry_row, text="📋 Вставить", font=("Segoe UI", 9, "bold"),
+            relief=tk.FLAT, bd=0, padx=12, pady=7, cursor="hand2", command=self.on_paste_btn
         )
         self.btn_paste.pack(side=tk.LEFT, padx=(0, 6))
 
         self.btn_clear = tk.Button(
-            entry_row, text="✕ Очистить", font=("Segoe UI", 9),
-            relief=tk.FLAT, bd=0, padx=10, pady=8, cursor="hand2", command=self.clear_all
+            self.entry_row, text="✕ Очистить", font=("Segoe UI", 9),
+            relief=tk.FLAT, bd=0, padx=10, pady=7, cursor="hand2", command=self.clear_all
         )
         self.btn_clear.pack(side=tk.LEFT)
 
@@ -1150,34 +1191,30 @@ class BarcodeDecoderApp:
         # ---------------------------------------------------------------------
         # 3. КАРТОЧКА РЕЗУЛЬТАТА (Result Card)
         # ---------------------------------------------------------------------
-        self.result_card = tk.Frame(self.main_container, padx=20, pady=16)
-        self.result_card.pack(fill=tk.X, padx=16, pady=6)
+        self.result_card = tk.Frame(self.content_frame, padx=20, pady=14)
+        self.result_card.pack(fill=tk.X, pady=(0, 8))
 
-        # Заголовок карточки результата
-        result_header = tk.Frame(self.result_card)
-        result_header.pack(fill=tk.X, pady=(0, 10))
+        self.result_header = tk.Frame(self.result_card)
+        self.result_header.pack(fill=tk.X, pady=(0, 10))
 
         self.result_title = tk.Label(
-            result_header, text="Результат декодирования", font=("Segoe UI", 11, "bold")
+            self.result_header, text="Результат декодирования", font=("Segoe UI", 11, "bold")
         )
         self.result_title.pack(side=tk.LEFT)
 
-        # Бейджи производителя и типа
-        self.badges_frame = tk.Frame(result_header)
+        # Бейджи типа и вендора (отображаются только при распознанном результате)
+        self.badges_frame = tk.Frame(self.result_header)
         self.badges_frame.pack(side=tk.RIGHT)
 
         self.badge_type = tk.Label(
             self.badges_frame, text="", font=("Segoe UI", 9, "bold"), padx=10, pady=2
         )
-        self.badge_type.pack(side=tk.LEFT, padx=4)
-
         self.badge_vendor = tk.Label(
             self.badges_frame, text="", font=("Segoe UI", 9, "bold"), padx=10, pady=2
         )
-        self.badge_vendor.pack(side=tk.LEFT, padx=4)
 
-        # Баннер с унифицированным наименованием
-        self.unified_banner = tk.Frame(self.result_card, padx=16, pady=12, bd=1, relief=tk.SOLID)
+        # Баннер унифицированного имени
+        self.unified_banner = tk.Frame(self.result_card, padx=14, pady=10, bd=1, relief=tk.SOLID)
         self.unified_banner.pack(fill=tk.X, pady=(0, 10))
 
         self.unified_label = tk.Label(
@@ -1186,25 +1223,24 @@ class BarcodeDecoderApp:
         )
         self.unified_label.pack(side=tk.LEFT, fill=tk.X, expand=True)
 
-        # Кнопки копирования и поиска в браузере
         self.banner_actions = tk.Frame(self.unified_banner)
         self.banner_actions.pack(side=tk.RIGHT)
 
         self.btn_copy = tk.Button(
             self.banner_actions, text="📋 Скопировать", font=("Segoe UI", 9, "bold"),
-            relief=tk.FLAT, bd=0, padx=10, pady=4, cursor="hand2", command=self.copy_unified_name
+            relief=tk.FLAT, bd=0, padx=12, pady=4, cursor="hand2", command=self.copy_unified_name
         )
         self.btn_copy.pack(side=tk.LEFT, padx=4)
 
         self.btn_search = tk.Button(
             self.banner_actions, text="🌐 В браузере", font=("Segoe UI", 9, "bold"),
-            relief=tk.FLAT, bd=0, padx=10, pady=4, cursor="hand2", command=self.search_in_browser
+            relief=tk.FLAT, bd=0, padx=12, pady=4, cursor="hand2", command=self.search_in_browser
         )
         self.btn_search.pack(side=tk.LEFT, padx=4)
 
-        # Сетка параметров (4 плитки)
+        # Сетка ключевых параметров (4 плитки)
         self.params_grid = tk.Frame(self.result_card)
-        self.params_grid.pack(fill=tk.X, pady=6)
+        self.params_grid.pack(fill=tk.X, pady=4)
         for i in range(4):
             self.params_grid.columnconfigure(i, weight=1, uniform="tile")
 
@@ -1213,43 +1249,43 @@ class BarcodeDecoderApp:
         self.tile_tolerance = self._create_param_tile(self.params_grid, 2, "🎯 Допуск / Диэлектрик", "—")
         self.tile_voltage = self._create_param_tile(self.params_grid, 3, "🔋 Напряжение", "—")
 
-        # Блок очистки префиксов/суффиксов и дополнительной информации
+        # Блок очистки префиксов и технической информации
         self.details_box = tk.Frame(self.result_card, padx=12, pady=8, bd=1, relief=tk.SOLID)
         self.details_box.pack(fill=tk.X, pady=(10, 0))
 
         self.details_label = tk.Label(
-            self.details_box, text="ℹ️ Для начала сканирования поднесите сканер к этикетке катушки.",
+            self.details_box, text="ℹ️ Для начала сканирования поднесите сканер к этикетке катушки или введите артикул.",
             font=("Segoe UI", 9), anchor="w", justify=tk.LEFT
         )
         self.details_label.pack(fill=tk.X)
 
         # ---------------------------------------------------------------------
-        # 4. ИСТОРИЯ СЕССИИ (Session History)
+        # 4. ИСТОРИЯ СЕССИИ (Session History Card)
         # ---------------------------------------------------------------------
-        self.history_card = tk.Frame(self.main_container, padx=20, pady=12)
-        self.history_card.pack(fill=tk.BOTH, expand=True, padx=16, pady=(6, 12))
+        self.history_card = tk.Frame(self.content_frame, padx=20, pady=12)
+        self.history_card.pack(fill=tk.BOTH, expand=True, pady=(0, 6))
 
-        history_header = tk.Frame(self.history_card)
-        history_header.pack(fill=tk.X, pady=(0, 6))
+        self.history_header = tk.Frame(self.history_card)
+        self.history_header.pack(fill=tk.X, pady=(0, 6))
 
         self.history_title = tk.Label(
-            history_header, text="История распознаваний в этой сессии (дважды кликните для копирования):",
+            self.history_header, text="История распознаваний в этой сессии (дважды кликните для копирования):",
             font=("Segoe UI", 9, "bold")
         )
         self.history_title.pack(side=tk.LEFT)
 
         self.btn_clear_history = tk.Button(
-            history_header, text="Очистить историю", font=("Segoe UI", 8),
+            self.history_header, text="Очистить историю", font=("Segoe UI", 8),
             relief=tk.FLAT, bd=0, padx=8, pady=2, cursor="hand2", command=self.clear_history
         )
         self.btn_clear_history.pack(side=tk.RIGHT)
 
-        tree_frame = tk.Frame(self.history_card)
-        tree_frame.pack(fill=tk.BOTH, expand=True)
+        self.tree_frame = tk.Frame(self.history_card)
+        self.tree_frame.pack(fill=tk.BOTH, expand=True)
 
         columns = ("time", "raw_code", "comp_type", "vendor", "unified")
         self.history_tree = ttk.Treeview(
-            tree_frame, columns=columns, show="headings", height=5, selectmode="browse"
+            self.tree_frame, columns=columns, show="headings", height=6, selectmode="browse"
         )
         self.history_tree.heading("time", text="Время")
         self.history_tree.heading("raw_code", text="Исходный код")
@@ -1257,30 +1293,30 @@ class BarcodeDecoderApp:
         self.history_tree.heading("vendor", text="Производитель")
         self.history_tree.heading("unified", text="Унифицированное имя")
 
-        self.history_tree.column("time", width=70, anchor="center")
-        self.history_tree.column("raw_code", width=220, anchor="w")
-        self.history_tree.column("comp_type", width=95, anchor="center")
-        self.history_tree.column("vendor", width=110, anchor="center")
-        self.history_tree.column("unified", width=200, anchor="w")
+        self.history_tree.column("time", width=80, anchor="center", stretch=False)
+        self.history_tree.column("raw_code", width=250, anchor="w", stretch=True)
+        self.history_tree.column("comp_type", width=110, anchor="center", stretch=False)
+        self.history_tree.column("vendor", width=120, anchor="center", stretch=False)
+        self.history_tree.column("unified", width=240, anchor="w", stretch=True)
 
-        scrollbar = ttk.Scrollbar(tree_frame, orient=tk.VERTICAL, command=self.history_tree.yview)
-        self.history_tree.configure(yscrollcommand=scrollbar.set)
+        tree_scrollbar = ttk.Scrollbar(self.tree_frame, orient=tk.VERTICAL, command=self.history_tree.yview)
+        self.history_tree.configure(yscrollcommand=tree_scrollbar.set)
 
         self.history_tree.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
-        scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+        tree_scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
 
         self.history_tree.bind("<Double-1>", self.on_history_double_click)
 
         # ---------------------------------------------------------------------
-        # 5. СТРОКА СОСТОЯНИЯ (Status Bar)
+        # 5. СТРОКА СОСТОЯНИЯ (Status Bar) — Фиксирована снизу
         # ---------------------------------------------------------------------
-        self.status_bar = tk.Frame(self.main_container, padx=16, pady=4)
+        self.status_bar = tk.Frame(self.main_container, padx=16, pady=5)
         self.status_bar.pack(fill=tk.X, side=tk.BOTTOM)
 
         self.status_text = tk.Label(
             self.status_bar, text="Готов к работе", font=("Segoe UI", 9), anchor="w"
         )
-        self.status_text.pack(side=tk.LEFT)
+        self.status_text.pack(side=tk.LEFT, fill=tk.X, expand=True)
 
         self.status_hint = tk.Label(
             self.status_bar, text="Enter: Расшифровать | Esc: Очистить | Ctrl+L: Фокус ввода",
@@ -1301,6 +1337,19 @@ class BarcodeDecoderApp:
 
         return {"frame": tile, "title": lbl_title, "value": lbl_val}
 
+    def _on_canvas_configure(self, event):
+        """Обновляет ширину содержимого при изменении размера окна."""
+        self.canvas.itemconfig(self.content_window, width=event.width)
+
+    def _on_content_configure(self, event):
+        """Обновляет область прокрутки canvas при изменении содержимого."""
+        self.canvas.configure(scrollregion=self.canvas.bbox("all"))
+
+    def _on_mousewheel(self, event):
+        """Плавная прокрутка содержимого колесиком мыши."""
+        if self.canvas.winfo_height() < self.content_frame.winfo_height():
+            self.canvas.yview_scroll(int(-1 * (event.delta / 120)), "units")
+
     # =========================================================================
     # Управление темами оформления (Theme Engine)
     # =========================================================================
@@ -1310,7 +1359,7 @@ class BarcodeDecoderApp:
         self.apply_theme()
 
     def get_active_theme_key(self) -> str:
-        """Определяет, какая тема должна быть активна сейчас."""
+        """Определяет активную тему на основе текущего режима."""
         if self.current_theme_mode == "auto":
             return get_system_theme()
         return self.current_theme_mode
@@ -1321,27 +1370,28 @@ class BarcodeDecoderApp:
         self.active_theme_key = theme_key
         c = THEMES[theme_key]
 
-        # Windows titlebar
+        # Настройка тёмного/светлого заголовка окна Windows 10/11
         set_window_titlebar_theme(self.root, c["is_dark"])
 
-        # Главный фон
+        # Базовый фон окна и холста
         self.root.configure(bg=c["bg_app"])
         self.main_container.configure(bg=c["bg_app"])
+        self.canvas_frame.configure(bg=c["bg_app"])
+        self.canvas.configure(bg=c["bg_app"])
+        self.content_frame.configure(bg=c["bg_app"])
 
         # Шапка
         self.header_card.configure(bg=c["bg_card"])
-        for widget in (self.header_card, self.header_card.winfo_children()):
-            if isinstance(widget, tk.Frame):
-                widget.configure(bg=c["bg_card"])
-                for sub in widget.winfo_children():
-                    if isinstance(sub, tk.Frame):
-                        sub.configure(bg=c["bg_card"])
+        self.title_box.configure(bg=c["bg_card"])
+        self.text_box.configure(bg=c["bg_card"])
+        self.controls_box.configure(bg=c["bg_card"])
+        self.theme_btn_frame.configure(bg=c["bg_card"])
 
         self.logo_label.configure(bg=c["bg_card"], fg=c["accent"])
         self.title_label.configure(bg=c["bg_card"], fg=c["text_primary"])
         self.subtitle_label.configure(bg=c["bg_card"], fg=c["text_muted"])
 
-        # Переключатель темы (кнопки)
+        # Кнопки переключения тем
         for mode_key, btn in (("auto", self.btn_theme_auto), ("light", self.btn_theme_light), ("dark", self.btn_theme_dark)):
             if self.current_theme_mode == mode_key:
                 btn.configure(bg=c["accent"], fg=c["accent_text"], activebackground=c["accent_hover"], activeforeground=c["accent_text"])
@@ -1350,8 +1400,11 @@ class BarcodeDecoderApp:
 
         # Карточка ввода
         self.input_card.configure(bg=c["bg_card"])
+        self.input_header.configure(bg=c["bg_card"])
+        self.entry_row.configure(bg=c["bg_card"])
         self.input_title.configure(bg=c["bg_card"], fg=c["text_primary"])
         self.toast_label.configure(bg=c["bg_card"], fg=c["success_fg"])
+
         self.entry_frame.configure(bg=c["bg_input"], highlightbackground=c["border"], highlightcolor=c["border_focus"])
         self.entry.configure(bg=c["bg_input"], fg=c["text_primary"], insertbackground=c["text_primary"])
 
@@ -1361,36 +1414,41 @@ class BarcodeDecoderApp:
 
         # Карточка результата
         self.result_card.configure(bg=c["bg_card"])
+        self.result_header.configure(bg=c["bg_card"])
+        self.badges_frame.configure(bg=c["bg_card"])
         self.result_title.configure(bg=c["bg_card"], fg=c["text_primary"])
 
         self.unified_banner.configure(bg=c["bg_card_inner"], highlightbackground=c["border"])
-        self.unified_label.configure(bg=c["bg_card_inner"], fg=c["text_primary"])
+        self.unified_label.configure(bg=c["bg_card_inner"], fg=c["text_primary"] if self.last_unified_name else c["text_muted"])
         self.banner_actions.configure(bg=c["bg_card_inner"])
 
         self.btn_copy.configure(bg=c["accent"], fg=c["accent_text"], activebackground=c["accent_hover"], activeforeground=c["accent_text"])
         self.btn_search.configure(bg=c["btn_sec_bg"], fg=c["btn_sec_fg"], activebackground=c["btn_sec_hover"], activeforeground=c["btn_sec_fg"])
 
+        self.params_grid.configure(bg=c["bg_card"])
         for tile in (self.tile_size, self.tile_value, self.tile_tolerance, self.tile_voltage):
             tile["frame"].configure(bg=c["bg_card_inner"], highlightbackground=c["border"])
             tile["title"].configure(bg=c["bg_card_inner"], fg=c["text_muted"])
-            tile["value"].configure(bg=c["bg_card_inner"], fg=c["text_primary"])
+            tile["value"].configure(bg=c["bg_card_inner"], fg=c["text_primary"] if self.last_unified_name else c["text_muted"])
 
         self.details_box.configure(bg=c["bg_card_inner"], highlightbackground=c["border"])
         self.details_label.configure(bg=c["bg_card_inner"], fg=c["text_secondary"])
 
         # История
         self.history_card.configure(bg=c["bg_card"])
+        self.history_header.configure(bg=c["bg_card"])
+        self.tree_frame.configure(bg=c["bg_card"])
         self.history_title.configure(bg=c["bg_card"], fg=c["text_secondary"])
         self.btn_clear_history.configure(bg=c["btn_sec_bg"], fg=c["text_muted"], activebackground=c["btn_sec_hover"], activeforeground=c["text_primary"])
 
-        # Стилизация ttk.Treeview
+        # Стилизация Treeview
         self.style.configure(
             "Treeview",
             background=c["tree_bg"],
             foreground=c["tree_fg"],
             fieldbackground=c["tree_bg"],
             font=("Segoe UI", 9),
-            rowheight=24
+            rowheight=26
         )
         self.style.configure(
             "Treeview.Heading",
@@ -1409,11 +1467,11 @@ class BarcodeDecoderApp:
         self.status_text.configure(bg=c["status_bg"], fg=c["text_secondary"])
         self.status_hint.configure(bg=c["status_bg"], fg=c["text_muted"])
 
-        # Обновление бейджа раскладки клавиатуры
+        # Обновление индикатора раскладки
         self.update_layout_status()
 
     # =========================================================================
-    # Проверка состояния системы (раскладка и системная тема)
+    # Проверка системного состояния (раскладка и системная тема)
     # =========================================================================
     def is_russian_layout(self) -> bool:
         """Проверяет, установлена ли в текущий момент русская раскладка клавиатуры (для Windows)."""
@@ -1432,25 +1490,28 @@ class BarcodeDecoderApp:
             return False
 
     def update_layout_status(self) -> bool:
-        """Обновляет индикатор раскладки клавиатуры и предупреждение."""
+        """Обновляет компактный индикатор раскладки клавиатуры и текст в строке состояния."""
         c = THEMES[self.active_theme_key]
         is_rus = self.is_russian_layout()
 
         if is_rus:
-            self.layout_badge.configure(text="⚠️ RU (Смените на EN)", bg=c["warning_bg"], fg=c["warning_fg"])
-            self.status_text.configure(text="⚠️ Для корректного сканирования и ввода смените раскладку на английскую (EN).", fg=c["warning_fg"])
+            self.layout_badge.configure(text="⚠️ RU", bg=c["warning_bg"], fg=c["warning_fg"])
+            self.status_text.configure(
+                text="⚠️ Внимание: включена русская раскладка клавиатуры. Для сканера рекомендуем переключить на английскую (EN).",
+                fg=c["warning_fg"]
+            )
             return True
         else:
-            self.layout_badge.configure(text="🟢 EN", bg=c["success_bg"], fg=c["success_fg"])
+            self.layout_badge.configure(text="🌐 EN", bg=c["success_bg"], fg=c["success_fg"])
             if self.status_text.cget("text").startswith("⚠️"):
                 self.status_text.configure(text="Готов к работе", fg=c["text_secondary"])
             return False
 
     def check_system_state_periodically(self):
-        """Регулярная фоновая проверка системного состояния."""
+        """Фоновый таймер проверки раскладки и системной темы."""
         self.update_layout_status()
 
-        # Автоматическая адаптация при смене темы в Windows
+        # Автоматическая смена темы при изменении настроек Windows
         if self.current_theme_mode == "auto":
             detected = get_system_theme()
             if detected != self.active_theme_key:
@@ -1546,8 +1607,10 @@ class BarcodeDecoderApp:
             self.badge_type.configure(text="🏷️ Резистор", bg=c["badge_res_bg"], fg=c["badge_res_fg"])
         else:
             self.badge_type.configure(text="🏷️ Конденсатор", bg=c["badge_cap_bg"], fg=c["badge_cap_fg"])
+        self.badge_type.pack(side=tk.LEFT, padx=4)
 
         self.badge_vendor.configure(text=f"🏭 {rule.name}", bg=c["badge_vendor_bg"], fg=c["badge_vendor_fg"])
+        self.badge_vendor.pack(side=tk.LEFT, padx=4)
 
         # Извлечение параметров для плиток
         size_val = groups.get("size") or groups.get("size_code") or groups.get("cga_size") or "—"
@@ -1622,8 +1685,9 @@ class BarcodeDecoderApp:
         self.btn_copy.configure(state=tk.DISABLED)
         self.btn_search.configure(state=tk.NORMAL)
 
-        self.badge_type.configure(text="Неизвестно", bg=c["error_bg"], fg=c["error_fg"])
-        self.badge_vendor.configure(text="—", bg=c["btn_sec_bg"], fg=c["text_muted"])
+        # Скрываем бейджи
+        self.badge_type.pack_forget()
+        self.badge_vendor.pack_forget()
 
         for tile in (self.tile_size, self.tile_value, self.tile_tolerance, self.tile_voltage):
             tile["value"].configure(text="—", fg=c["text_muted"])
@@ -1645,12 +1709,16 @@ class BarcodeDecoderApp:
         """Сбрасывает карточку результата в исходное состояние."""
         c = THEMES[self.active_theme_key]
 
+        self.last_decoded_code = ""
+        self.last_unified_name = ""
+
         self.unified_label.configure(text="Ожидание ввода кода компонента...", fg=c["text_muted"])
         self.btn_copy.configure(state=tk.DISABLED)
         self.btn_search.configure(state=tk.DISABLED)
 
-        self.badge_type.configure(text="", bg=c["bg_card"])
-        self.badge_vendor.configure(text="", bg=c["bg_card"])
+        # Скрываем бейджи, чтобы не оставалось пустых плашек
+        self.badge_type.pack_forget()
+        self.badge_vendor.pack_forget()
 
         for tile in (self.tile_size, self.tile_value, self.tile_tolerance, self.tile_voltage):
             tile["value"].configure(text="—", fg=c["text_muted"])
@@ -1745,4 +1813,5 @@ if __name__ == "__main__":
     root = tk.Tk()
     app = BarcodeDecoderApp(root)
     root.mainloop()
+
 
