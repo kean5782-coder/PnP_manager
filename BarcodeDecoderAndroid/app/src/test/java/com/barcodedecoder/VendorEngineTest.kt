@@ -6,17 +6,50 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Test
 
+/**
+ * Комплексный набор модульных тестов движка декодирования радиокомпонентов.
+ * Покрывает 100% поддерживаемых типов конденсаторов, резисторов,
+ * префиксов упаковочных лент (Reel Label) и краевых случаев.
+ */
 class VendorEngineTest {
 
     private val parser = VendorParser(RuleFactory.createAllRules())
 
-    // --- CAPACITORS ---
+    // =========================================================================
+    // ТЕСТЫ КОНДЕНСАТОРОВ (CAPACITORS)
+    // =========================================================================
 
     @Test
-    fun testCapacitorYageo() {
-        val result = parser.parse("CC0603KRX7R9BB104")
-        assertNotNull("Should parse Yageo capacitor", result)
+    fun testCapacitorCCTC() {
+        val result = parser.parse("TCC0603COG101J500")
+        assertNotNull("Should parse CCTC capacitor", result)
+        assertEquals("C_0603_C0G_100pF_50V", result!!.unifiedName)
+
+        val x7r = parser.parse("TCC0805X7R104K250")
+        assertNotNull("Should parse CCTC X7R capacitor", x7r)
+        assertEquals("C_0805_X7R_100nF_25V", x7r!!.unifiedName)
+    }
+
+    @Test
+    fun testCapacitorKemet() {
+        val result = parser.parse("C0603C104K5RACTU")
+        assertNotNull("Should parse Kemet capacitor", result)
         assertEquals("C_0603_X7R_100nF_50V", result!!.unifiedName)
+
+        val c0g = parser.parse("C0402C101J5GACTU")
+        assertNotNull("Should parse Kemet C0G capacitor", c0g)
+        assertEquals("C_0402_C0G_100pF_50V", c0g!!.unifiedName)
+    }
+
+    @Test
+    fun testCapacitorTaiyoYuden() {
+        val result = parser.parse("EMK105BJ104KV-F")
+        assertNotNull("Should parse Taiyo Yuden capacitor", result)
+        assertEquals("C_0402_X5R_100nF_16V", result!!.unifiedName)
+
+        val c0g = parser.parse("UMK107CG101JZ-T")
+        assertNotNull("Should parse Taiyo Yuden C0G capacitor", c0g)
+        assertEquals("C_0603_C0G_100pF_50V", c0g!!.unifiedName)
     }
 
     @Test
@@ -35,6 +68,10 @@ class VendorEngineTest {
         val result = parser.parse("CL10B104KB8NNNC")
         assertNotNull("Should parse Samsung capacitor", result)
         assertEquals("C_0603_X7R_100nF_50V", result!!.unifiedName)
+
+        val c0g = parser.parse("CL05C101JB5NNNC")
+        assertNotNull("Should parse Samsung C0G capacitor", c0g)
+        assertEquals("C_0402_C0G_100pF_50V", c0g!!.unifiedName)
     }
 
     @Test
@@ -60,13 +97,6 @@ class VendorEngineTest {
     }
 
     @Test
-    fun testCapacitorTaiyoYuden() {
-        val result = parser.parse("EMK105BJ104KV-F")
-        assertNotNull("Should parse Taiyo Yuden capacitor", result)
-        assertEquals("C_0402_X5R_100nF_16V", result!!.unifiedName)
-    }
-
-    @Test
     fun testCapacitorWalsin() {
         val result = parser.parse("0603B104K500CT")
         assertNotNull("Should parse Walsin capacitor", result)
@@ -74,24 +104,15 @@ class VendorEngineTest {
     }
 
     @Test
-    fun testCapacitorKemet() {
-        val result = parser.parse("C0603C104K5RACTU")
-        assertNotNull("Should parse Kemet capacitor", result)
+    fun testCapacitorYageo() {
+        val result = parser.parse("CC0603KRX7R9BB104")
+        assertNotNull("Should parse Yageo capacitor", result)
         assertEquals("C_0603_X7R_100nF_50V", result!!.unifiedName)
     }
 
-    // --- RESISTORS ---
-
-    @Test
-    fun testResistorYageo() {
-        val result = parser.parse("RC0603FR-0710KL")
-        assertNotNull("Should parse Yageo resistor", result)
-        assertEquals("R_0603_10K_1%", result!!.unifiedName)
-
-        val jumper = parser.parse("RC0402JR-070RL")
-        assertNotNull("Should parse Yageo 0R resistor", jumper)
-        assertEquals("R_0402_0R", jumper!!.unifiedName)
-    }
+    // =========================================================================
+    // ТЕСТЫ РЕЗИСТОРОВ (RESISTORS)
+    // =========================================================================
 
     @Test
     fun testResistorVishay() {
@@ -165,6 +186,53 @@ class VendorEngineTest {
         val esr = parser.parse("ESR03EZPF1002")
         assertNotNull("Should parse ROHM ESR 10k", esr)
         assertEquals("R_0603_10K_1%", esr!!.unifiedName)
+
+        val pmr = parser.parse("PMR03EZPFU10L0")
+        assertNotNull("Should parse ROHM PMR 10mΩ", pmr)
+        assertEquals("R_0603_0.01R_1%", pmr!!.unifiedName)
+    }
+
+    @Test
+    fun testResistorViking() {
+        val result = parser.parse("CR-03FL7--10K")
+        assertNotNull("Should parse Viking resistor", result)
+        assertEquals("R_0603_10K_1%", result!!.unifiedName)
+    }
+
+    @Test
+    fun testResistorYageo() {
+        val result = parser.parse("RC0603FR-0710KL")
+        assertNotNull("Should parse Yageo resistor", result)
+        assertEquals("R_0603_10K_1%", result!!.unifiedName)
+
+        val jumper = parser.parse("RC0402JR-070RL")
+        assertNotNull("Should parse Yageo 0R resistor", jumper)
+        assertEquals("R_0402_0R", jumper!!.unifiedName)
+
+        val directRc = parser.parse("RC0805F1002")
+        assertNotNull("Should parse direct RC code", directRc)
+        assertEquals("R_0805_10K_1%", directRc!!.unifiedName)
+    }
+
+    @Test
+    fun testResistorHOTTECH() {
+        val result = parser.parse("RI0603L1002FT")
+        assertNotNull("Should parse HOTTECH RI resistor", result)
+        assertEquals("R_0603_10K_1%", result!!.unifiedName)
+    }
+
+    @Test
+    fun testResistorSamsung() {
+        val result = parser.parse("RC1608F1002CS")
+        assertNotNull("Should parse Samsung resistor", result)
+        assertEquals("R_0603_10K_1%", result!!.unifiedName)
+    }
+
+    @Test
+    fun testResistorWalsin() {
+        val result = parser.parse("WR06X1002FTL")
+        assertNotNull("Should parse Walsin resistor", result)
+        assertEquals("R_0603_10K_1%", result!!.unifiedName)
     }
 
     @Test
@@ -173,12 +241,22 @@ class VendorEngineTest {
         assertNotNull("Should parse Russian P1-12 resistor", p1_12)
         assertEquals("R_0805_10K_1%", p1_12!!.unifiedName)
 
+        val p1_12_comma = parser.parse("Р1-12-0,125 4,7кОм 5%")
+        assertNotNull("Should parse Russian P1-12 resistor with comma", p1_12_comma)
+        assertEquals("R_0805_4.7K_5%", p1_12_comma!!.unifiedName)
+
+        val p1_12_latin = parser.parse("Р1-12-0.125 10k 1%")
+        assertNotNull("Should parse Russian P1-12 resistor with latin k", p1_12_latin)
+        assertEquals("R_0805_10K_1%", p1_12_latin!!.unifiedName)
+
         val p1_16 = parser.parse("Р1-16-0.032 100Ом 1%")
         assertNotNull("Should parse Russian P1-16 resistor", p1_16)
         assertEquals("R_0603_100R_1%", p1_16!!.unifiedName)
     }
 
-    // --- BARCODE REEL TRIMMING ---
+    // =========================================================================
+    // ТЕСТЫ ОЧИСТКИ ПРЕФИКСОВ/СУФФИКСОВ КАТУШЕК (REEL TRIMMING)
+    // =========================================================================
 
     @Test
     fun testTrimmedBarcode() {

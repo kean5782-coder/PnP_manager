@@ -5,20 +5,34 @@ import java.text.DecimalFormatSymbols
 import java.util.Locale
 import java.util.regex.Pattern
 
+/**
+ * Максимальное число удаляемых символов слева (префиксы катушек 1P, Q, 1T и т.д.)
+ * и справа (суффиксы упаковок, технологические коды).
+ */
 const val MAX_TRIM_LEFT = 15
 const val MAX_TRIM_RIGHT = 80
 
+/**
+ * Форматирует вещественное число в компактную строку, отсекая лишние нули в конце
+ * (аналог спецификатора %g в C/Python) без потери значащих цифр для миллиомных значений.
+ */
 fun formatG(num: Double): String {
     if (num == 0.0) return "0"
-    val df = DecimalFormat("0.###", DecimalFormatSymbols(Locale.US))
+    val df = DecimalFormat("0.######", DecimalFormatSymbols(Locale.US))
     return df.format(num)
 }
 
+/**
+ * Преобразует российское обозначение резисторов (Р1-12, Р1-16, например '10кОм', '4.7МОм', '100Ом', '10k', '4,7к')
+ * в унифицированный формат со стандартными суффиксами R/K/M.
+ */
 fun parseRussianResistorValue(rawInput: String): String {
     var raw = rawInput.lowercase().trim()
     raw = raw.replace("ом", "")
     raw = raw.replace("r", "")
-    val pattern = Pattern.compile("""^([\d.,]+)\s*([ккм]?)""")
+    
+    // Поддержка как русских букв (к, м), так и латинских (k, m)
+    val pattern = Pattern.compile("""^([\d.,]+)\s*([кkмm]?)""")
     val matcher = pattern.matcher(raw)
     if (!matcher.find()) return rawInput
 
@@ -39,6 +53,20 @@ fun parseRussianResistorValue(rawInput: String): String {
     }
 }
 
+/**
+ * Правило декодирования маркировки компонентов конкретного производителя.
+ *
+ * @param name Название производителя или серии (например, "Murata", "Vishay", "Samsung_Cap").
+ * @param compType Тип радиокомпонента ("resistor" или "capacitor").
+ * @param patternStr Регулярное выражение с именованными группами захвата.
+ * @param sizeMap Таблица сопоставления внутренних кодов размеров стандарту EIA (0402, 0603, 0805...).
+ * @param dielectricMap Таблица сопоставления диэлектриков (C0G, X7R, X5R...).
+ * @param voltageMap Таблица сопоставления кодов рабочего напряжения (16V, 25V, 50V...).
+ * @param toleranceMap Таблица сопоставления кодов точности/допуска (0.1%, 1%, 5%...).
+ * @param valueParser Дополнительная функция парсинга значения (если требуется кастомная логика).
+ * @param suffixMap Таблица сопоставления суффиксов единиц (R, K, M, L -> mΩ).
+ * @param isResistor Флаг резистора (true) или конденсатора (false).
+ */
 class VendorRule(
     val name: String,
     val compType: String,
@@ -53,12 +81,16 @@ class VendorRule(
 ) {
     val pattern: Pattern = Pattern.compile(patternStr, Pattern.CASE_INSENSITIVE)
 
+    /**
+     * Выполняет сопоставление строки кода с регулярным выражением правила.
+     * Возвращает карту извлеченных именованных групп или null.
+     */
     fun match(code: String): Map<String, String>? {
         val matcher = pattern.matcher(code)
         if (!matcher.matches()) return null
 
         val result = mutableMapOf<String, String>()
-        // Named groups extraction
+        // Список известных именованных групп для извлечения параметров
         val groupNames = listOf(
             "size", "dielectric", "code", "tolerance", "voltage",
             "type", "suffix", "series", "termination", "size_code", "sizeCode",
@@ -75,13 +107,23 @@ class VendorRule(
                     result[name] = value
                 }
             } catch (_: IllegalArgumentException) {
-                // Group name not in pattern
+                // Имя группы отсутствует в данном конкретном шаблоне
             }
         }
         return result
     }
 }
 
+/**
+ * Результат расшифровки кода компонента.
+ *
+ * @param rule Совпавшее правило производителя.
+ * @param groups Извлеченные именованные параметры (номинал, диэлектрик, допуск и т.д.).
+ * @param usedCode Очищенная подстрока кода, подошедшая под шаблон.
+ * @param leftTrim Количество отсеченных мусорных символов слева.
+ * @param rightTrim Количество отсеченных мусорных символов справа.
+ * @param unifiedName Стандартизированное имя компонента (например, "R_0603_10K_1%").
+ */
 data class ParseResult(
     val rule: VendorRule,
     val groups: Map<String, String>,
@@ -91,8 +133,15 @@ data class ParseResult(
     val unifiedName: String
 )
 
+/**
+ * Движок разбора и сопоставления правил для всех поддерживаемых производителей.
+ */
 class VendorParser(val rules: List<VendorRule>) {
 
+    /**
+     * Выполняет распознавание кода со сканера или ручного ввода.
+     * Автоматически выполняет поиск подстроки при наличии префиксов/суффиксов.
+     */
     fun parse(code: String, vendorName: String? = null): ParseResult? {
         val original = code.trim()
         if (original.isEmpty()) return null
@@ -117,14 +166,15 @@ class VendorParser(val rules: List<VendorRule>) {
             }
         }
 
-        // Try without trimming first
+        // 1. Проверяем точное совпадение без обрезки
         val directMatch = tryMatch(original)
         if (directMatch != null) {
             val (rule, groups) = directMatch
-            val unified = convertToUnified(original, rule, groups)
+            val unified = convertToUnified(rule, groups)
             return ParseResult(rule, groups, original, 0, 0, unified)
         }
 
+        // 2. Генерируем варианты обрезки префиксов и суффиксов
         data class Candidate(val left: Int, val right: Int, val total: Int)
         val candidates = mutableListOf<Candidate>()
 
@@ -136,6 +186,7 @@ class VendorParser(val rules: List<VendorRule>) {
             }
         }
 
+        // Сортировка: сначала варианты с минимальным числом удаленных символов
         candidates.sortWith(compareBy({ it.total }, { it.left }))
 
         for ((left, right, _) in candidates) {
@@ -145,7 +196,7 @@ class VendorParser(val rules: List<VendorRule>) {
             val match = tryMatch(candidate)
             if (match != null) {
                 val (rule, groups) = match
-                val unified = convertToUnified(candidate, rule, groups)
+                val unified = convertToUnified(rule, groups)
                 return ParseResult(rule, groups, candidate, left, right, unified)
             }
         }
@@ -153,7 +204,10 @@ class VendorParser(val rules: List<VendorRule>) {
         return null
     }
 
-    fun convertToUnified(code: String, rule: VendorRule, groups: Map<String, String>): String {
+    /**
+     * Преобразует извлеченные параметры в унифицированное наименование.
+     */
+    fun convertToUnified(rule: VendorRule, groups: Map<String, String>): String {
         return if (rule.isResistor) {
             val sizeCode = groups["size"] ?: groups["cga_size"] ?: groups["cgaSize"] ?: ""
             val size = rule.sizeMap[sizeCode] ?: sizeCode
@@ -166,6 +220,7 @@ class VendorParser(val rules: List<VendorRule>) {
             }
             val toleranceCode = groups["tolerance"] ?: ""
             val tolerance = rule.toleranceMap[toleranceCode] ?: toleranceCode
+            
             if (valueStr == "0R" || tolerance == "0%") {
                 "R_${size}_0R"
             } else if (tolerance.isNotEmpty()) {
@@ -190,6 +245,9 @@ class VendorParser(val rules: List<VendorRule>) {
         }
     }
 
+    /**
+     * Парсинг номиналов резисторов (3/4-значная кодировка EIA, буквенная нотация, джамперы).
+     */
     private fun parseResistorValue(rawInput: String, suffixMap: Map<String, String>): String {
         var raw = rawInput.trim().uppercase()
         raw = raw.replace("Ω", "")
@@ -197,7 +255,7 @@ class VendorParser(val rules: List<VendorRule>) {
 
         if (raw == "0000" || raw == "000" || raw == "00" || raw == "0" || raw == "0R" || raw == "0R00" || raw == "0R0") return "0R"
 
-        // Обозначения с буквой внутри: 10K0, 4K70, 100R, 1R00, 1M00, 2M2
+        // Буквенная нотация внутри (например, 10K0, 4K70, 100R, 1R00, 1M00, 2M2)
         val matchInside = Pattern.compile("""^(\d+)([RKM])(\d*)$""").matcher(raw)
         if (matchInside.matches()) {
             val numPart = matchInside.group(1) ?: ""
@@ -213,6 +271,7 @@ class VendorParser(val rules: List<VendorRule>) {
             }
         }
 
+        // Суффиксы единиц на конце (R, K, M, L -> mΩ)
         if (raw.isNotEmpty() && suffixMap.containsKey(raw.takeLast(1))) {
             val suffix = raw.takeLast(1)
             var numPart = raw.dropLast(1)
@@ -236,6 +295,7 @@ class VendorParser(val rules: List<VendorRule>) {
             }
         }
 
+        // 3-значные и 4-значные цифровые коды
         return when (raw.length) {
             3 -> {
                 if (raw.contains('R')) {
@@ -271,6 +331,9 @@ class VendorParser(val rules: List<VendorRule>) {
         }
     }
 
+    /**
+     * Парсинг значений емкости конденсаторов (pF, nF, uF).
+     */
     private fun parseCapacitanceValue(rawInput: String): String {
         var raw = rawInput.trim().uppercase()
         if (raw.contains('R')) {
@@ -309,15 +372,22 @@ class VendorParser(val rules: List<VendorRule>) {
     }
 }
 
+/**
+ * Фабрика правил для конденсаторов и резисторов всех поддерживаемых производителей.
+ */
 object RuleFactory {
+
     fun createAllRules(): List<VendorRule> {
         return createCapacitorRules() + createResistorRules()
     }
 
+    /**
+     * Создает правила для конденсаторов (CCTC, Kemet, Taiyo Yuden, Murata, Samsung, TDK, AVX, Walsin, Yageo).
+     */
     fun createCapacitorRules(): List<VendorRule> {
         val rules = mutableListOf<VendorRule>()
 
-        // CCTC
+        // 1. CCTC (серия TCC)
         rules.add(
             VendorRule(
                 name = "CCTC",
@@ -331,7 +401,7 @@ object RuleFactory {
             )
         )
 
-        // KEMET
+        // 2. KEMET
         rules.add(
             VendorRule(
                 name = "KEMET",
@@ -345,12 +415,12 @@ object RuleFactory {
             )
         )
 
-        // Taiyo Yuden (исправлены имена групп)
+        // 3. Taiyo Yuden (поддержка всех кодов толщины [A-Z])
         rules.add(
             VendorRule(
                 name = "TaiyoYuden",
                 compType = "capacitor",
-                patternStr = """^(?<voltage>[PALJETGUHQSX])(?<series>[MVW])(?<termination>[KS])(?<size>\d{3})(?<sizeTolerance>[A-E]?)(?<dielectric>BJ|B7|C6|C7|LD|CG|UJ|UK)(?<code>\d+R\d+|\d{3})(?<tolerance>[ABCDFGJKMZ])(?<thickness>[KHCEDPVWADGLNYM])(?<special>[A-Z]?)-?(?<packaging>[FTPRW]?)(?<internal>[A-Z]?)$""",
+                patternStr = """^(?<voltage>[PALJETGUHQSX])(?<series>[MVW])(?<termination>[KS])(?<size>\d{3})(?<sizeTolerance>[A-E]?)(?<dielectric>BJ|B7|C6|C7|LD|CG|UJ|UK)(?<code>\d+R\d+|\d{3})(?<tolerance>[ABCDFGJKMZ])(?<thickness>[A-Z])(?<special>[A-Z]?)-?(?<packaging>[FTPRW]?)(?<internal>[A-Z]?)$""",
                 sizeMap = mapOf("021" to "008004", "042" to "01005", "063" to "0201", "105" to "0402", "107" to "0603", "212" to "0805", "316" to "1206", "325" to "1210", "432" to "1812"),
                 dielectricMap = mapOf("BJ" to "X5R", "B7" to "X7R", "C6" to "X6S", "C7" to "X7S", "LD" to "X5R", "CG" to "C0G", "UJ" to "U2J", "UK" to "U2K"),
                 voltageMap = mapOf("P" to "2.5V", "A" to "4V", "J" to "6.3V", "L" to "10V", "E" to "16V", "T" to "25V", "G" to "35V", "U" to "50V", "H" to "100V", "Q" to "250V", "S" to "630V", "X" to "2000V"),
@@ -358,7 +428,7 @@ object RuleFactory {
             )
         )
 
-        // Murata
+        // 4. Murata
         val murataSeries = "GRM|GJM|GQM|LLL|LLA|LLM|ERB|GCD|GCM|GCJ|GCH|GCE|GCQ|GMA|GNM|GR4|GR7|GA2|GA3|GC|GD|GF|GB"
         val murataDielectrics = "X7R|X5R|X6S|X7S|X8R|Y5V|C0G|U2J|5C|R7|R6|C7|R9|C8|R8|X6T|X5S|X7T|X8L|X8G|X8P|NP0|NPO"
         val murataPattern = """^(?<series>$murataSeries)(?<size>\d{2,3}[A-Z]?)(?<dielectric>$murataDielectrics)(?<voltage>[A-Z0-9]{2})(?<code>\d{3})(?<tolerance>[A-Z])(?<rest>[A-Z0-9]*)$"""
@@ -404,7 +474,7 @@ object RuleFactory {
             )
         )
 
-        // Samsung Capacitor
+        // 5. Samsung Capacitor
         rules.add(
             VendorRule(
                 name = "Samsung_Cap",
@@ -424,7 +494,7 @@ object RuleFactory {
             )
         )
 
-        // TDK Capacitor (включая CGA)
+        // 6. TDK Capacitor (включая автомобильную серию CGA)
         rules.add(
             VendorRule(
                 name = "TDK_Cap",
@@ -442,7 +512,7 @@ object RuleFactory {
             )
         )
 
-        // AVX / Kyocera AVX MLCC
+        // 7. AVX / Kyocera AVX MLCC
         rules.add(
             VendorRule(
                 name = "AVX",
@@ -465,7 +535,7 @@ object RuleFactory {
             )
         )
 
-        // Walsin Capacitor
+        // 8. Walsin Capacitor
         rules.add(
             VendorRule(
                 name = "Walsin_Cap",
@@ -479,7 +549,7 @@ object RuleFactory {
             )
         )
 
-        // Yageo Capacitor
+        // 9. Yageo Capacitor
         rules.add(
             VendorRule(
                 name = "Yageo_Cap",
@@ -496,10 +566,13 @@ object RuleFactory {
         return rules
     }
 
+    /**
+     * Создает правила для резисторов (Vishay, Panasonic, Bourns, KOA, Royal Ohm, ROHM, Viking, Yageo, HOTTECH, Samsung, Walsin, Р1-12, Р1-16).
+     */
     fun createResistorRules(): List<VendorRule> {
         val rules = mutableListOf<VendorRule>()
 
-        // Vishay / Dale (CRCW series)
+        // 1. Vishay / Dale (серия CRCW)
         rules.add(
             VendorRule(
                 name = "Vishay",
@@ -514,7 +587,7 @@ object RuleFactory {
             )
         )
 
-        // Panasonic (ERJ series)
+        // 2. Panasonic (серия ERJ)
         rules.add(
             VendorRule(
                 name = "Panasonic",
@@ -530,7 +603,7 @@ object RuleFactory {
             )
         )
 
-        // Bourns (CR, CRA, CRB, CHP, CMP series)
+        // 3. Bourns (серии CR, CRA, CRB, CHP, CMP)
         rules.add(
             VendorRule(
                 name = "Bourns",
@@ -545,7 +618,7 @@ object RuleFactory {
             )
         )
 
-        // KOA Speer (RK73 series)
+        // 4. KOA Speer (серия RK73)
         rules.add(
             VendorRule(
                 name = "KOA_Speer",
@@ -560,7 +633,7 @@ object RuleFactory {
             )
         )
 
-        // Royal Ohm (WA, W8, WG, W4, etc.)
+        // 5. Royal Ohm (серии WA, W8, WG, W4)
         rules.add(
             VendorRule(
                 name = "Royal_Ohm",
@@ -575,7 +648,7 @@ object RuleFactory {
             )
         )
 
-        // ROHM MCR
+        // 6. ROHM MCR
         rules.add(
             VendorRule(
                 name = "ROHM_MCR",
@@ -590,12 +663,12 @@ object RuleFactory {
             )
         )
 
-        // Viking
+        // 7. Viking (серия CR с гибким разделителем упаковочного кода)
         rules.add(
             VendorRule(
                 name = "Viking",
                 compType = "resistor",
-                patternStr = """^CR-(?<size>E5|01|02|03|05|06|10|0A|12|25|62)(?<tolerance>[BDFJ])(?<pack>[A-Z0-9]*?)-(?<value>.+)$""",
+                patternStr = """^CR-(?<size>E5|01|02|03|05|06|10|0A|12|25|62)(?<tolerance>[BDFJ])(?<pack>[A-Z0-9]*?)-+(?<value>[^\s]+)$""",
                 sizeMap = mapOf("E5" to "01005", "01" to "0201", "02" to "0402", "03" to "0603", "05" to "0805", "06" to "1206", "10" to "1210", "0A" to "2010", "12" to "2512", "25" to "1225", "62" to "0612"),
                 toleranceMap = mapOf("B" to "0.1%", "D" to "0.5%", "F" to "1%", "J" to "5%"),
                 suffixMap = mapOf("R" to "Ω", "K" to "KΩ", "M" to "MΩ", "L" to "mΩ"),
@@ -603,6 +676,7 @@ object RuleFactory {
             )
         )
 
+        // Парсер для RC Yageo и RI HOTTECH
         val parseRcOrRiValue: (String) -> String = { rawInput ->
             val raw = rawInput.uppercase()
             if (raw.contains('R')) {
@@ -636,7 +710,7 @@ object RuleFactory {
             }
         }
 
-        // RC Yageo
+        // 8. RC Yageo
         rules.add(
             VendorRule(
                 name = "RC_Yageo",
@@ -655,7 +729,7 @@ object RuleFactory {
             )
         )
 
-        // RI HOTTECH
+        // 9. RI HOTTECH
         rules.add(
             VendorRule(
                 name = "RI_HOTTECH",
@@ -672,7 +746,7 @@ object RuleFactory {
             )
         )
 
-        // ROHM ESR
+        // 10. ROHM ESR
         rules.add(
             VendorRule(
                 name = "ROHM_ESR",
@@ -685,7 +759,7 @@ object RuleFactory {
             )
         )
 
-        // ROHM PMR
+        // 11. ROHM PMR (миллиомные резисторы с L в коде)
         val parsePmrValue: (String) -> String = { rawInput ->
             val raw = rawInput.uppercase()
             if (raw.contains('L')) {
@@ -709,7 +783,7 @@ object RuleFactory {
             )
         )
 
-        // Samsung Resistor
+        // 12. Samsung (резисторы)
         rules.add(
             VendorRule(
                 name = "Samsung_Res",
@@ -725,7 +799,7 @@ object RuleFactory {
             )
         )
 
-        // Walsin Resistor
+        // 13. Walsin (резисторы)
         rules.add(
             VendorRule(
                 name = "Walsin_Res",
@@ -741,7 +815,7 @@ object RuleFactory {
             )
         )
 
-        // Yageo Resistor
+        // 14. Yageo (все серии резисторов)
         val yageoSeries = "AC|RC|RT|RL|RV|RE|RA|RK|RS|RP|RQ|RN|RM"
         rules.add(
             VendorRule(
@@ -758,7 +832,7 @@ object RuleFactory {
             )
         )
 
-        // Russian Resistors
+        // 15. Российские резисторы Р1-12 и Р1-16
         val rusTolMap = mutableMapOf<String, String>()
         val baseTol = mapOf(
             "0.05" to "0.05%", "0.1" to "0.1%", "0.25" to "0.25%",
@@ -772,7 +846,7 @@ object RuleFactory {
             rusTolMap[v.replace('.', ',')] = v
         }
 
-        // P1-12
+        // Р1-12
         rules.add(
             VendorRule(
                 name = "Rus_P1-12",
@@ -795,7 +869,7 @@ object RuleFactory {
             )
         )
 
-        // P1-16
+        // Р1-16
         rules.add(
             VendorRule(
                 name = "Rus_P1-16",

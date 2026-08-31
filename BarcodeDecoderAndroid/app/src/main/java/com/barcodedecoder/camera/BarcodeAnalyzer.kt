@@ -12,6 +12,19 @@ import com.google.mlkit.vision.barcode.BarcodeScanning
 import com.google.mlkit.vision.barcode.common.Barcode
 import com.google.mlkit.vision.common.InputImage
 
+/**
+ * Анализатор кадров CameraX с интеграцией Google ML Kit Barcode Scanning.
+ *
+ * Особенности:
+ * 1. Дросселирование (throttling): обработка не чаще чем раз в 200 мс для экономии батареи и CPU.
+ * 2. Автоматический учет ориентации кадра (rotationDegrees: 0, 90, 180, 270).
+ * 3. Точная трансформация координат boundingBox из системы координат сенсора камеры
+ *    в экранные координаты [PreviewView] с режимом масштабирования [PreviewView.ScaleType.FILL_CENTER].
+ * 4. Гарантированное закрытие [ImageProxy] в [ImageAnalysis.Analyzer.analyze] для предотвращения утечек буфера камеры.
+ *
+ * @param previewView Виджет превью камеры для расчета коэффициентов масштабирования.
+ * @param onBarcodesDetected Callback, вызываемый при обнаружении штрихкодов в кадре.
+ */
 class BarcodeAnalyzer(
     private val previewView: PreviewView,
     private val onBarcodesDetected: (List<BarcodeBox>) -> Unit
@@ -24,7 +37,7 @@ class BarcodeAnalyzer(
     )
 
     private var lastAnalysisTimestamp = 0L
-    private val scanIntervalMs = 200L // Каждые 0.2 секунды
+    private val scanIntervalMs = 200L // Интервал между анализами кадров
 
     @Volatile
     var isScanningEnabled: Boolean = true
@@ -48,6 +61,7 @@ class BarcodeAnalyzer(
 
         lastAnalysisTimestamp = currentTimestamp
 
+        // Расчет размеров повернутого изображения для нормализации координат ML Kit
         val imageWidth: Float
         val imageHeight: Float
         if (rotationDegrees == 90 || rotationDegrees == 270) {
@@ -77,13 +91,18 @@ class BarcodeAnalyzer(
                 onBarcodesDetected(boxes)
             }
             .addOnFailureListener {
-                // Ignore frame failure
+                // Игнорируем единичные сбои кадров в потоковом видео
             }
             .addOnCompleteListener {
+                // Всегда освобождаем буфер кадра
                 imageProxy.close()
             }
     }
 
+    /**
+     * Преобразует координаты прямоугольника из пространства кадра камеры
+     * в экранные координаты [PreviewView] с учетом масштабирования и центрирования.
+     */
     private fun transformRect(sourceRect: Rect, imageWidth: Float, imageHeight: Float): RectF {
         val viewWidth = previewView.width.toFloat()
         val viewHeight = previewView.height.toFloat()
@@ -92,7 +111,7 @@ class BarcodeAnalyzer(
             return RectF(sourceRect)
         }
 
-        // PreviewView with ScaleType.FILL_CENTER
+        // PreviewView использует режим FILL_CENTER: масштабирование по максимальному коэффициенту
         val scaleX = viewWidth / imageWidth
         val scaleY = viewHeight / imageHeight
         val scale = maxOf(scaleX, scaleY)

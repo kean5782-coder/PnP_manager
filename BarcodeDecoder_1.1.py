@@ -1,41 +1,61 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+"""
+BarcodeDecoder v1.1 — Десктопное приложение для декодирования маркировок и штрихкодов SMD компонентов.
+Поддерживает конденсаторы (MLCC) и резисторы ведущих мировых и российских производителей.
+
+Автоматически очищает префиксы и суффиксы катушек (1P, Q, 1T, суффиксы упаковок и партий)
+и формирует унифицированное наименование компонента по стандарту:
+  Резисторы:   R_<Размер>_<Номинал>_<Погрешность> (например, R_0603_10K_1%, R_0402_0R)
+  Конденсаторы: C_<Размер>_<Диэлектрик>_<Емкость>_<Напряжение> (например, C_0603_X7R_100nF_50V)
+"""
+
 import tkinter as tk
 from tkinter import ttk, messagebox
 import re
 import ctypes
 
-# Максимальное число удаляемых символов слева и справа
+# Максимальное число удаляемых символов слева (префиксы катушек) и справа (суффиксы партий/упаковок)
 MAX_TRIM_LEFT = 15
 MAX_TRIM_RIGHT = 80
 
 
 # =============================================================================
-# Парсинг российских обозначений резисторов (без миллиом)
+# Парсинг российских обозначений резисторов (Р1-12, Р1-16)
 # =============================================================================
-def parse_russian_resistor_value(raw):
-    """Преобразует российское обозначение резистора (1кОм, 4.7МОм) в формат с R/K/M.
-       Миллиомы (мОм) не поддерживаются."""
+def parse_russian_resistor_value(raw: str) -> str:
+    """
+    Преобразует российское обозначение резистора (например, '1кОм', '4.7МОм', '100Ом', '10k', '4,7к')
+    в международный формат с суффиксами R/K/M.
+    Миллиомы (мОм) в текущей версии не поддерживаются.
+    """
     raw = raw.lower().strip()
     raw = raw.replace('ом', '')
     raw = raw.replace('r', '')
-    match = re.match(r'([\d.,]+)\s*([ккм]?)', raw)
+    
+    # Регулярное выражение с поддержкой как кириллических (к, м), так и латинских (k, m) букв
+    match = re.match(r'^([\d.,]+)\s*([кkмm]?)', raw)
     if not match:
         return raw
-    num_str = match.group(1)
+        
+    num_str = match.group(1).replace(',', '.')
     unit = match.group(2)
-    num_str = num_str.replace(',', '.')
+    
     try:
         num = float(num_str)
-    except ValueError:
+    except (ValueError, TypeError):
         return raw
+
     if unit in ('к', 'k'):
         return f"{num:.3g}K"
     elif unit in ('м', 'm'):
         return f"{num:.3g}M"
     else:
+        # Автоматическое масштабирование Ом в К / М при больших числах
         if num >= 1000000:
-            return f"{num/1000000:.3g}M"
+            return f"{num / 1000000:.3g}M"
         elif num >= 1000:
-            return f"{num/1000:.3g}K"
+            return f"{num / 1000:.3g}K"
         else:
             return f"{num:.3g}R"
 
@@ -44,6 +64,22 @@ def parse_russian_resistor_value(raw):
 # Класс для хранения правила парсинга одного производителя
 # =============================================================================
 class VendorRule:
+    """
+    Правило парсинга кодировки компонентов конкретного производителя.
+    
+    Атрибуты:
+        name (str): Имя производителя / серии (например, 'Murata', 'Yageo', 'Vishay').
+        comp_type (str): Тип компонента ('resistor' или 'capacitor').
+        pattern (re.Pattern): Скомпилированное регулярное выражение с именованными группами.
+        size_map (dict): Таблица соответствия внутреннего кода типоразмера стандарту EIA (например, '10' -> '0603').
+        dielectric_map (dict): Таблица соответствия кодов диэлектриков (для конденсаторов).
+        voltage_map (dict): Таблица соответствия кодов рабочего напряжения.
+        tolerance_map (dict): Таблица соответствия кодов погрешности/допуска (например, 'F' -> '1%').
+        value_parser (callable): Пользовательская функция парсинга номинала (если требуется нестандартная логика).
+        suffix_map (dict): Таблица соответствия суффиксов единиц измерения (например, 'R' -> 'Ω', 'L' -> 'mΩ').
+        is_resistor (bool): Флаг резистора (True) или конденсатора (False).
+    """
+
     def __init__(self, name, comp_type, pattern, size_map, dielectric_map=None, voltage_map=None,
                  tolerance_map=None, value_parser=None, suffix_map=None, is_resistor=False):
         self.name = name
@@ -57,7 +93,11 @@ class VendorRule:
         self.suffix_map = suffix_map or {}
         self.is_resistor = is_resistor
 
-    def match(self, code):
+    def match(self, code: str):
+        """
+        Проверяет строку кода на полное соответствие регулярному выражению правила.
+        Возвращает словарь извлеченных именованных групп или None.
+        """
         m = self.pattern.match(code)
         if m:
             return m.groupdict()
@@ -68,15 +108,30 @@ class VendorRule:
 # Парсер с автоматической очисткой префиксов и суффиксов
 # =============================================================================
 class VendorParser:
+    """
+    Движок сопоставления правил и очистки артефактов штрихкодов катушек.
+    Выполняет перебор правил и перебор возможных подстрок (отсечение префиксов и суффиксов).
+    """
+
     def __init__(self, rules):
         self.rules = rules
 
-    def parse(self, code, vendor_name=None):
+    def parse(self, code: str, vendor_name: str = None):
+        """
+        Парсит переданную строку кода.
+        
+        Возвращает кортеж:
+            (rule, groups, used_code, left_trim, right_trim)
+            где rule — совпавшее правило (VendorRule),
+                groups — словарь извлеченных параметров,
+                used_code — подстрока кода, подошедшая под шаблон,
+                left_trim, right_trim — число отсеченных символов слева и справа.
+        """
         original = code.strip()
         if not original:
             return None, None, None, 0, 0
 
-        def try_match(candidate):
+        def try_match(candidate: str):
             candidate = candidate.strip()
             if not candidate:
                 return None, None
@@ -94,11 +149,12 @@ class VendorParser:
                         return rule, groups
                 return None, None
 
-        # Сначала пробуем без удаления
+        # 1. Сначала пробуем сопоставить код целиком без удаления символов
         rule, groups = try_match(original)
         if rule is not None:
             return rule, groups, original, 0, 0
 
+        # 2. Генерируем кандидатов обрезки префиксов и суффиксов
         candidates = []
         for left in range(0, MAX_TRIM_LEFT + 1):
             for right in range(0, MAX_TRIM_RIGHT + 1):
@@ -108,6 +164,7 @@ class VendorParser:
                     continue
                 candidates.append((left, right, left + right))
 
+        # Сортируем кандидатов: сначала с наименьшим суммарным количеством удаленных символов
         candidates.sort(key=lambda x: (x[2], x[0]))
 
         for left, right, _ in candidates:
@@ -122,9 +179,12 @@ class VendorParser:
 
         return None, None, None, 0, 0
 
-    def convert_to_unified(self, code, rule, groups):
+    def convert_to_unified(self, code: str, rule: VendorRule, groups: dict) -> str:
+        """
+        Формирует стандартное унифицированное имя компонента на основе извлеченных параметров.
+        """
         if rule.is_resistor:
-            size_code = groups.get('size') or groups.get('cga_size')
+            size_code = groups.get('size') or groups.get('cga_size') or ''
             size = rule.size_map.get(size_code, size_code)
             raw_value = groups.get('value') or groups.get('code')
             if raw_value:
@@ -136,6 +196,7 @@ class VendorParser:
                 value_str = '0R' if groups.get('tolerance') in ('Z', '0') else '?'
             tolerance_code = groups.get('tolerance') or ''
             tolerance = rule.tolerance_map.get(tolerance_code, tolerance_code)
+            
             if value_str == '0R' or tolerance == '0%':
                 return f"R_{size}_0R"
             elif tolerance:
@@ -143,9 +204,9 @@ class VendorParser:
             else:
                 return f"R_{size}_{value_str}"
         else:
-            size_code = groups.get('size') or groups.get('cga_size')
+            size_code = groups.get('size') or groups.get('cga_size') or ''
             size = rule.size_map.get(size_code, size_code)
-            dielectric_code = groups.get('dielectric')
+            dielectric_code = groups.get('dielectric') or ''
             dielectric = rule.dielectric_map.get(dielectric_code, dielectric_code)
             raw_value = groups.get('code')
             if raw_value:
@@ -163,7 +224,13 @@ class VendorParser:
             return f"C_{size}_{dielectric}_{value_str}_{voltage}"
 
     # ---------- Парсинг значений резисторов (стандартный, для импортных) ----------
-    def _parse_resistor_value(self, raw, suffix_map):
+    def _parse_resistor_value(self, raw: str, suffix_map: dict) -> str:
+        """
+        Парсит строковое представление номинала резистора:
+        - 3-значные и 4-значные коды EIA (103 -> 10K, 1002 -> 10K)
+        - Буквенная нотация с точкой (10K0, 4K7, 1R00, 0R0)
+        - Джамперы (0000, 000, 0) -> 0R
+        """
         raw = raw.strip().upper()
         raw = re.sub(r'Ω', '', raw)
         raw = re.sub(r'(?i)ом', '', raw)
@@ -180,8 +247,8 @@ class VendorParser:
             val_str = f"{num_part}.{decimal_part}" if decimal_part else num_part
             try:
                 val = float(val_str)
-            except:
-                val = 0
+            except (ValueError, TypeError):
+                val = 0.0
             if letter == 'R':
                 return f"{val:.3g}R"
             elif letter == 'K':
@@ -189,6 +256,7 @@ class VendorParser:
             elif letter == 'M':
                 return f"{val:.3g}M"
 
+        # Суффиксы единиц (R, K, M, L) на конце
         if raw and raw[-1] in suffix_map:
             suffix = raw[-1]
             num_part = raw[:-1]
@@ -197,15 +265,15 @@ class VendorParser:
                 num_part = num_part.replace('R', '.')
             try:
                 val = float(num_part)
-            except:
-                val = 0
+            except (ValueError, TypeError):
+                val = 0.0
             if unit in ('Ω', 'mΩ'):
                 if unit == 'mΩ':
                     val = val / 1000.0
                 if val >= 1000000:
-                    return f"{val/1000000:.3g}M"
+                    return f"{val / 1000000:.3g}M"
                 elif val >= 1000:
-                    return f"{val/1000:.3g}K"
+                    return f"{val / 1000:.3g}K"
                 else:
                     return f"{val:.3g}R"
             elif unit == 'KΩ':
@@ -215,103 +283,93 @@ class VendorParser:
             else:
                 return f"{num_part}{unit}"
 
+        # 3-значная цифровая кодировка (мантисса 2 цифры + множитель 10^N)
         if len(raw) == 3:
             if 'R' in raw:
                 raw = raw.replace('R', '.')
                 try:
                     val = float(raw)
-                except:
-                    val = 0
+                except (ValueError, TypeError):
+                    val = 0.0
                 return f"{val:.3g}R"
             elif raw.isdigit():
                 try:
                     mantissa = int(raw[:2])
                     multiplier = int(raw[2])
                     val = mantissa * (10 ** multiplier)
-                except:
+                except (ValueError, TypeError):
                     return raw
                 if val >= 1000000:
-                    return f"{val/1000000:.3g}M"
+                    return f"{val / 1000000:.3g}M"
                 elif val >= 1000:
-                    return f"{val/1000:.3g}K"
+                    return f"{val / 1000:.3g}K"
                 else:
                     return f"{val:.3g}R"
+                    
+        # 4-значная цифровая кодировка (мантисса 3 цифры + множитель 10^N)
         elif len(raw) == 4:
             if 'R' in raw:
                 raw = raw.replace('R', '.')
                 try:
                     val = float(raw)
-                except:
-                    val = 0
+                except (ValueError, TypeError):
+                    val = 0.0
                 return f"{val:.3g}R"
             elif raw.isdigit():
                 try:
                     mantissa = int(raw[:3])
                     multiplier = int(raw[3])
                     val = mantissa * (10 ** multiplier)
-                except:
+                except (ValueError, TypeError):
                     return raw
                 if val >= 1000000:
-                    return f"{val/1000000:.3g}M"
+                    return f"{val / 1000000:.3g}M"
                 elif val >= 1000:
-                    return f"{val/1000:.3g}K"
+                    return f"{val / 1000:.3g}K"
                 else:
                     return f"{val:.3g}R"
         return raw
 
     # ---------- Парсинг значений конденсаторов ----------
-    def _parse_capacitance_value(self, raw):
+    def _parse_capacitance_value(self, raw: str) -> str:
+        """
+        Парсит строковое представление емкости конденсатора:
+        - 3-значный EIA код (104 -> 100nF, 101 -> 100pF, 106 -> 10uF)
+        - Дробные значения с буквой R ( например, 4R7 -> 4.7pF, 0R5 -> 0.5pF)
+        """
         raw = raw.strip().upper()
         if 'R' in raw:
             raw = raw.replace('R', '.')
             try:
                 val = float(raw)
-            except:
-                val = 0
+            except (ValueError, TypeError):
+                val = 0.0
             if val < 1:
                 return f"{val:.2g}pF"
             elif val < 1000:
-                if val.is_integer():
-                    return f"{int(val)}pF"
-                else:
-                    return f"{val:.2g}pF"
+                return f"{int(val)}pF" if val.is_integer() else f"{val:.2g}pF"
             elif val < 1000000:
-                val_nf = val / 1000
-                if val_nf.is_integer():
-                    return f"{int(val_nf)}nF"
-                else:
-                    return f"{val_nf:.2g}nF"
+                val_nf = val / 1000.0
+                return f"{int(val_nf)}nF" if val_nf.is_integer() else f"{val_nf:.2g}nF"
             else:
-                val_uf = val / 1000000
-                if val_uf.is_integer():
-                    return f"{int(val_uf)}uF"
-                else:
-                    return f"{val_uf:.2g}uF"
+                val_uf = val / 1000000.0
+                return f"{int(val_uf)}uF" if val_uf.is_integer() else f"{val_uf:.2g}uF"
         else:
-            if len(raw) == 3:
+            if len(raw) == 3 and raw.isdigit():
                 try:
                     mantissa = int(raw[:2])
                     multiplier = int(raw[2])
                     val = mantissa * (10 ** multiplier)
-                except:
+                except (ValueError, TypeError):
                     return raw
                 if val < 1000:
-                    if val.is_integer():
-                        return f"{int(val)}pF"
-                    else:
-                        return f"{val:.2g}pF"
+                    return f"{int(val)}pF" if val.is_integer() else f"{val:.2g}pF"
                 elif val < 1000000:
-                    val_nf = val / 1000
-                    if val_nf.is_integer():
-                        return f"{int(val_nf)}nF"
-                    else:
-                        return f"{val_nf:.2g}nF"
+                    val_nf = val / 1000.0
+                    return f"{int(val_nf)}nF" if val_nf.is_integer() else f"{val_nf:.2g}nF"
                 else:
-                    val_uf = val / 1000000
-                    if val_uf.is_integer():
-                        return f"{int(val_uf)}uF"
-                    else:
-                        return f"{val_uf:.2g}uF"
+                    val_uf = val / 1000000.0
+                    return f"{int(val_uf)}uF" if val_uf.is_integer() else f"{val_uf:.2g}uF"
             else:
                 return raw
 
@@ -320,9 +378,10 @@ class VendorParser:
 # Предустановленные правила для конденсаторов
 # =============================================================================
 def create_capacitor_rules():
+    """Создает и возвращает список правил для конденсаторов мировых производителей."""
     rules = []
 
-    # CCTC (TCC series)
+    # 1. CCTC (серия TCC)
     cctc_pattern = r'^TCC\s*(?P<size>\d{4})\s*(?P<dielectric>[A-Z0-9]+)\s*(?P<code>\d{3})\s*(?P<tolerance>[JKMZ])\s*(?P<voltage>\d{3})'
     cctc_size_map = {
         '0201': '0201', '0402': '0402', '0603': '0603',
@@ -343,7 +402,7 @@ def create_capacitor_rules():
                             dielectric_map=cctc_dielectric, voltage_map=cctc_voltage,
                             tolerance_map=cctc_tolerance, is_resistor=False))
 
-    # KEMET
+    # 2. KEMET
     kemet_pattern = r'^C(?P<size>\d{4})(?P<type>[A-Z])(?P<code>\d{3})(?P<tolerance>[BCDFGJKMOPZ])(?P<voltage>\d)(?P<dielectric>[GRPUV])(?P<suffix>[A-Z]{0,2})$'
     kemet_size_map = {'0402': '0402', '0603': '0603', '0805': '0805', '1206': '1206', '1210': '1210',
                       '1812': '1812', '1825': '1825', '2220': '2220', '2225': '2225'}
@@ -356,31 +415,31 @@ def create_capacitor_rules():
     rules.append(VendorRule('KEMET', 'capacitor', kemet_pattern, kemet_size_map,
                             kemet_dielectric, kemet_voltage, kemet_tolerance, None, None, False))
 
-    # TAIYO YUDEN (исправлены имена групп)
-    taiyo_pattern = r'^(?P<voltage>[PALJETGUHQSX])(?P<series>[MVW])(?P<termination>[KS])(?P<size>\d{3})(?P<size_tolerance>[A-E]?)(?P<dielectric>BJ|B7|C6|C7|LD|CG|UJ|UK)(?P<code>\d+R\d+|\d{3})(?P<tolerance>[ABCDFGJKMZ])(?P<thickness>[KHCEDPVWADGLNYM])(?P<special>[A-Z]?)-?(?P<packaging>[FTPRW]?)(?P<internal>[A-Z]?)$'
+    # 3. TAIYO YUDEN
+    taiyo_pattern = r'^(?P<voltage>[PALJETGUHQSX])(?P<series>[MVW])(?P<termination>[KS])(?P<size>\d{3})(?P<size_tolerance>[A-E]?)(?P<dielectric>BJ|B7|C6|C7|LD|CG|UJ|UK)(?P<code>\d+R\d+|\d{3})(?P<tolerance>[ABCDFGJKMZ])(?P<thickness>[A-Z])(?P<special>[A-Z]?)-?(?P<packaging>[FTPRW]?)(?P<internal>[A-Z]?)$'
     taiyo_size_map = {
-        '021':'008004', '042':'01005', '063':'0201', '105':'0402',
-        '107':'0603', '212':'0805', '316':'1206', '325':'1210', '432':'1812'
+        '021': '008004', '042': '01005', '063': '0201', '105': '0402',
+        '107': '0603', '212': '0805', '316': '1206', '325': '1210', '432': '1812'
     }
     taiyo_dielectric = {
-        'BJ':'X5R', 'B7':'X7R', 'C6':'X6S', 'C7':'X7S',
-        'LD':'X5R', 'CG':'C0G', 'UJ':'U2J', 'UK':'U2K'
+        'BJ': 'X5R', 'B7': 'X7R', 'C6': 'X6S', 'C7': 'X7S',
+        'LD': 'X5R', 'CG': 'C0G', 'UJ': 'U2J', 'UK': 'U2K'
     }
     taiyo_voltage = {
-        'P':'2.5V', 'A':'4V', 'J':'6.3V', 'L':'10V', 'E':'16V',
-        'T':'25V', 'G':'35V', 'U':'50V', 'H':'100V', 'Q':'250V',
-        'S':'630V', 'X':'2000V'
+        'P': '2.5V', 'A': '4V', 'J': '6.3V', 'L': '10V', 'E': '16V',
+        'T': '25V', 'G': '35V', 'U': '50V', 'H': '100V', 'Q': '250V',
+        'S': '630V', 'X': '2000V'
     }
     rules.append(VendorRule('TaiyoYuden', 'capacitor', taiyo_pattern, taiyo_size_map,
                             dielectric_map=taiyo_dielectric, voltage_map=taiyo_voltage,
                             is_resistor=False))
 
-    # Murata (расширенный)
+    # 4. Murata (расширенный список диэлектриков и серий)
     dielectric_keys = [
         'X7R', 'X5R', 'X6S', 'X7S', 'X8R', 'Y5V', 'C0G', 'U2J',
         '5C', 'R7', 'R6', 'C7', 'R9',
         'C8', 'R8', 'X6T', 'X5S', 'X7T', 'X8L', 'X8G', 'X8P',
-        'C0G', 'NP0', 'NPO', 'X5R', 'X7R', 'X6S', 'X7S', 'X8R'
+        'NP0', 'NPO'
     ]
     dielectric_pattern = '|'.join(dielectric_keys)
     murata_series = (
@@ -396,7 +455,7 @@ def create_capacitor_rules():
         '55': '2220',
         '022': '01005', '033': '0201', '155': '0402', '188': '0603',
         '216': '0805', '219': '0805', '316': '1206', '319': '1206',
-        '329': '1210', '433': '1812', '555': '2220','158': '0402',
+        '329': '1210', '433': '1812', '555': '2220', '158': '0402',
         **{f'{code}{chr(c)}': size for code, size in [('15','0402'),('18','0603'),('21','0805'),('31','1206'),('32','1210'),('43','1812'),('55','2220')] for c in range(ord('A'), ord('Z')+1)}
     }
     murata_dielectric = {
@@ -422,7 +481,7 @@ def create_capacitor_rules():
                             dielectric_map=murata_dielectric, voltage_map=murata_voltage,
                             tolerance_map=murata_tolerance, is_resistor=False))
 
-    # Samsung
+    # 5. Samsung
     samsung_cap_pattern = r'^CL(?P<size>\d{2})(?P<dielectric>[ACBXYZF])(?P<code>\d{3}|[0-9]R[0-9])(?P<tolerance>[BCDFGJKMZ])(?P<voltage>[A-Z])(?P<rest>.*)$'
     samsung_size_map = {'02': '01005', '03': '0201', '05': '0402', '10': '0603', '21': '0805', '31': '1206', '32': '1210',
                         '42': '1808', '43': '1812', '55': '2220'}
@@ -438,7 +497,7 @@ def create_capacitor_rules():
     rules.append(VendorRule('Samsung_Cap', 'capacitor', samsung_cap_pattern, samsung_size_map,
                             samsung_dielectric, samsung_voltage, samsung_tolerance, None, None, False))
 
-    # TDK (включая автомобильную серию CGA)
+    # 6. TDK (включая автомобильную серию CGA)
     tdk_cap_pattern = r'^(?:C(?P<size>\d{4})|CGA(?P<cga_size>[2-8])[A-Z0-9]{1,2})(?P<dielectric>COG|C0G|X5R|X6S|X7R|X7S|X7T)(?P<voltage>0G|0J|1A|1C|1E|1V|1H|1N|2A|2E)(?P<code>\d{3})(?P<tolerance>[BCDFGJKM])(?P<rest>.*)$'
     tdk_size_map = {
         '0402': '01005', '0603': '0201', '1005': '0402', '1608': '0603', '2012': '0805', '3216': '1206',
@@ -453,7 +512,7 @@ def create_capacitor_rules():
     rules.append(VendorRule('TDK_Cap', 'capacitor', tdk_cap_pattern, tdk_size_map,
                             tdk_dielectric, tdk_voltage, tdk_tolerance, None, None, False))
 
-    # AVX / Kyocera AVX MLCC
+    # 7. AVX / Kyocera AVX MLCC
     avx_cap_pattern = r'^(?P<size>0201|0402|0603|0805|1206|1210|1812|2220)(?P<voltage>[ZY3512V7])(?P<dielectric>[ACDFG])(?P<code>\d{3}|[0-9]R[0-9])(?P<tolerance>[BCDFGJKMZ])(?P<pack>[A-Z0-9]{3,4})$'
     avx_size_map = {
         '0201': '0201', '0402': '0402', '0603': '0603', '0805': '0805',
@@ -472,7 +531,7 @@ def create_capacitor_rules():
                             dielectric_map=avx_dielectric, voltage_map=avx_voltage,
                             tolerance_map=avx_tolerance, is_resistor=False))
 
-    # Walsin
+    # 8. Walsin
     walsin_cap_pattern = r'^(?P<size>0201|0402|0603|0805|1206|1210|1812)(?P<dielectric>[NBXSA])(?P<code>\d{3})(?P<tolerance>[ABCDFGJKMZ])(?P<voltage>\d{3})(?P<rest>.*)$'
     walsin_size_map = {'0201': '0201', '0402': '0402', '0603': '0603', '0805': '0805', '1206': '1206', '1210': '1210', '1812': '1812'}
     walsin_dielectric = {'N': 'C0G', 'B': 'X7R', 'X': 'X5R', 'S': 'X6S', 'A': 'X7S'}
@@ -484,7 +543,7 @@ def create_capacitor_rules():
     rules.append(VendorRule('Walsin_Cap', 'capacitor', walsin_cap_pattern, walsin_size_map,
                             walsin_dielectric, walsin_voltage, walsin_tolerance, None, None, False))
 
-    # Yageo (конденсаторы)
+    # 9. Yageo (конденсаторы)
     yageo_cap_pattern = r'^(?P<prefix>CC|AC|C|CQ)(?P<size>\d{4})(?P<tolerance>[BCDFGJKM])(?P<packing>[A-Z]{0,2})(?P<dielectric>X5R|X7R|X6S|X7S|X8R|X8G|COG|C0G|NP0|NPO|Y5V)(?P<voltage>[A-Z0-9]?)(?P<rest>[A-Z]{0,2})(?P<code>\d{3}|[0-9]R[0-9]{1,2})$'
     yageo_size_map = {
         '0201': '0201', '0402': '0402', '0603': '0603', '0805': '0805',
@@ -515,9 +574,10 @@ def create_capacitor_rules():
 # Предустановленные правила для резисторов (включая российские)
 # =============================================================================
 def create_resistor_rules():
+    """Создает и возвращает список правил для резисторов мировых и российских производителей."""
     rules = []
 
-    # Vishay / Dale (CRCW series)
+    # 1. Vishay / Dale (серия CRCW)
     vishay_pattern = r'^CRCW(?P<size>0402|0603|0805|1206|1210|1218|2010|2512)(?P<code>\d{3,4}|\d+[RKM]\d*|0000)(?P<tolerance>[BDFJZN])(?P<tcr>[A-Z0-9]{1,2})(?P<pack>[A-Z]{2})$'
     vishay_size_map = {
         '0402': '0402', '0603': '0603', '0805': '0805', '1206': '1206',
@@ -527,7 +587,7 @@ def create_resistor_rules():
     rules.append(VendorRule('Vishay', 'resistor', vishay_pattern, vishay_size_map,
                             tolerance_map=vishay_tolerance, is_resistor=True))
 
-    # Panasonic (ERJ series)
+    # 2. Panasonic (серия ERJ)
     panasonic_pattern = r'^ERJ-?(?P<size>1G|2G|2R|3G|3E|3R|6G|6E|6R|8G|8E|8R|14|12|1T)(?P<series>[A-Z]{0,2}?)(?:(?P<tolerance>[BDFGJKZ])|(?=[0-9R]))(?P<code>\d{3,4}|\d*R\d+|0R00)(?P<pack>[A-Z])$'
     panasonic_size_map = {
         '1G': '0201', '2G': '0402', '2R': '0402', '3G': '0603', '3E': '0603', '3R': '0603',
@@ -538,7 +598,7 @@ def create_resistor_rules():
     rules.append(VendorRule('Panasonic', 'resistor', panasonic_pattern, panasonic_size_map,
                             tolerance_map=panasonic_tolerance, is_resistor=True))
 
-    # Bourns (CR, CRA, CRB, CHP, CMP series)
+    # 3. Bourns (серии CR, CRA, CRB, CHP, CMP)
     bourns_pattern = r'^(?P<series>CR|CRA|CRB|CHP|CMP)(?P<size>01005|0201|0402|0603|0805|1206|1210|2010|2512)-?(?P<tolerance>[BDFGJ])(?P<tcr>[A-Z/]{1,3})-?(?P<code>\d{3,4}|\d*R\d+|000)(?P<pack>[A-Z0-9]*)$'
     bourns_size_map = {
         '01005': '01005', '0201': '0201', '0402': '0402', '0603': '0603',
@@ -548,7 +608,7 @@ def create_resistor_rules():
     rules.append(VendorRule('Bourns', 'resistor', bourns_pattern, bourns_size_map,
                             tolerance_map=bourns_tolerance, is_resistor=True))
 
-    # KOA Speer (RK73 series)
+    # 4. KOA Speer (серия RK73)
     koa_pattern = r'^RK73(?P<type>[A-Z])(?P<size>1F|1H|1E|1J|2A|2B|2E|W2H|W3A)(?P<pack>[A-Z]{2,4})(?P<code>\d{3,4}|\d*R\d+|000|0)?(?P<tolerance>[BDFGJKZ])?$'
     koa_size_map = {
         '1F': '01005', '1H': '0201', '1E': '0402', '1J': '0603',
@@ -558,7 +618,7 @@ def create_resistor_rules():
     rules.append(VendorRule('KOA_Speer', 'resistor', koa_pattern, koa_size_map,
                             tolerance_map=koa_tolerance, is_resistor=True))
 
-    # Royal Ohm (WA, W8, WG, W4, etc.)
+    # 5. Royal Ohm (серии WA, W8, WG, W4)
     royal_pattern = r'^(?P<size>0201|0402|0603|0805|1206|1210|2010|2512)(?P<power>[A-Z0-9]{2})(?P<tolerance>[BDFGJ])(?P<code>\d{3,4}|\d*R\d+|000)(?P<pack>[A-Z0-9]{3})$'
     royal_size_map = {
         '0201': '0201', '0402': '0402', '0603': '0603', '0805': '0805',
@@ -568,7 +628,7 @@ def create_resistor_rules():
     rules.append(VendorRule('Royal_Ohm', 'resistor', royal_pattern, royal_size_map,
                             tolerance_map=royal_tolerance, is_resistor=True))
 
-    # ROHM MCR
+    # 6. ROHM MCR
     rohm_mcr_pattern = r'^MCR(?P<size>006|01|03|10|18|25|50|100)(?P<pack>[A-Z]{3,4})(?P<tolerance>[BDFGJ])(?P<tcr>[A-Z0-9]?)(?P<code>\d{3,4}|\d*R\d+|000)$'
     rohm_mcr_size_map = {
         '006': '0201', '01': '0402', '03': '0603', '10': '0805',
@@ -578,8 +638,8 @@ def create_resistor_rules():
     rules.append(VendorRule('ROHM_MCR', 'resistor', rohm_mcr_pattern, rohm_mcr_size_map,
                             tolerance_map=rohm_mcr_tolerance, is_resistor=True))
 
-    # Viking (CR series)
-    viking_pattern = r'^CR-(?P<size>E5|01|02|03|05|06|10|0A|12|25|62)(?P<tolerance>[BDFJ])(?P<pack>[A-Z0-9]*?)-(?P<value>.+)$'
+    # 7. Viking (серия CR)
+    viking_pattern = r'^CR-(?P<size>E5|01|02|03|05|06|10|0A|12|25|62)(?P<tolerance>[BDFJ])(?P<pack>[A-Z0-9]*?)-+(?P<value>[^\s]+)$'
     viking_size_map = {
         'E5': '01005', '01': '0201', '02': '0402', '03': '0603',
         '05': '0805', '06': '1206', '10': '1210', '0A': '2010',
@@ -590,7 +650,7 @@ def create_resistor_rules():
     rules.append(VendorRule('Viking', 'resistor', viking_pattern, viking_size_map,
                             tolerance_map=viking_tolerance, suffix_map=suffix_map_ohm, is_resistor=True))
 
-    # RC серия (Yageo) с поддержкой R в коде
+    # 8. Yageo RC серия с поддержкой R в коде
     rc_pattern = r'^RC(?P<size>\d{4})(?P<tolerance>[BDFJ])(?P<code>[\dR]{3,5})(?P<pack>[A-Z]{0,2})$'
     rc_size_map = {
         '0075': '01005', '0100': '0201', '0201': '0201', '0402': '0402',
@@ -600,47 +660,50 @@ def create_resistor_rules():
         '3225': '1210', '5025': '2010', '6432': '2512'
     }
     rc_tolerance = {'B': '0.1%', 'D': '0.5%', 'F': '1%', 'J': '5%'}
-    def rc_value_parser(raw):
+    
+    def rc_value_parser(raw: str) -> str:
         raw = raw.upper()
         if 'R' in raw:
             val_str = raw.replace('R', '.')
             try:
                 val = float(val_str)
-            except:
+            except (ValueError, TypeError):
                 return raw
             if val >= 1000000:
-                return f"{val/1000000:.3g}M"
+                return f"{val / 1000000:.3g}M"
             elif val >= 1000:
-                return f"{val/1000:.3g}K"
+                return f"{val / 1000:.3g}K"
             else:
                 return f"{val:.3g}R"
-        if len(raw) == 3:
+        if len(raw) == 3 and raw.isdigit():
             try:
                 mantissa = int(raw[:2])
                 multiplier = int(raw[2])
                 val = mantissa * (10 ** multiplier)
-            except:
+            except (ValueError, TypeError):
                 return raw
-        elif len(raw) == 4:
+        elif len(raw) == 4 and raw.isdigit():
             try:
                 mantissa = int(raw[:3])
                 multiplier = int(raw[3])
                 val = mantissa * (10 ** multiplier)
-            except:
+            except (ValueError, TypeError):
                 return raw
         else:
             return raw
+            
         if val >= 1000000:
-            return f"{val/1000000:.3g}M"
+            return f"{val / 1000000:.3g}M"
         elif val >= 1000:
-            return f"{val/1000:.3g}K"
+            return f"{val / 1000:.3g}K"
         else:
             return f"{val:.3g}R"
+            
     rules.append(VendorRule('RC_Yageo', 'resistor', rc_pattern, rc_size_map,
                             tolerance_map=rc_tolerance, value_parser=rc_value_parser,
                             is_resistor=True))
 
-    # RI серия (HOTTECH) с поддержкой R в коде
+    # 9. HOTTECH RI серия
     ri_pattern = r'^RI(?P<size>\d{4})L(?P<code>[\dR]{3,5})(?P<tolerance>[BDFJ])T$'
     ri_size_map = {
         '0075': '01005', '0100': '0201', '0201': '0201', '0402': '0402',
@@ -648,73 +711,39 @@ def create_resistor_rules():
         '1218': '1218', '2010': '2010', '2512': '2512'
     }
     ri_tolerance = {'B': '0.1%', 'D': '0.5%', 'F': '1%', 'J': '5%'}
-    def ri_value_parser(raw):
-        raw = raw.upper()
-        if 'R' in raw:
-            val_str = raw.replace('R', '.')
-            try:
-                val = float(val_str)
-            except:
-                return raw
-            if val >= 1000000:
-                return f"{val/1000000:.3g}M"
-            elif val >= 1000:
-                return f"{val/1000:.3g}K"
-            else:
-                return f"{val:.3g}R"
-        if len(raw) == 3:
-            try:
-                mantissa = int(raw[:2])
-                multiplier = int(raw[2])
-                val = mantissa * (10 ** multiplier)
-            except:
-                return raw
-        elif len(raw) == 4:
-            try:
-                mantissa = int(raw[:3])
-                multiplier = int(raw[3])
-                val = mantissa * (10 ** multiplier)
-            except:
-                return raw
-        else:
-            return raw
-        if val >= 1000000:
-            return f"{val/1000000:.3g}M"
-        elif val >= 1000:
-            return f"{val/1000:.3g}K"
-        else:
-            return f"{val:.3g}R"
     rules.append(VendorRule('RI_HOTTECH', 'resistor', ri_pattern, ri_size_map,
-                            tolerance_map=ri_tolerance, value_parser=ri_value_parser,
+                            tolerance_map=ri_tolerance, value_parser=rc_value_parser,
                             is_resistor=True))
 
-    # ROHM ESR
+    # 10. ROHM ESR
     rohm_esr_pattern = r'^ESR(?P<size>01|03|10|18|25)(?P<pack>[A-Z]{3})(?P<tolerance>[DFJ])(?P<code>\d{3}|\d{4}|[0-9]R[0-9]{2})$'
     rohm_esr_size_map = {'01': '0402', '03': '0603', '10': '0805', '18': '1206', '25': '1210'}
     rohm_esr_tolerance = {'D': '0.5%', 'F': '1%', 'J': '5%'}
     rules.append(VendorRule('ROHM_ESR', 'resistor', rohm_esr_pattern, rohm_esr_size_map,
                             tolerance_map=rohm_esr_tolerance, suffix_map=suffix_map_ohm, is_resistor=True))
 
-    # ROHM PMR
+    # 11. ROHM PMR
     rohm_pmr_pattern = r'^PMR(?P<size>01|03|10|18|25|50|100)(?P<pack>[A-Z]{3})(?P<tolerance>[FGJ])(?P<special>[UV]?)(?P<code>\d{1,2}L\d{0,2}|[0-9]{3})$'
     rohm_pmr_size_map = {'01': '0402', '03': '0603', '10': '0805', '18': '1206', '25': '1210', '50': '2010', '100': '2512'}
     rohm_pmr_tolerance = {'F': '1%', 'G': '2%', 'J': '5%'}
-    def pmr_value_parser(raw):
+    
+    def pmr_value_parser(raw: str) -> str:
         raw = raw.upper()
         if 'L' in raw:
             raw = raw.replace('L', '.')
             try:
                 val_mohm = float(raw)
-            except:
+            except (ValueError, TypeError):
                 return '?'
             val_ohm = val_mohm / 1000.0
             return f"{val_ohm:.3g}R"
         else:
             return raw
+            
     rules.append(VendorRule('ROHM_PMR', 'resistor', rohm_pmr_pattern, rohm_pmr_size_map,
                             tolerance_map=rohm_pmr_tolerance, suffix_map={'L': 'mΩ'}, value_parser=pmr_value_parser, is_resistor=True))
 
-    # Samsung
+    # 12. Samsung (резисторы)
     samsung_res_pattern = r'^(?P<prefix>RC|RCB|RF|RM|RN|RK|RP|RUT|RU|RUK|RJ|RCW|RCV|RCS|RFS|RPS|RH)(?P<size>\d{4})(?P<tolerance>[DFGJ])(?P<code>\d{3}|\d{4}|[0-9]R[0-9]{1,2})(?P<pack>[A-Z]{2})$'
     samsung_size_map_res = {'0402': '0402', '0603': '0603', '1005': '0402', '1608': '0603', '2012': '0805',
                             '3216': '1206', '3225': '1210', '5025': '2010', '6432': '2512'}
@@ -722,7 +751,7 @@ def create_resistor_rules():
     rules.append(VendorRule('Samsung_Res', 'resistor', samsung_res_pattern, samsung_size_map_res,
                             tolerance_map=samsung_tolerance_res, suffix_map={'R': 'Ω', 'K': 'KΩ', 'M': 'MΩ'}, is_resistor=True))
 
-    # Walsin
+    # 13. Walsin (резисторы)
     walsin_res_pattern = r'^(?P<prefix>WR|WW|WA|WT|WF|WK)(?P<size>\d{2})(?P<func>[A-Z]?)(?P<code>\d{3,4}|\d*R\d+)(?P<tolerance>[FJP]?)(?P<pack>[A-Z])(?P<term>[LGS])?$'
     walsin_size_map_res = {'01': '01005', '02': '0201', '04': '0402', '06': '0603', '08': '0805',
                            '10': '1210', '12': '1206', '18': '1218', '20': '2010', '25': '2512'}
@@ -730,7 +759,7 @@ def create_resistor_rules():
     rules.append(VendorRule('Walsin_Res', 'resistor', walsin_res_pattern, walsin_size_map_res,
                             tolerance_map=walsin_tolerance_res, suffix_map={'R': 'Ω', 'K': 'KΩ', 'M': 'MΩ', 'L': 'mΩ'}, is_resistor=True))
 
-    # Yageo (все серии)
+    # 14. Yageo (все серии резисторов)
     yageo_series = 'AC|RC|RT|RL|RV|RE|RA|RK|RS|RP|RQ|RN|RM'
     yageo_pattern = (
         r'^(?P<series>' + yageo_series + r')'
@@ -750,7 +779,7 @@ def create_resistor_rules():
                             suffix_map={'R': 'Ω', 'K': 'KΩ', 'M': 'MΩ'},
                             is_resistor=True))
 
-    # Российские резисторы Р1-12 и Р1-16 (без миллиом)
+    # 15. Российские резисторы Р1-12 и Р1-16
     def make_tolerance_map():
         base = {
             "0.05": "0.05%", "0.1": "0.1%", "0.25": "0.25%",
@@ -805,10 +834,14 @@ def create_resistor_rules():
 
 
 # =============================================================================
-# Главное приложение – простой декодер по коду с автоматической заменой
+# Главное приложение – декодер по коду с автоматической очисткой
 # =============================================================================
 class BarcodeDecoderApp:
-    def __init__(self, root):
+    """
+    Графический интерфейс Tkinter для мгновенного декодирования кодов компонентов.
+    """
+
+    def __init__(self, root: tk.Tk):
         self.root = root
         self.root.title("Расшифровка кода компонента v1.1")
         self.root.geometry("700x450")
@@ -817,7 +850,7 @@ class BarcodeDecoderApp:
         rules = create_capacitor_rules() + create_resistor_rules()
         self.parser = VendorParser(rules)
 
-        self.after_id = None  # для отложенного вызова
+        self.after_id = None  # Идентификатор таймера для дебаунса ввода
 
         main_frame = ttk.Frame(root, padding="20")
         main_frame.pack(fill=tk.BOTH, expand=True)
@@ -829,15 +862,16 @@ class BarcodeDecoderApp:
         self.entry.pack(pady=10)
         self.entry.focus_set()
 
-        # Обработчики для копирования и выделения (вставку не перехватываем)
+        # Обработчики для копирования и выделения
         self.entry.bind('<Control-c>', self.copy_to_clipboard)
         self.entry.bind('<Control-C>', self.copy_to_clipboard)
         self.entry.bind('<Control-a>', self.select_all)
         self.entry.bind('<Control-A>', self.select_all)
         self.entry.bind('<Return>', self.on_decode)
+        
         # Автоматическое распознавание при вводе
         self.entry.bind('<KeyRelease>', self.on_key_release)
-        # Обработка вставки через буфер обмена (контекстное меню, Shift+Insert и т.п.)
+        # Обработка вставки через буфер обмена
         self.entry.bind('<<Paste>>', self.on_paste_event)
         self.root.bind('<Escape>', self.clear_all)
 
@@ -866,7 +900,7 @@ class BarcodeDecoderApp:
         self.check_layout_periodically()
 
     # ---------- Проверка раскладки клавиатуры ----------
-    def is_russian_layout(self):
+    def is_russian_layout(self) -> bool:
         """Проверяет, установлена ли в текущий момент русская раскладка клавиатуры (для Windows)."""
         try:
             user32 = ctypes.windll.user32
@@ -878,11 +912,11 @@ class BarcodeDecoderApp:
                 klid = user32.GetKeyboardLayout(0)
             lang_id = klid & 0xFFFF
             primary_lang = lang_id & 0x3FF
-            return primary_lang == 0x19  # LANG_RUSSIAN = 0x19 (например, 0x0419)
+            return primary_lang == 0x19  # LANG_RUSSIAN = 0x19 (0x0419)
         except Exception:
             return False
 
-    def update_layout_status(self):
+    def update_layout_status(self) -> bool:
         """Обновляет строку состояния в зависимости от текущей раскладки клавиатуры."""
         is_rus = self.is_russian_layout()
         current_status = self.status_var.get()
@@ -918,7 +952,7 @@ class BarcodeDecoderApp:
 
     # ---------- Обработка вставки ----------
     def on_paste_event(self, event):
-        """Событие вставки (через контекстное меню, Shift+Insert и т.п.)."""
+        """Событие вставки через буфер обмена."""
         self.root.after(10, self.after_paste)
 
     def after_paste(self):
@@ -928,12 +962,13 @@ class BarcodeDecoderApp:
     # ---------- Автоматическое распознавание ----------
     def on_key_release(self, event):
         self.update_layout_status()
-        # Игнорируем специальные клавиши для запуска декодирования
+        # Игнорируем нажатия клавиш-модификаторов
         if event.keysym in ('Shift_L', 'Shift_R', 'Control_L', 'Control_R', 'Alt_L', 'Alt_R'):
             return
         self.schedule_decode()
 
     def schedule_decode(self):
+        """Дебаунс: запускает распознавание через 500 мс после последнего ввода."""
         if self.after_id is not None:
             self.root.after_cancel(self.after_id)
             self.after_id = None
@@ -945,6 +980,7 @@ class BarcodeDecoderApp:
 
     # ---------- Основные методы ----------
     def on_decode(self, event=None):
+        """Основной метод обработки и расшифровки введенного кода."""
         if self.is_russian_layout():
             self.result_text.delete(1.0, tk.END)
             self.result_text.insert(tk.END, "⚠️ Выбрана русская раскладка клавиатуры!\n")
@@ -976,16 +1012,18 @@ class BarcodeDecoderApp:
             self.status_var.set("Ошибка преобразования")
             return
 
-        lines = []
-        lines.append(f"Производитель: {rule.name}")
-        lines.append(f"Тип компонента: {rule.comp_type}")
-        lines.append("-" * 50)
-        lines.append(f"Унифицированное имя: {unified}")
-        lines.append("-" * 50)
-        lines.append("Извлечённые параметры:")
+        lines = [
+            f"Производитель: {rule.name}",
+            f"Тип компонента: {rule.comp_type}",
+            "-" * 50,
+            f"Унифицированное имя: {unified}",
+            "-" * 50,
+            "Извлечённые параметры:"
+        ]
         for key, value in groups.items():
             lines.append(f"  {key}: {value}")
         lines.append("-" * 50)
+        
         if left_trim > 0 or right_trim > 0:
             trim_parts = []
             if left_trim > 0:
@@ -995,12 +1033,14 @@ class BarcodeDecoderApp:
             lines.append(f"ℹ️  Распознан код после очистки: {used_code} ({', '.join(trim_parts)})")
         else:
             lines.append(f"ℹ️  Код использован без изменений: {used_code}")
+            
         lines.append("✓ Расшифровка выполнена успешно.")
 
         self.result_text.insert(tk.END, "\n".join(lines))
         self.status_var.set(f"Распознано: {rule.name} ({rule.comp_type})")
 
     def clear_all(self, event=None):
+        """Очищает поле ввода и окно результатов."""
         self.entry.delete(0, tk.END)
         self.result_text.delete(1.0, tk.END)
         self.status_var.set("Готов к работе")
@@ -1009,7 +1049,7 @@ class BarcodeDecoderApp:
 
 
 # =============================================================================
-# Запуск
+# Точка входа
 # =============================================================================
 if __name__ == "__main__":
     root = tk.Tk()

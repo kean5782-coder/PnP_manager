@@ -11,12 +11,20 @@ import java.util.Date
 import java.util.LinkedList
 import java.util.Locale
 
+/**
+ * Логгер приложения и сборщик диагностической информации.
+ * Хранит кольцевой буфер последних 100 событий в памяти для баг-репортов
+ * и сохраняет отчеты о падениях приложения (UncaughtException).
+ */
 object AppLogger {
     private const val TAG = "BarcodeDecoder"
     private const val MAX_MEMORY_LOGS = 100
     private val memoryLogs = LinkedList<String>()
     private val dateFormat = SimpleDateFormat("yyyy-MM-dd HH:mm:ss.SSS", Locale.US)
 
+    /**
+     * Записывает сообщение в системный Logcat и сохраняет в кольцевой буфер памяти.
+     */
     @Synchronized
     fun log(tag: String, message: String) {
         val timestamp = dateFormat.format(Date())
@@ -29,11 +37,17 @@ object AppLogger {
         memoryLogs.addLast(logEntry)
     }
 
+    /**
+     * Возвращает список последних событий в виде многострочного текста.
+     */
     @Synchronized
     fun getRecentLogs(): String {
         return memoryLogs.joinToString("\n")
     }
 
+    /**
+     * Формирует диагностическую сводку об устройстве, версии ОС и сборке приложения.
+     */
     fun getDeviceInfo(context: Context): String {
         val pInfo = try {
             context.packageManager.getPackageInfo(context.packageName, 0)
@@ -57,6 +71,9 @@ object AppLogger {
         """.trimIndent()
     }
 
+    /**
+     * Сохраняет отчет о сбое во внутренний файл crash_log.txt.
+     */
     fun saveCrashLog(context: Context, throwable: Throwable) {
         try {
             val file = File(context.filesDir, "crash_log.txt")
@@ -82,6 +99,9 @@ object AppLogger {
         }
     }
 
+    /**
+     * Возвращает сохраненный отчет о сбое, если файл существует.
+     */
     fun getPendingCrashLog(context: Context): String? {
         val file = File(context.filesDir, "crash_log.txt")
         return if (file.exists() && file.length() > 0) {
@@ -89,6 +109,9 @@ object AppLogger {
         } else null
     }
 
+    /**
+     * Удаляет файл сохраненного отчета о сбое.
+     */
     fun clearCrashLog(context: Context) {
         val file = File(context.filesDir, "crash_log.txt")
         if (file.exists()) {
