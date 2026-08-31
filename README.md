@@ -26,9 +26,9 @@ PnP_manager/
 ## 📥 Скачать приложение
 
 ### 📱 BarcodeDecoder (Android)
-- 🚀 **[Скачать релизный APK (GitHub Releases)](https://github.com/kean5782-coder/BarcodeDecoder/releases/latest)** — прямая загрузка последней версии `.apk`.
+- 🚀 **[Скачать релизный APK (GitHub Releases)](https://github.com/kean5782-coder/PnP_manager/releases/latest)** — прямая загрузка последней версии `.apk`.
 - 🛍️ **[Страница приложения в RuStore](https://www.rustore.ru/catalog/app/com.barcodedecoder)** — официальный каталог RuStore.
-- 📦 **[Все версии и архивы релизов](https://github.com/kean5782-coder/BarcodeDecoder/releases)**
+- 📦 **[Все версии и архивы релизов](https://github.com/kean5782-coder/PnP_manager/releases)**
 
 ---
 
@@ -39,7 +39,7 @@ PnP_manager/
 - **Поддержка производителей:** Murata, Samsung, Vishay, Panasonic, Bourns, KOA Speer, Royal Ohm, ROHM, Viking, AVX, TDK, Walsin, CCTC, HOTTECH, а также российские резисторы Р1-12 и Р1-16.
 - **Автоматическая очистка префиксов:** удаление префиксов катушек (1P, Q, 1T, суффиксов упаковок/партий).
 - **Платформы:** Android (Kotlin) и Desktop (Python 3 / Tkinter).
-- **[Скачать APK](https://github.com/kean5782-coder/BarcodeDecoder/releases/latest)** / **[История версий](BarcodeDecoder/CHANGELOG.md)**
+- **[Скачать APK](https://github.com/kean5782-coder/PnP_manager/releases/latest)** / **[История версий](BarcodeDecoder/CHANGELOG.md)**
 
 ---
 
