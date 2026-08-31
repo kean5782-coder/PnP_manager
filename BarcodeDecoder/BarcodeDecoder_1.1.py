@@ -84,6 +84,26 @@ def parse_russian_resistor_value(raw: str) -> str:
             return f"{format_g(num)}R"
 
 
+def map_lookup(d: dict, key: str, default=None):
+    """
+    Выполняет регистронезависимый поиск ключа в словаре сопоставления.
+    Поддерживает поиск в исходном, верхнем, нижнем регистре.
+    """
+    if not d or key is None:
+        return default if default is not None else (key.upper() if isinstance(key, str) else key)
+    key_str = str(key).strip()
+    if key_str in d:
+        return d[key_str]
+    if key_str.upper() in d:
+        return d[key_str.upper()]
+    if key_str.lower() in d:
+        return d[key_str.lower()]
+    for k, v in d.items():
+        if str(k).lower() == key_str.lower():
+            return v
+    return default if default is not None else key_str.upper()
+
+
 # =============================================================================
 # Класс для хранения правила парсинга одного производителя
 # =============================================================================
@@ -206,10 +226,11 @@ class VendorParser:
     def convert_to_unified(self, code: str, rule: VendorRule, groups: dict) -> str:
         """
         Формирует стандартное унифицированное имя компонента на основе извлеченных параметров.
+        Регистронезависимо сопоставляет все группы и параметры.
         """
         if rule.is_resistor:
             size_code = groups.get('size') or groups.get('cga_size') or ''
-            size = rule.size_map.get(size_code, size_code)
+            size = map_lookup(rule.size_map, size_code, size_code.upper())
             raw_value = groups.get('value') or groups.get('code')
             if raw_value:
                 if rule.value_parser:
@@ -217,9 +238,10 @@ class VendorParser:
                 else:
                     value_str = self._parse_resistor_value(raw_value, rule.suffix_map)
             else:
-                value_str = '0R' if groups.get('tolerance') in ('Z', '0') else '?'
+                tol_raw = (groups.get('tolerance') or '').upper()
+                value_str = '0R' if tol_raw in ('Z', '0') else '?'
             tolerance_code = groups.get('tolerance') or ''
-            tolerance = rule.tolerance_map.get(tolerance_code, tolerance_code)
+            tolerance = map_lookup(rule.tolerance_map, tolerance_code, tolerance_code.upper())
             
             if value_str == '0R' or tolerance == '0%':
                 return f"R_{size}_0R"
@@ -229,9 +251,9 @@ class VendorParser:
                 return f"R_{size}_{value_str}"
         else:
             size_code = groups.get('size') or groups.get('cga_size') or ''
-            size = rule.size_map.get(size_code, size_code)
-            dielectric_code = groups.get('dielectric') or ''
-            dielectric = rule.dielectric_map.get(dielectric_code, dielectric_code)
+            size = map_lookup(rule.size_map, size_code, size_code.upper())
+            dielectric_code = groups.get('dielectric') or groups.get('temp_code') or ''
+            dielectric = map_lookup(rule.dielectric_map, dielectric_code, dielectric_code.upper())
             raw_value = groups.get('code')
             if raw_value:
                 if rule.value_parser:
@@ -240,11 +262,8 @@ class VendorParser:
                     value_str = self._parse_capacitance_value(raw_value)
             else:
                 value_str = '?'
-            voltage_code = groups.get('voltage')
-            if voltage_code and voltage_code in rule.voltage_map:
-                voltage = rule.voltage_map[voltage_code]
-            else:
-                voltage = '?'
+            voltage_code = groups.get('voltage') or ''
+            voltage = map_lookup(rule.voltage_map, voltage_code, '?')
             return f"C_{size}_{dielectric}_{value_str}_{voltage}"
 
     # ---------- Парсинг значений резисторов (стандартный, для импортных) ----------
@@ -824,17 +843,17 @@ def create_resistor_rules():
     rus_tol_map = make_tolerance_map()
 
     # Р1-12
-    rus_p1_12_pattern = r'^Р1-12-(?P<size>[\d.,]+)\s+(?P<value>[^\s]+)\s+(?P<tolerance>[\d.,]+)\s*%?.*$'
+    rus_p1_12_pattern = r'^[РPрp]1-12[- ](?P<size>[\d.,]+)[- ]+(?P<value>.+?)[- ]+(?P<tolerance>[\d.,]+)\s*%?.*$'
     rus_p1_12_size_map = {
-        "0.062": "0402", "0,062": "0402",
-        "0.1": "0603", "0,1": "0603",
+        "0.062": "0402", "0,062": "0402", "0.063": "0603", "0,063": "0603",
+        "0.1": "0603", "0,1": "0603", "0.10": "0603", "0,10": "0603",
         "0.125": "0805", "0,125": "0805",
         "0.25": "1206", "0,25": "1206",
         "0.33": "1210", "0,33": "1210",
         "0.5": "2010", "0,5": "2010",
         "0.75": "2512", "0,75": "2512",
-        "1.0": "2512", "1,0": "2512",
-        "2.0": "4020", "2,0": "4020"
+        "1.0": "2512", "1,0": "2512", "1": "2512",
+        "2.0": "4020", "2,0": "4020", "2": "4020"
     }
     rules.append(VendorRule('Rus_P1-12', 'resistor', rus_p1_12_pattern, rus_p1_12_size_map,
                             tolerance_map=rus_tol_map,
@@ -842,7 +861,7 @@ def create_resistor_rules():
                             is_resistor=True))
 
     # Р1-16
-    rus_p1_16_pattern = r'^Р1-16-(?P<size>[\d.,]+)\s+(?P<value>[^\s]+)\s+(?P<tolerance>[\d.,]+)\s*%?.*$'
+    rus_p1_16_pattern = r'^[РPрp]1-16[- ](?P<size>[\d.,]+)[- ]+(?P<value>.+?)[- ]+(?P<tolerance>[\d.,]+)\s*%?.*$'
     rus_p1_16_size_map = {
         "0.016": "0402", "0,016": "0402",
         "0.032": "0603", "0,032": "0603",
@@ -850,7 +869,7 @@ def create_resistor_rules():
         "0.125": "1206", "0,125": "1206",
         "0.25": "2010", "0,25": "2010",
         "0.5": "2512", "0,5": "2512",
-        "1.0": "4020", "1,0": "4020"
+        "1.0": "4020", "1,0": "4020", "1": "4020"
     }
     rules.append(VendorRule('Rus_P1-16', 'resistor', rus_p1_16_pattern, rus_p1_16_size_map,
                             tolerance_map=rus_tol_map,
@@ -902,6 +921,11 @@ THEMES = {
         "tree_head_fg": "#94a3b8",
         "tree_sel_bg": "#2563eb",
         "tree_sel_fg": "#ffffff",
+        "scroll_trough": "#0b0f19",
+        "scroll_thumb": "#2b384e",
+        "scroll_thumb_hover": "#3b4d6e",
+        "scroll_thumb_active": "#5b75a4",
+        "scroll_arrow": "#64748b",
         "is_dark": True
     },
     "light": {
@@ -939,6 +963,11 @@ THEMES = {
         "tree_head_fg": "#475569",
         "tree_sel_bg": "#2563eb",
         "tree_sel_fg": "#ffffff",
+        "scroll_trough": "#f1f5f9",
+        "scroll_thumb": "#cbd5e1",
+        "scroll_thumb_hover": "#94a3b8",
+        "scroll_thumb_active": "#64748b",
+        "scroll_arrow": "#94a3b8",
         "is_dark": False
     }
 }
@@ -1115,7 +1144,7 @@ class BarcodeDecoderApp:
         self.canvas_frame.pack(fill=tk.BOTH, expand=True, padx=16, pady=0)
 
         self.canvas = tk.Canvas(self.canvas_frame, bd=0, highlightthickness=0)
-        self.scrollbar = ttk.Scrollbar(self.canvas_frame, orient=tk.VERTICAL, command=self.canvas.yview)
+        self.scrollbar = ttk.Scrollbar(self.canvas_frame, orient=tk.VERTICAL, command=self.canvas.yview, style="Vertical.TScrollbar")
         self.content_frame = tk.Frame(self.canvas)
 
         self.content_window = self.canvas.create_window((0, 0), window=self.content_frame, anchor="nw")
@@ -1299,7 +1328,7 @@ class BarcodeDecoderApp:
         self.history_tree.column("vendor", width=120, anchor="center", stretch=False)
         self.history_tree.column("unified", width=240, anchor="w", stretch=True)
 
-        tree_scrollbar = ttk.Scrollbar(self.tree_frame, orient=tk.VERTICAL, command=self.history_tree.yview)
+        tree_scrollbar = ttk.Scrollbar(self.tree_frame, orient=tk.VERTICAL, command=self.history_tree.yview, style="Vertical.TScrollbar")
         self.history_tree.configure(yscrollcommand=tree_scrollbar.set)
 
         self.history_tree.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
@@ -1462,6 +1491,24 @@ class BarcodeDecoderApp:
             foreground=[("selected", c["tree_sel_fg"])]
         )
 
+        # Стилизация полосы прокрутки под текущую тему
+        self.style.configure(
+            "Vertical.TScrollbar",
+            gripcount=0,
+            background=c["scroll_thumb"],
+            darkcolor=c["scroll_trough"],
+            lightcolor=c["scroll_trough"],
+            troughcolor=c["scroll_trough"],
+            bordercolor=c["scroll_trough"],
+            arrowcolor=c["scroll_arrow"],
+            arrowsize=11
+        )
+        self.style.map(
+            "Vertical.TScrollbar",
+            background=[("active", c["scroll_thumb_hover"]), ("pressed", c["scroll_thumb_active"])],
+            arrowcolor=[("active", c["text_primary"]), ("pressed", c["text_primary"])]
+        )
+
         # Строка состояния
         self.status_bar.configure(bg=c["status_bg"])
         self.status_text.configure(bg=c["status_bg"], fg=c["text_secondary"])
@@ -1614,10 +1661,7 @@ class BarcodeDecoderApp:
 
         # Извлечение параметров для плиток
         size_val = groups.get("size") or groups.get("size_code") or groups.get("cga_size") or "—"
-        if size_val in rule.size_map:
-            size_display = rule.size_map[size_val]
-        else:
-            size_display = size_val
+        size_display = map_lookup(rule.size_map, size_val, size_val)
 
         # Номинал
         val_display = groups.get("code") or groups.get("value") or groups.get("val") or "—"
@@ -1629,10 +1673,10 @@ class BarcodeDecoderApp:
 
         # Допуск / Диэлектрик
         tol_raw = groups.get("tolerance") or groups.get("cap_tolerance") or "—"
-        tol_display = rule.tolerance_map.get(tol_raw, tol_raw)
+        tol_display = map_lookup(rule.tolerance_map, tol_raw, tol_raw)
 
         dielectric_raw = groups.get("dielectric") or groups.get("temp_code") or "—"
-        dielectric_display = rule.dielectric_map.get(dielectric_raw, dielectric_raw)
+        dielectric_display = map_lookup(rule.dielectric_map, dielectric_raw, dielectric_raw)
 
         if is_resistor:
             tile3_title = "🎯 Погрешность"
@@ -1643,7 +1687,7 @@ class BarcodeDecoderApp:
 
         # Напряжение
         volt_raw = groups.get("voltage") or "—"
-        volt_display = rule.voltage_map.get(volt_raw, volt_raw if volt_raw != "—" else "—")
+        volt_display = map_lookup(rule.voltage_map, volt_raw, volt_raw if volt_raw != "—" else "—")
 
         # Обновление плиток параметров
         self.tile_size["title"].configure(text="📐 Типоразмер (EIA)")
