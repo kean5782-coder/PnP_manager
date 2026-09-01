@@ -1,65 +1,145 @@
-# PnP_manager (Pick and Place Manager)
+# ⚡ PnP_manager & SMD Hub Suite
 
-**PnP_manager** — экосистема инструментов и приложений для оптимизации процессов SMD-монтажа, учета радиодеталей, работы с катушками и автоматизации линий поверхностного монтажа (Pick and Place).
+**PnP_manager** — комплексная экосистема программного обеспечения для автоматизации процессов поверхностного монтажа печатных плат (SMD/SMT), сквозной подготовки спецификаций (BOM), объединения монтажных координат Pick&Place (P&P), верификации заказов и оптического декодирования маркировок радиодеталей.
 
 ---
 
-## 📁 Состав экосистемы
+## 📥 Готовые релизы (Portable & Mobile)
 
-Репозиторий организован по модульному принципу:
+Все исполняемые файлы собраны в автономном (Portable) формате — работают сразу, без установки Python или сторонних зависимостей:
+
+| Платформа / Модуль | Файл релиза | Описание |
+|---|---|---|
+| 🖥️ **Windows (Всё в одном)** | **[`BarcodeDecoder/dist/SMD_Hub.exe`](BarcodeDecoder/dist/SMD_Hub.exe)** | Главный лаунчер и мастер производства: Унификация BOM, Объединение P&P, Выходная сверка, База соответствий и Сканер. |
+| 🖥️ **Windows (Сканер)** | **[`BarcodeDecoder/dist/BarcodeDecoder.exe`](BarcodeDecoder/dist/BarcodeDecoder.exe)** | Автономный сканер и декодер штрихкодов катушек для рабочего места оператора. |
+| 📱 **Android** | **[`BarcodeDecoder/dist/BarcodeDecoderForSmdResistorsAndCondensators_kean5782.apk`](BarcodeDecoder/dist/BarcodeDecoderForSmdResistorsAndCondensators_kean5782.apk)** | Релизный подписанный APK для мобильного сканирования камерой смартфона. |
+| 🛍️ **RuStore** | **[Каталог RuStore](https://www.rustore.ru/catalog/app/com.barcodedecoder)** | Официальная страница мобильного приложения в RuStore. |
+
+---
+
+## 🚀 Сквозной производственный процесс (Workflow)
+
+```mermaid
+graph TD
+    subgraph Подготовка заказа
+        BOM["📄 Файл спецификации BOM (.xlsx, .xls)"] --> STEP1["🗂️ Шаг 1: Унификация BOM"]
+        PNP["📍 Файл координат P&P (.txt, .csv, .xlsx)"] --> STEP2["⚙️ Шаг 2: Объединение P&P + BOM"]
+    end
+
+    subgraph Сквозной пайплайн в SMD Hub
+        STEP1 -->|"Автопередача unified_bom.xlsx"| STEP2
+        STEP2 -->|"Автопередача merged_pnp.xlsx"| STEP3["🔍 Шаг 3: Финальная сверка и контроль"]
+        STEP3 --> OUT["📊 Готовые производственные файлы для монтажного автомата"]
+    end
+
+    subgraph Инструменты и справочники
+        DB["🗄️ База соответствий (database.txt)"] <--> STEP1
+        CAM["📷 Barcode Decoder (ПК / Android)"] -.-> DB
+        COMP_PNP["🔄 Сравнение версий P&P"]
+        COMP_BOM["🔄 Сверка версий BOM"]
+    end
+```
+
+---
+
+## 📁 Структура репозитория
 
 ```text
 PnP_manager/
-├── BarcodeDecoder/                   # Сканер и декодер маркировок SMD катушек
-│   ├── BarcodeDecoderAndroid/        # Android-приложение (CameraX, ML Kit, RuStore)
-│   ├── BarcodeDecoder_1.1.py         # Десктопное приложение (Python / Tkinter)
-│   ├── CHANGELOG.md                  # История версий BarcodeDecoder
-│   └── README.md                     # Документация модуля BarcodeDecoder
-│
-├── [Приложение 2]                    # Модуль управления питателями (в разработке)
-├── [Приложение 3]                    # Модуль учета и инвентаризации (в разработке)
-└── [Launcher]                        # Единый лаунчер экосистемы (в разработке)
+├── BarcodeDecoder/                       # Основной каталог инструментов
+│   ├── smd_hub.py                        # ⚡ Главный лаунчер и сквозной мастер заказов
+│   ├── smd_engine.py                     # 🧠 Единый движок парсинга, стилей и тем оформления
+│   ├── BarcodeDecoder_1.1.py             # 📷 Десктопный сканер/декодер штрихкодов катушек
+│   │
+│   ├── Unification/                      # 🗂️ Модуль унификации BOM
+│   │   ├── Unification.py                # Унификация по коду/описанию, редактор подготовки документа
+│   │   └── database.txt                  # Пользовательский справочник соответствий
+│   │
+│   ├── PnP_Manager/                      # ⚙️ Модуль Pick and Place
+│   │   └── PnP_Manager.py                # Объединение координат, сверка BOM и версий P&P
+│   │
+│   ├── BarcodeDecoderAndroid/            # 📱 Нативное Android-приложение
+│   │   ├── app/                          # Исходный код (Kotlin, CameraX, Google ML Kit)
+│   │   └── release-key.jks               # Ключ подписи релизных сборок
+│   │
+│   ├── dist/                             # 📦 Скомпилированные исполняемые файлы (.exe, .apk)
+│   │   ├── SMD_Hub.exe                   # Полный комбайн для Windows
+│   │   ├── BarcodeDecoder.exe            # Автономный сканер для ПК
+│   │   └── BarcodeDecoder...apk          # Релизный APK для Android
+│   │
+│   └── build_all_exe.bat                 # Пакетная пересборка всех EXE файлов
+└── README.md                             # Главная документация проекта
 ```
 
 ---
 
-## 📥 Скачать приложение
+## 🌟 Ключевые возможности
 
-### 📱 BarcodeDecoder (Android)
-- 🚀 **[Скачать релизный APK (GitHub Releases)](https://github.com/kean5782-coder/PnP_manager/releases/latest)** — прямая загрузка последней версии `.apk`.
-- 🛍️ **[Страница приложения в RuStore](https://www.rustore.ru/catalog/app/com.barcodedecoder)** — официальный каталог RuStore.
-- 📦 **[Все версии и архивы релизов](https://github.com/kean5782-coder/PnP_manager/releases)**
+### 1. ⚡ SMD Hub — Главный лаунчер производства
+* **Шаг 1: Унификация BOM:**
+  * Распознавание партнерских кодов (Samsung, Murata, Yageo, Vishay, Panasonic, Bourns, Kemet, TDK, Р1-12, Р1-16 и др.).
+  * Парсинг русских текстовых описаний и номиналов.
+  * Кнопка автоматического перехода в Шаг 2 с сохранением и предвыбором колонок.
+* **Шаг 2: Объединение P&P + BOM:**
+  * Сшивание координат платы с унифицированным списком компонентов.
+  * Интеллектуальный автоподбор столбцов (`Designator`, `Part Name`, `Side`, `X`, `Y`, `Rotation`).
+  * Конвертация систем единиц (милы $\leftrightarrow$ миллиметры), фильтрация сторон (TOP / BOTTOM).
+* **Шаг 3: Финальная сверка и валидация:**
+  * Интеллектуальный контроль DNP (Do Not Place) и исключений.
+  * Обнаружение пропущенных или лишних позиций, несовпадений номиналов.
+  * Сводная статистика и экспорт отчетов.
+
+### 2. 🛠️ Дополнительные сервисы
+* 🔄 **Сравнение версий P&P:** сопоставление ревизий расстановки с выявлением смещений, замен и удалений.
+* 🔄 **Сверка спецификаций BOM:** табличное сравнение двух версий перечня элементов.
+* 🗄️ **Управление базой соответствий (`database.txt`):**
+  * Интерактивное окно **«Подготовка документа»** с полноэкранной таблицей.
+  * Выбор ключевого столбца (BOM) и пользовательского названия прямо в окне предпросмотра с **разноцветной подсветкой** колонок.
+  * Автономное сохранение базы рядом с `.exe` в Portable-режиме.
+* 📷 **Barcode Decoder:** встроенный и автономный оптический сканер.
+
+### 3. 🎨 Дизайн и эргономика
+* 🌙 **Тёмная тема (Discord Dark):** глубокая контрастная палитра (`#313338`, `#2b2d31`, `#1e1f22`, Blurple `#5865f2`).
+* ☀️ **Светлая тема (Clean Light):** приятная светлая тема для ярко освещенных участков.
+* 🖱️ **Сквозная умная прокрутка (MouseWheel):** колесико мыши прокручивает страницу везде, где находится курсор, переключаясь на списки и таблицы при наведении на них.
+* 🪟 **DWM Dark Mode:** темные системные заголовки окон Windows 10/11 во всех диалогах.
+* 📊 **Полосатые таблицы:** чередование строк в предпросмотрах для снижения утомляемости глаз.
 
 ---
 
-## 🚀 Текущие модули
+## 🏭 Поддерживаемые производители радиокомпонентов
 
-### 1. [BarcodeDecoder](BarcodeDecoder/README.md)
-Интеллектуальный декодер штрихкодов и Data Matrix кодов с этикеток катушек SMD конденсаторов (MLCC) и резисторов.
-- **Поддержка производителей:** Murata, Samsung, Vishay, Panasonic, Bourns, KOA Speer, Royal Ohm, ROHM, Viking, AVX, TDK, Walsin, CCTC, HOTTECH, а также российские резисторы Р1-12 и Р1-16.
-- **Автоматическая очистка префиксов:** удаление префиксов катушек (1P, Q, 1T, суффиксов упаковок/партий).
-- **Платформы:** Android (Kotlin) и Desktop (Python 3 / Tkinter).
-- **[Скачать APK](https://github.com/kean5782-coder/PnP_manager/releases/latest)** / **[История версий](BarcodeDecoder/CHANGELOG.md)**
+| Тип компонента | Производители и поддерживаемые серии |
+|---|---|
+| **Резисторы** | Vishay (CRCW), Panasonic (ERJ), Bourns (CR/CRA/CMP), KOA Speer (RK73), Royal Ohm, ROHM (MCR/ESR/PMR), Viking (CR), Yageo (RC), Samsung (RC), Walsin (WR), HOTTECH (RI), **Россия (Р1-12, Р1-16)** |
+| **Конденсаторы (MLCC)** | Murata (GRM/GCM/GQM/GCJ...), Samsung (CL), TDK (C/CGA), KEMET (C-series), Taiyo Yuden, AVX / Kyocera AVX, Walsin, Yageo (CC), CCTC (TCC) |
 
 ---
 
-## 🛠️ Разработка и сборка
+## 🛠️ Сборка из исходного кода
 
-### Android-приложение:
+### Запуск в среде Python:
+```powershell
+# Установка зависимостей:
+pip install pandas openpyxl numpy
+
+# Запуск единого лаунчера:
+python BarcodeDecoder/smd_hub.py
+```
+
+### Сборка автономных Windows EXE:
+```powershell
+cd BarcodeDecoder
+.\build_all_exe.bat
+```
+
+### Сборка Android APK:
 ```powershell
 cd BarcodeDecoder/BarcodeDecoderAndroid
+set JAVA_HOME=C:\Program Files\Android\Android Studio\jbr
 .\gradlew.bat assembleRelease
 ```
-
-### Десктопный декодер (Python):
-```powershell
-python BarcodeDecoder/BarcodeDecoder_1.1.py
-```
-
-### Проверка статуса синхронизации с GitHub:
-```powershell
-.\check_github.ps1
-```
+Готовый подписанный APK будет создан в папке `BarcodeDecoder/BarcodeDecoderAndroid/app/build/outputs/apk/release/`.
 
 ---
 
