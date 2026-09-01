@@ -8,12 +8,12 @@
 
 Все исполняемые файлы собраны в автономном (Portable) формате — работают сразу, без установки Python или сторонних зависимостей:
 
-| Платформа / Модуль | Файл релиза | Описание |
+| Платформа / Модуль | Файл релиза (Прямая загрузка) | Описание |
 |---|---|---|
-| 🖥️ **Windows (Всё в одном)** | **[`BarcodeDecoder/dist/SMD_Hub.exe`](BarcodeDecoder/dist/SMD_Hub.exe)** | Главный лаунчер и мастер производства: Унификация BOM, Объединение P&P, Выходная сверка, База соответствий и Сканер. |
-| 🖥️ **Windows (Сканер)** | **[`BarcodeDecoder/dist/BarcodeDecoder.exe`](BarcodeDecoder/dist/BarcodeDecoder.exe)** | Автономный сканер и декодер штрихкодов катушек для рабочего места оператора. |
-| 📱 **Android** | **[`BarcodeDecoder/dist/BarcodeDecoderForSmdResistorsAndCondensators_kean5782.apk`](BarcodeDecoder/dist/BarcodeDecoderForSmdResistorsAndCondensators_kean5782.apk)** | Релизный подписанный APK для мобильного сканирования камерой смартфона. |
-| 🛍️ **RuStore** | **[Каталог RuStore](https://www.rustore.ru/catalog/app/com.barcodedecoder)** | Официальная страница мобильного приложения в RuStore. |
+| 🖥️ **Windows (Всё в одном)** | **[💾 Скачать SMD_Hub.exe (v1.0 Portable)](https://github.com/kean5782-coder/PnP_manager/raw/main/BarcodeDecoder/dist/SMD_Hub.exe)** | Главный лаунчер и мастер производства: Унификация BOM, Объединение P&P, Выходная сверка, База соответствий и Сканер. |
+| 🖥️ **Windows (Сканер)** | **[💾 Скачать BarcodeDecoder.exe (v1.1 Portable)](https://github.com/kean5782-coder/PnP_manager/raw/main/BarcodeDecoder/dist/BarcodeDecoder.exe)** | Автономный сканер и декодер штрихкодов катушек для рабочего места оператора. |
+| 📱 **Android (Прямой APK)** | **[📲 Скачать BarcodeDecoder.apk](https://github.com/kean5782-coder/PnP_manager/raw/main/BarcodeDecoder/dist/BarcodeDecoderForSmdResistorsAndCondensators_kean5782.apk)** | Релизный подписанный APK для мобильного сканирования камерой смартфона. |
+| 🛍️ **RuStore (Каталог)** | **[🛍️ Страница в RuStore](https://www.rustore.ru/catalog/app/com.barcodedecoder)** | Официальная страница мобильного приложения в RuStore. |
 
 ---
 

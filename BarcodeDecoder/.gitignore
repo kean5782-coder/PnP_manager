@@ -4,21 +4,22 @@ __pycache__/
 *$py.class
 *.bak
 
-# PyInstaller / Build artifacts
+# PyInstaller build cache
 build/
 build_smd/
 build_hub/
-dist/
 *.spec
 
 # Android Build & Gradle
 .gradle/
 **/build/
 local.properties
-*.apk
-*.aab
 .idea/
 .vscode/
 *.iml
 .agents/
 .venv/
+
+# Allow release binaries in dist
+!dist/
+!dist/*

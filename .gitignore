@@ -3,6 +3,7 @@ __pycache__/
 *.py[cod]
 *$py.class
 *.pyc
+*.bak
 
 # Virtual Environments
 .env
@@ -28,8 +29,6 @@ local.properties
 *.iml
 
 # Keystores, Keys and Secrets
-*.jks
-*.keystore
 *.pem
 *.key
 rustore_config.json
@@ -44,7 +43,12 @@ desktop.ini
 test_output.xlsx
 gemini-code-*.py
 
-# PyInstaller / Executable build artifacts
-dist/
+# PyInstaller build cache
 build/
+build_smd/
+build_hub/
 *.spec
+
+# Allow release binaries in dist folders
+!BarcodeDecoder/dist/**
+!dist/**
