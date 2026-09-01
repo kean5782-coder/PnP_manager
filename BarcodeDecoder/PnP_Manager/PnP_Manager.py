@@ -847,7 +847,7 @@ class CheckTab(ttk.Frame):
 
     # ---------- Диалоги для экспорта ----------
     def get_separator_dialog(self):
-        dialog = create_styled_toplevel(self.parent, "Выбор разделителя", "400x170")
+        dialog = create_styled_toplevel(self.parent, "Выбор разделителя", "480x230", min_size=(420, 200))
         dialog.transient(self.parent)
         dialog.grab_set()
 
@@ -880,8 +880,7 @@ class CheckTab(ttk.Frame):
         return result["sep"]
 
     def get_replacement_name_dialog(self):
-        # Этот диалог больше не нужен, но оставлен для совместимости с другими методами экспорта.
-        dialog = create_styled_toplevel(self.parent, "Замена пустых названий", "420x180")
+        dialog = create_styled_toplevel(self.parent, "Замена пустых названий", "500x230", min_size=(440, 200))
         dialog.transient(self.parent)
         dialog.grab_set()
 
@@ -1081,15 +1080,15 @@ class CheckTab(ttk.Frame):
             messagebox.showinfo("Информация", f"Файл {file_type} не загружен или пуст.", parent=self.parent)
             return
 
-        preview_window = create_styled_toplevel(self.parent, f"Предпросмотр {file_type}", "920x480")
+        preview_window = create_styled_toplevel(self.parent, f"Предпросмотр {file_type}", "1250x750", min_size=(980, 580))
 
         frame = ttk.Frame(preview_window, padding="5")
         frame.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
 
         cols = list(df.columns)
         tree = ttk.Treeview(frame, columns=cols, show="headings")
-        tree.tag_configure('odd', background="#232428")
-        tree.tag_configure('even', background="#2b2d31")
+        tree.tag_configure('odd', background="#0e182e")
+        tree.tag_configure('even', background="#131e36")
 
         vsb = ttk.Scrollbar(frame, orient="vertical", command=tree.yview, style="Vertical.TScrollbar")
         hsb = ttk.Scrollbar(frame, orient="horizontal", command=tree.xview, style="Horizontal.TScrollbar")
@@ -2351,15 +2350,15 @@ class MergeTab(ttk.Frame):
             messagebox.showinfo("Информация", f"Файл {file_type} не загружен или пуст.", parent=self.parent)
             return
 
-        preview_window = create_styled_toplevel(self.parent, f"Предпросмотр {file_type}", "920x480")
+        preview_window = create_styled_toplevel(self.parent, f"Предпросмотр {file_type}", "1250x750", min_size=(980, 580))
 
         frame = ttk.Frame(preview_window, padding="5")
         frame.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
 
         cols = list(df.columns)
         tree = ttk.Treeview(frame, columns=cols, show="headings")
-        tree.tag_configure('odd', background="#232428")
-        tree.tag_configure('even', background="#2b2d31")
+        tree.tag_configure('odd', background="#0e182e")
+        tree.tag_configure('even', background="#131e36")
 
         vsb = ttk.Scrollbar(frame, orient="vertical", command=tree.yview, style="Vertical.TScrollbar")
         hsb = ttk.Scrollbar(frame, orient="horizontal", command=tree.xview, style="Horizontal.TScrollbar")
@@ -3422,15 +3421,15 @@ class CompareTab(ttk.Frame):
             messagebox.showinfo("Информация", f"Файл {file_type} не загружен или пуст.", parent=self.parent)
             return
 
-        preview_window = create_styled_toplevel(self.parent, f"Предпросмотр {file_type}", "920x480")
+        preview_window = create_styled_toplevel(self.parent, f"Предпросмотр {file_type}", "1250x750", min_size=(980, 580))
 
         frame = ttk.Frame(preview_window, padding="5")
         frame.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
 
         cols = list(df.columns)
         tree = ttk.Treeview(frame, columns=cols, show="headings")
-        tree.tag_configure('odd', background="#232428")
-        tree.tag_configure('even', background="#2b2d31")
+        tree.tag_configure('odd', background="#0e182e")
+        tree.tag_configure('even', background="#131e36")
 
         vsb = ttk.Scrollbar(frame, orient="vertical", command=tree.yview, style="Vertical.TScrollbar")
         hsb = ttk.Scrollbar(frame, orient="horizontal", command=tree.xview, style="Horizontal.TScrollbar")
@@ -3676,7 +3675,7 @@ class CompareBOMTab(ttk.Frame):
         if df is None or df.empty:
             messagebox.showinfo("Информация", f"{title} не загружен.", parent=self.parent)
             return
-        preview_window = create_styled_toplevel(self.parent, f"Предпросмотр {title}", "920x480")
+        preview_window = create_styled_toplevel(self.parent, f"Предпросмотр {title}", "1250x750", min_size=(980, 580))
         self._show_dataframe_preview(preview_window, df)
 
     def _show_dataframe_preview(self, parent, df):
@@ -3684,8 +3683,8 @@ class CompareBOMTab(ttk.Frame):
         frame.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
         cols = list(df.columns)
         tree = ttk.Treeview(frame, columns=cols, show="headings")
-        tree.tag_configure('odd', background="#232428")
-        tree.tag_configure('even', background="#2b2d31")
+        tree.tag_configure('odd', background="#0e182e")
+        tree.tag_configure('even', background="#131e36")
 
         vsb = ttk.Scrollbar(frame, orient="vertical", command=tree.yview, style="Vertical.TScrollbar")
         hsb = ttk.Scrollbar(frame, orient="horizontal", command=tree.xview, style="Horizontal.TScrollbar")
@@ -3740,15 +3739,15 @@ class CompareBOMTab(ttk.Frame):
             data.append((val1, val2, change))
 
         # Создаём окно предпросмотра
-        preview_window = create_styled_toplevel(self.parent, "Предпросмотр сравнения BOM", "960x520")
+        preview_window = create_styled_toplevel(self.parent, "Предпросмотр сравнения BOM", "1250x750", min_size=(980, 580))
 
         frame = ttk.Frame(preview_window, padding="5")
         frame.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
 
         columns = (f"BOM 1 ({col1})", f"BOM 2 ({col2})", "Изменение")
         tree = ttk.Treeview(frame, columns=columns, show="headings")
-        tree.tag_configure('odd', background="#232428")
-        tree.tag_configure('even', background="#2b2d31")
+        tree.tag_configure('odd', background="#0e182e")
+        tree.tag_configure('even', background="#131e36")
 
         for col in columns:
             tree.heading(col, text=col)
