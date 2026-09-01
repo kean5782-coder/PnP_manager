@@ -151,12 +151,21 @@ class VendorRule:
 
 
 # =============================================================================
+# Регулярное выражение для очистки стандартных префиксов катушек (EIA/CEA-863, EDIFACT, etc.)
+# =============================================================================
+BARCODE_PREFIX_REGEX = re.compile(
+    r'^(?:ITEM\(1P\)|CUST\s*PROD\s*ID\(P\)|CUST\s*P/N|OUR\s*P/N|TDK\s*ITEM|P/N|ITEM|\(1P\)|\(30P\)|\(31P\)|\(1T\)|\(1S\)|\(6P\)|\(Q\)|\(V\)|\(P\)|1P|30P|31P|P|1T|1S|6P|9D|Q|V|K|D|10D|11D|12D)[:\s\-]*',
+    re.IGNORECASE
+)
+
+
+# =============================================================================
 # Парсер с автоматической очисткой префиксов и суффиксов
 # =============================================================================
 class VendorParser:
     """
     Движок сопоставления правил и очистки артефактов штрихкодов катушек.
-    Выполняет перебор правил и перебор возможных подстрок (отсечение префиксов и суффиксов).
+    Выполняет токенизацию составных кодов (DataMatrix/QR), отсечение префиксов и перебор подстрок.
     """
 
     def __init__(self, rules):
@@ -164,7 +173,7 @@ class VendorParser:
 
     def parse(self, code: str, vendor_name: str = None):
         """
-        Парсит переданную строку кода.
+        Парсит переданную строку кода со сканера или ручного ввода.
         
         Возвращает кортеж:
             (rule, groups, used_code, left_trim, right_trim)
@@ -177,46 +186,110 @@ class VendorParser:
         if not original:
             return None, None, None, 0, 0
 
+        # 1. Попытка разобрать строку целиком (как единичный токен)
+        single_res = self._parse_single_token(original, vendor_name)
+        if single_res[0] is not None:
+            return single_res
+
+        # 1.1 Попытка с удалением пробелов внутри (для этикеток, где часть артикула напечатана с пробелами, например "RC 0402 F R-07 33R2")
+        if ' ' in original and not original.upper().startswith(('Р1-', 'P1-')):
+            no_spaces = original.replace(' ', '')
+            no_space_res = self._parse_single_token(no_spaces, vendor_name)
+            if no_space_res[0] is not None:
+                return no_space_res
+
+        # 2. Если не подошло или строка содержит составные разделители (ISO 15434, CSV, &, /, etc.):
+        cleaned = original
+        if cleaned.startswith("[)>"):
+            for sep in ('\u001d', '\u001e', '\n', ',', ';'):
+                idx = cleaned.find(sep)
+                if 0 < idx < 10:
+                    cleaned = cleaned[idx + 1:]
+                    break
+
+        tokens = [t.strip() for t in re.split(r'[\u001d\u001e\u0004,;&|\n\r\t/]+', cleaned) if t.strip()]
+
+        for token in tokens:
+            token_res = self._parse_single_token(token, vendor_name)
+            if token_res[0] is not None:
+                return token_res
+
+            if ' ' in token and not token.upper().startswith(('Р1-', 'P1-')):
+                token_no_spaces = token.replace(' ', '')
+                token_ns_res = self._parse_single_token(token_no_spaces, vendor_name)
+                if token_ns_res[0] is not None:
+                    return token_ns_res
+
+            m = BARCODE_PREFIX_REGEX.match(token)
+            if m:
+                stripped = token[m.end():].strip()
+                if stripped:
+                    stripped_res = self._parse_single_token(stripped, vendor_name)
+                    if stripped_res[0] is not None:
+                        return stripped_res
+
+                    if ' ' in stripped and not stripped.upper().startswith(('Р1-', 'P1-')):
+                        stripped_no_spaces = stripped.replace(' ', '')
+                        stripped_ns_res = self._parse_single_token(stripped_no_spaces, vendor_name)
+                        if stripped_ns_res[0] is not None:
+                            return stripped_ns_res
+
+        return None, None, None, 0, 0
+
+    def _parse_single_token(self, token: str, vendor_name: str = None):
+        t = token.strip()
+        if not t:
+            return None, None, None, 0, 0
+
         def try_match(candidate: str):
-            candidate = candidate.strip()
-            if not candidate:
+            c = candidate.strip()
+            if not c:
                 return None, None
             if vendor_name:
                 for rule in self.rules:
                     if rule.name.lower() == vendor_name.lower():
-                        groups = rule.match(candidate)
+                        groups = rule.match(c)
                         if groups:
                             return rule, groups
                 return None, None
             else:
                 for rule in self.rules:
-                    groups = rule.match(candidate)
+                    groups = rule.match(c)
                     if groups:
                         return rule, groups
                 return None, None
 
-        # 1. Сначала пробуем сопоставить код целиком без удаления символов
-        rule, groups = try_match(original)
+        # 1. Прямое совпадение
+        rule, groups = try_match(t)
         if rule is not None:
-            return rule, groups, original, 0, 0
+            return rule, groups, t, 0, 0
 
-        # 2. Генерируем кандидатов обрезки префиксов и суффиксов
+        # 2. Если перед кодом стоит стандартный префикс штрихкода (1P, P, etc.)
+        m = BARCODE_PREFIX_REGEX.match(t)
+        if m:
+            stripped = t[m.end():].strip()
+            if stripped:
+                rule, groups = try_match(stripped)
+                if rule is not None:
+                    return rule, groups, stripped, m.end(), 0
+
+        # 3. Подбор по обрезке мусорных символов слева и справа
         candidates = []
-        for left in range(0, MAX_TRIM_LEFT + 1):
-            for right in range(0, MAX_TRIM_RIGHT + 1):
+        max_left = min(MAX_TRIM_LEFT, len(t) - 3) if len(t) > 3 else 0
+        max_right = min(MAX_TRIM_RIGHT, len(t) - 3) if len(t) > 3 else 0
+
+        for left in range(0, max_left + 1):
+            for right in range(0, max_right + 1):
                 if left == 0 and right == 0:
                     continue
-                if left >= len(original) or right >= len(original):
+                if left + right >= len(t) - 2:
                     continue
                 candidates.append((left, right, left + right))
 
-        # Сортируем кандидатов: сначала с наименьшим суммарным количеством удаленных символов
         candidates.sort(key=lambda x: (x[2], x[0]))
 
         for left, right, _ in candidates:
-            if left + right >= len(original):
-                continue
-            candidate = original[left : len(original) - right]
+            candidate = t[left : len(t) - right]
             if not candidate:
                 continue
             rule, groups = try_match(candidate)
@@ -233,7 +306,7 @@ class VendorParser:
         if rule.is_resistor:
             size_code = groups.get('size') or groups.get('cga_size') or ''
             size = map_lookup(rule.size_map, size_code, size_code.upper())
-            raw_value = groups.get('value') or groups.get('code')
+            raw_value = groups.get('value') or groups.get('code') or ''
             if raw_value:
                 if rule.value_parser:
                     value_str = rule.value_parser(raw_value)
@@ -245,8 +318,14 @@ class VendorParser:
             tolerance_code = groups.get('tolerance') or ''
             tolerance = map_lookup(rule.tolerance_map, tolerance_code, tolerance_code.upper())
             
-            if value_str == '0R' or tolerance == '0%':
-                return f"R_{size}_0R"
+            is_jumper = (value_str == '0R' or tolerance == '0%' or
+                         (raw_value.upper() in ('0000', '000', '00', '0', '0R', '0R00', '0R0')) or
+                         (raw_value != '' and all(c == '0' for c in raw_value)))
+            if is_jumper:
+                if tolerance and tolerance != '0%':
+                    return f"R_{size}_0R_{tolerance}"
+                else:
+                    return f"R_{size}_0R"
             elif tolerance:
                 return f"R_{size}_{value_str}_{tolerance}"
             else:
@@ -707,8 +786,10 @@ def create_resistor_rules():
     rc_tolerance = {'B': '0.1%', 'D': '0.5%', 'F': '1%', 'J': '5%'}
     
     def rc_value_parser(raw: str) -> str:
-        """Парсер номиналов для серий RC Yageo и RI HOTTECH — делегирует в общий парсер."""
-        raw = raw.upper()
+        """Парсер номиналов для серий RC Yageo и RI HOTTECH."""
+        raw = raw.upper().strip()
+        if raw in ('0000', '000', '00', '0', '0R', '0R0', '0R00') or (raw and all(c == '0' for c in raw)):
+            return '0R'
         if 'R' in raw:
             val_str = raw.replace('R', '.')
             try:
@@ -721,7 +802,6 @@ def create_resistor_rules():
                 return f"{format_g(val / 1000)}K"
             else:
                 return f"{format_g(val)}R"
-        # Инициализация val для предотвращения UnboundLocalError (BUG-3)
         val = 0
         if len(raw) == 3 and raw.isdigit():
             try:
@@ -737,15 +817,25 @@ def create_resistor_rules():
                 val = mantissa * (10 ** multiplier)
             except (ValueError, TypeError):
                 return raw
+        elif len(raw) == 5 and raw.isdigit():
+            try:
+                mantissa = int(raw[:4])
+                multiplier = int(raw[4])
+                val = mantissa * (10 ** multiplier)
+            except (ValueError, TypeError):
+                return raw
         else:
             return raw
 
-        if val >= 1000000:
-            return f"{format_g(val / 1000000)}M"
-        elif val >= 1000:
-            return f"{format_g(val / 1000)}K"
+        if val > 0:
+            if val >= 1000000:
+                return f"{format_g(val / 1000000)}M"
+            elif val >= 1000:
+                return f"{format_g(val / 1000)}K"
+            else:
+                return f"{format_g(val)}R"
         else:
-            return f"{format_g(val)}R"
+            return raw
             
     rules.append(VendorRule('RC_Yageo', 'resistor', rc_pattern, rc_size_map,
                             tolerance_map=rc_tolerance, value_parser=rc_value_parser,
@@ -792,7 +882,7 @@ def create_resistor_rules():
                             tolerance_map=rohm_pmr_tolerance, suffix_map={'L': 'mΩ'}, value_parser=pmr_value_parser, is_resistor=True))
 
     # 12. Samsung (резисторы)
-    samsung_res_pattern = r'^(?P<prefix>RC|RCB|RF|RM|RN|RK|RP|RUT|RU|RUK|RJ|RCW|RCV|RCS|RFS|RPS|RH)(?P<size>\d{4})(?P<tolerance>[DFGJ])(?P<code>\d{3}|\d{4}|[0-9]R[0-9]{1,2})(?P<pack>[A-Z]{2})$'
+    samsung_res_pattern = r'^(?P<prefix>RC|RCB|RF|RM|RN|RK|RP|RUT|RU|RUK|RJ|RCW|RCV|RCS|RFS|RPS|RH)(?P<size>\d{4})(?P<tolerance>[DFGJ])(?P<code>\d{3}|\d{4}|[0-9]R[0-9]{1,2})(?P<pack>[A-Z]{0,2})$'
     samsung_size_map_res = {'0402': '0402', '0603': '0603', '1005': '0402', '1608': '0603', '2012': '0805',
                             '3216': '1206', '3225': '1210', '5025': '2010', '6432': '2512'}
     samsung_tolerance_res = {'D': '0.5%', 'F': '1%', 'G': '2%', 'J': '5%'}
@@ -808,20 +898,20 @@ def create_resistor_rules():
                             tolerance_map=walsin_tolerance_res, suffix_map={'R': 'Ω', 'K': 'KΩ', 'M': 'MΩ', 'L': 'mΩ'}, is_resistor=True))
 
     # 14. Yageo (все серии резисторов)
-    yageo_series = 'AC|RC|RT|RL|RV|RE|RA|RK|RS|RP|RQ|RN|RM'
+    yageo_series = 'AC|RC|RT|RL|RV|RE|RA|RK|RS|RP|RQ|RN|RM|RJ'
     yageo_pattern = (
         r'^(?P<series>' + yageo_series + r')'
         r'(?P<size>\d{4})'
-        r'(?P<tolerance>[BDFJ])'
+        r'(?P<tolerance>[A-Z])'
         r'(?P<pack>[A-Z]*)'
         r'-?(?P<reel>\d{2})?'
-        r'(?P<value>.+?)L$'
+        r'(?P<value>\d+[RKM]\d*|\d{3,4}|0R00|0R0|0R|0000|000|00|0|\d+)L?$'
     )
     yageo_size_map = {
         '0075': '0075', '0100': '0100', '0201': '0201', '0402': '0402', '0603': '0603',
         '0805': '0805', '1206': '1206', '1210': '1210', '1218': '1218', '2010': '2010', '2512': '2512'
     }
-    yageo_tolerance = {'B': '0.1%', 'D': '0.5%', 'F': '1%', 'J': '5%'}
+    yageo_tolerance = {'B': '0.1%', 'C': '0.25%', 'D': '0.5%', 'F': '1%', 'G': '2%', 'J': '5%', 'K': '10%', 'Z': '0%'}
     rules.append(VendorRule('Yageo', 'resistor', yageo_pattern, yageo_size_map,
                             tolerance_map=yageo_tolerance,
                             suffix_map={'R': 'Ω', 'K': 'KΩ', 'M': 'MΩ'},
@@ -884,127 +974,9 @@ def create_resistor_rules():
 # =============================================================================
 # Главное приложение – декодер по коду с автоматической очисткой
 # =============================================================================
-# =============================================================================
-# Современная цветовая палитра и темы оформления
-# =============================================================================
-THEMES = {
-    "dark": {
-        "bg_app": "#0b0f19",
-        "bg_card": "#151c2c",
-        "bg_card_inner": "#1e293b",
-        "bg_input": "#101726",
-        "border": "#2b384e",
-        "border_focus": "#3b82f6",
-        "text_primary": "#f8fafc",
-        "text_secondary": "#cbd5e1",
-        "text_muted": "#64748b",
-        "accent": "#3b82f6",
-        "accent_hover": "#2563eb",
-        "accent_text": "#ffffff",
-        "btn_sec_bg": "#1e293b",
-        "btn_sec_fg": "#e2e8f0",
-        "btn_sec_hover": "#2e3d55",
-        "badge_res_bg": "#1e3a8a",
-        "badge_res_fg": "#93c5fd",
-        "badge_cap_bg": "#581c87",
-        "badge_cap_fg": "#d8b4fe",
-        "badge_vendor_bg": "#0e4a60",
-        "badge_vendor_fg": "#7dd3fc",
-        "success_bg": "#064e3b",
-        "success_fg": "#4ade80",
-        "error_bg": "#4c0519",
-        "error_fg": "#f87171",
-        "warning_bg": "#451a03",
-        "warning_fg": "#fbbf24",
-        "status_bg": "#0d1322",
-        "tree_bg": "#151c2c",
-        "tree_fg": "#f8fafc",
-        "tree_head_bg": "#1e293b",
-        "tree_head_fg": "#94a3b8",
-        "tree_sel_bg": "#2563eb",
-        "tree_sel_fg": "#ffffff",
-        "scroll_trough": "#0b0f19",
-        "scroll_thumb": "#2b384e",
-        "scroll_thumb_hover": "#3b4d6e",
-        "scroll_thumb_active": "#5b75a4",
-        "scroll_arrow": "#64748b",
-        "is_dark": True
-    },
-    "light": {
-        "bg_app": "#f1f5f9",
-        "bg_card": "#ffffff",
-        "bg_card_inner": "#f8fafc",
-        "bg_input": "#ffffff",
-        "border": "#cbd5e1",
-        "border_focus": "#2563eb",
-        "text_primary": "#0f172a",
-        "text_secondary": "#334155",
-        "text_muted": "#64748b",
-        "accent": "#2563eb",
-        "accent_hover": "#1d4ed8",
-        "accent_text": "#ffffff",
-        "btn_sec_bg": "#f1f5f9",
-        "btn_sec_fg": "#1e293b",
-        "btn_sec_hover": "#e2e8f0",
-        "badge_res_bg": "#eff6ff",
-        "badge_res_fg": "#1d4ed8",
-        "badge_cap_bg": "#faf5ff",
-        "badge_cap_fg": "#6d28d9",
-        "badge_vendor_bg": "#f0f9ff",
-        "badge_vendor_fg": "#0284c7",
-        "success_bg": "#f0fdf4",
-        "success_fg": "#15803d",
-        "error_bg": "#fef2f2",
-        "error_fg": "#dc2626",
-        "warning_bg": "#fffbeb",
-        "warning_fg": "#b45309",
-        "status_bg": "#e2e8f0",
-        "tree_bg": "#ffffff",
-        "tree_fg": "#0f172a",
-        "tree_head_bg": "#f8fafc",
-        "tree_head_fg": "#475569",
-        "tree_sel_bg": "#2563eb",
-        "tree_sel_fg": "#ffffff",
-        "scroll_trough": "#f1f5f9",
-        "scroll_thumb": "#cbd5e1",
-        "scroll_thumb_hover": "#94a3b8",
-        "scroll_thumb_active": "#64748b",
-        "scroll_arrow": "#94a3b8",
-        "is_dark": False
-    }
-}
-
-
-def get_system_theme() -> str:
-    """Определяет системную тему Windows через реестр (AppsUseLightTheme)."""
-    if winreg is not None:
-        try:
-            key = winreg.OpenKey(winreg.HKEY_CURRENT_USER, r"Software\Microsoft\Windows\CurrentVersion\Themes\Personalize")
-            val, _ = winreg.QueryValueEx(key, "AppsUseLightTheme")
-            winreg.CloseKey(key)
-            return "light" if val == 1 else "dark"
-        except Exception:
-            pass
-    return "dark"
-
-
-def set_window_titlebar_theme(root: tk.Tk, is_dark: bool):
-    """Применяет тёмную или светлую тему к заголовку окна Windows 10/11 через DWM API."""
-    try:
-        root.update_idletasks()
-        hwnd = ctypes.windll.user32.GetParent(root.winfo_id())
-        if not hwnd:
-            hwnd = root.winfo_id()
-        # DWMWA_USE_IMMERSIVE_DARK_MODE: 20 (Windows 11 / Win10 20H1+), 19 (старые сборки Win10)
-        value = ctypes.c_int(1 if is_dark else 0)
-        for attr in (20, 19):
-            res = ctypes.windll.dwmapi.DwmSetWindowAttribute(
-                hwnd, attr, ctypes.byref(value), ctypes.sizeof(value)
-            )
-            if res == 0:
-                break
-    except Exception:
-        pass
+from smd_engine import (
+    THEMES, enable_high_dpi_awareness, set_window_titlebar_theme, get_system_theme
+)
 
 
 # =============================================================================

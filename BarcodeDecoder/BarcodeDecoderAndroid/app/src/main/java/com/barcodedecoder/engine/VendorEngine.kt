@@ -143,9 +143,83 @@ class VendorParser(val rules: List<VendorRule>) {
      * Выполняет распознавание кода со сканера или ручного ввода.
      * Автоматически выполняет поиск подстроки при наличии префиксов/суффиксов.
      */
+    companion object {
+        private const val MAX_TRIM_LEFT = 15
+        private const val MAX_TRIM_RIGHT = 15
+
+        // Регулярное выражение для очистки стандартных префиксов катушек (EIA/CEA-863, EDIFACT, etc.)
+        private val BARCODE_PREFIX_REGEX = Pattern.compile(
+            """^(?:ITEM\(1P\)|CUST\s*PROD\s*ID\(P\)|CUST\s*P/N|OUR\s*P/N|TDK\s*ITEM|P/N|ITEM|\(1P\)|\(30P\)|\(31P\)|\(1T\)|\(1S\)|\(6P\)|\(Q\)|\(V\)|\(P\)|1P|30P|31P|P|1T|1S|6P|9D|Q|V|K|D|10D|11D|12D)[:\s\-]*""",
+            Pattern.CASE_INSENSITIVE
+        )
+    }
+
+    /**
+     * Выполняет распознавание кода со сканера или ручного ввода.
+     * Автоматически выполняет поиск подстроки при наличии префиксов/суффиксов
+     * и токенизацию составных 2D DataMatrix/QR кодов.
+     */
     fun parse(code: String, vendorName: String? = null): ParseResult? {
         val original = code.trim()
         if (original.isEmpty()) return null
+
+        // 1. Попытка разобрать строку целиком (как единичный токен)
+        val singleMatch = parseSingleToken(original, vendorName)
+        if (singleMatch != null) return singleMatch
+
+        // 1.1 Попытка с удалением пробелов внутри (для этикеток, где часть артикула напечатана с пробелами, например "RC 0402 F R-07 33R2")
+        if (original.contains(' ') && !original.startsWith("Р1-", ignoreCase = true)) {
+            val noSpaces = original.replace(" ", "")
+            val noSpaceMatch = parseSingleToken(noSpaces, vendorName)
+            if (noSpaceMatch != null) return noSpaceMatch
+        }
+
+        // 2. Если не подошло или строка содержит составные разделители (ISO 15434, CSV, &, /, etc.):
+        var cleaned = original
+        if (cleaned.startsWith("[)>")) {
+            val firstSep = cleaned.indexOfAny(charArrayOf('\u001d', '\u001e', '\n', ',', ';'))
+            if (firstSep != -1 && firstSep < 10) {
+                cleaned = cleaned.substring(firstSep + 1)
+            }
+        }
+
+        // Разбиваем на токены по всем стандартным разделителям
+        val tokens = cleaned.split(Regex("""[\u001d\u001e\u0004,;&|\n\r\t/]+"""))
+            .map { it.trim() }
+            .filter { it.isNotEmpty() }
+
+        for (token in tokens) {
+            val tokenMatch = parseSingleToken(token, vendorName)
+            if (tokenMatch != null) return tokenMatch
+
+            if (token.contains(' ') && !token.startsWith("Р1-", ignoreCase = true)) {
+                val tokenNoSpaces = token.replace(" ", "")
+                val tokenNoSpaceMatch = parseSingleToken(tokenNoSpaces, vendorName)
+                if (tokenNoSpaceMatch != null) return tokenNoSpaceMatch
+            }
+
+            val matcher = BARCODE_PREFIX_REGEX.matcher(token)
+            if (matcher.find()) {
+                val stripped = token.substring(matcher.end()).trim()
+                if (stripped.isNotEmpty()) {
+                    val strippedMatch = parseSingleToken(stripped, vendorName)
+                    if (strippedMatch != null) return strippedMatch
+
+                    if (stripped.contains(' ') && !stripped.startsWith("Р1-", ignoreCase = true)) {
+                        val strippedNoSpaces = stripped.replace(" ", "")
+                        val strippedNoSpaceMatch = parseSingleToken(strippedNoSpaces, vendorName)
+                        if (strippedNoSpaceMatch != null) return strippedNoSpaceMatch
+                    }
+                }
+            }
+        }
+
+        return null
+    }
+
+    private fun parseSingleToken(token: String, vendorName: String? = null): ParseResult? {
+        val t = token.trim()
+        if (t.isEmpty()) return null
 
         fun tryMatch(candidate: String): Pair<VendorRule, Map<String, String>>? {
             val c = candidate.trim()
@@ -167,32 +241,47 @@ class VendorParser(val rules: List<VendorRule>) {
             }
         }
 
-        // 1. Проверяем точное совпадение без обрезки
-        val directMatch = tryMatch(original)
+        // 1. Прямое совпадение
+        val directMatch = tryMatch(t)
         if (directMatch != null) {
             val (rule, groups) = directMatch
             val unified = convertToUnified(rule, groups)
-            return ParseResult(rule, groups, original, 0, 0, unified)
+            return ParseResult(rule, groups, t, 0, 0, unified)
         }
 
-        // 2. Генерируем варианты обрезки префиксов и суффиксов
+        // 2. Если перед кодом стоит стандартный префикс штрихкода (1P, P, etc.)
+        val prefixMatcher = BARCODE_PREFIX_REGEX.matcher(t)
+        if (prefixMatcher.find()) {
+            val stripped = t.substring(prefixMatcher.end()).trim()
+            if (stripped.isNotEmpty()) {
+                val strippedMatch = tryMatch(stripped)
+                if (strippedMatch != null) {
+                    val (rule, groups) = strippedMatch
+                    val unified = convertToUnified(rule, groups)
+                    return ParseResult(rule, groups, stripped, prefixMatcher.end(), 0, unified)
+                }
+            }
+        }
+
+        // 3. Подбор по обрезке мусорных символов слева и справа
         data class Candidate(val left: Int, val right: Int, val total: Int)
         val candidates = mutableListOf<Candidate>()
 
-        for (left in 0..MAX_TRIM_LEFT) {
-            for (right in 0..MAX_TRIM_RIGHT) {
+        val maxLeft = minOf(MAX_TRIM_LEFT, t.length - 3)
+        val maxRight = minOf(MAX_TRIM_RIGHT, t.length - 3)
+
+        for (left in 0..maxLeft) {
+            for (right in 0..maxRight) {
                 if (left == 0 && right == 0) continue
-                if (left >= original.length || right >= original.length) continue
+                if (left + right >= t.length - 2) continue
                 candidates.add(Candidate(left, right, left + right))
             }
         }
 
-        // Сортировка: сначала варианты с минимальным числом удаленных символов
         candidates.sortWith(compareBy({ it.total }, { it.left }))
 
         for ((left, right, _) in candidates) {
-            if (left + right >= original.length) continue
-            val candidate = original.substring(left, original.length - right)
+            val candidate = t.substring(left, t.length - right)
             if (candidate.isEmpty()) continue
             val match = tryMatch(candidate)
             if (match != null) {
@@ -222,8 +311,13 @@ class VendorParser(val rules: List<VendorRule>) {
             val toleranceCode = groups["tolerance"] ?: ""
             val tolerance = rule.toleranceMap[toleranceCode] ?: toleranceCode
             
-            if (valueStr == "0R" || tolerance == "0%") {
-                "R_${size}_0R"
+            val isJumper = valueStr == "0R" || tolerance == "0%" || rawValue in listOf("0000", "000", "00", "0", "0R", "0R00", "0R0") || rawValue.all { it == '0' && rawValue.isNotEmpty() }
+            if (isJumper) {
+                if (tolerance.isNotEmpty() && tolerance != "0%") {
+                    "R_${size}_0R_${tolerance}"
+                } else {
+                    "R_${size}_0R"
+                }
             } else if (tolerance.isNotEmpty()) {
                 "R_${size}_${valueStr}_${tolerance}"
             } else {
@@ -680,7 +774,9 @@ object RuleFactory {
         // Парсер для RC Yageo и RI HOTTECH
         val parseRcOrRiValue: (String) -> String = { rawInput ->
             val raw = rawInput.uppercase()
-            if (raw.contains('R')) {
+            if (raw == "0000" || raw == "000" || raw == "00" || raw == "0" || raw == "0R" || raw == "0R0" || raw == "0R00" || (raw.isNotEmpty() && raw.all { it == '0' })) {
+                "0R"
+            } else if (raw.contains('R')) {
                 val valNum = raw.replace("R", ".").toDoubleOrNull() ?: 0.0
                 when {
                     valNum >= 1000000 -> "${formatG(valNum / 1000000)}M"
@@ -697,6 +793,11 @@ object RuleFactory {
                     4 -> {
                         val mantissa = raw.substring(0, 3).toIntOrNull() ?: 0
                         val mult = raw.substring(3, 4).toIntOrNull() ?: 0
+                        mantissa * Math.pow(10.0, mult.toDouble())
+                    }
+                    5 -> {
+                        val mantissa = raw.substring(0, 4).toIntOrNull() ?: 0
+                        val mult = raw.substring(4, 5).toIntOrNull() ?: 0
                         mantissa * Math.pow(10.0, mult.toDouble())
                     }
                     else -> 0.0
@@ -789,7 +890,7 @@ object RuleFactory {
             VendorRule(
                 name = "Samsung_Res",
                 compType = "resistor",
-                patternStr = """^(?<prefix>RC|RCB|RF|RM|RN|RK|RP|RUT|RU|RUK|RJ|RCW|RCV|RCS|RFS|RPS|RH)(?<size>\d{4})(?<tolerance>[DFGJ])(?<code>\d{3}|\d{4}|[0-9]R[0-9]{1,2})(?<pack>[A-Z]{2})$""",
+                patternStr = """^(?<prefix>RC|RCB|RF|RM|RN|RK|RP|RUT|RU|RUK|RJ|RCW|RCV|RCS|RFS|RPS|RH)(?<size>\d{4})(?<tolerance>[DFGJ])(?<code>\d{3}|\d{4}|[0-9]R[0-9]{1,2})(?<pack>[A-Z]{0,2})$""",
                 sizeMap = mapOf(
                     "0402" to "0402", "0603" to "0603", "1005" to "0402", "1608" to "0603", "2012" to "0805",
                     "3216" to "1206", "3225" to "1210", "5025" to "2010", "6432" to "2512"
@@ -817,17 +918,17 @@ object RuleFactory {
         )
 
         // 14. Yageo (все серии резисторов)
-        val yageoSeries = "AC|RC|RT|RL|RV|RE|RA|RK|RS|RP|RQ|RN|RM"
+        val yageoSeries = "AC|RC|RT|RL|RV|RE|RA|RK|RS|RP|RQ|RN|RM|RJ"
         rules.add(
             VendorRule(
                 name = "Yageo",
                 compType = "resistor",
-                patternStr = """^(?<series>$yageoSeries)(?<size>\d{4})(?<tolerance>[BDFJ])(?<pack>[A-Z]*)-?(?<reel>\d{2})?(?<value>.+?)L$""",
+                patternStr = """^(?<series>$yageoSeries)(?<size>\d{4})(?<tolerance>[A-Z])(?<pack>[A-Z]*)-?(?<reel>\d{2})?(?<value>\d+[RKM]\d*|\d{3,4}|0R00|0R0|0R|0000|000|00|0|\d+)L?$""",
                 sizeMap = mapOf(
                     "0075" to "0075", "0100" to "0100", "0201" to "0201", "0402" to "0402", "0603" to "0603",
                     "0805" to "0805", "1206" to "1206", "1210" to "1210", "1218" to "1218", "2010" to "2010", "2512" to "2512"
                 ),
-                toleranceMap = mapOf("B" to "0.1%", "D" to "0.5%", "F" to "1%", "J" to "5%"),
+                toleranceMap = mapOf("B" to "0.1%", "C" to "0.25%", "D" to "0.5%", "F" to "1%", "G" to "2%", "J" to "5%", "K" to "10%", "Z" to "0%"),
                 suffixMap = mapOf("R" to "Ω", "K" to "KΩ", "M" to "MΩ"),
                 isResistor = true
             )
