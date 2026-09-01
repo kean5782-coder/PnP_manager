@@ -10,7 +10,7 @@
 
 | Платформа / Модуль | Файл релиза (Прямая загрузка) | Описание |
 |---|---|---|
-| 🖥️ **Windows (Всё в одном)** | **[💾 Скачать SMD_Hub.exe (v1.0 Portable)](https://github.com/kean5782-coder/PnP_manager/raw/main/BarcodeDecoder/dist/SMD_Hub.exe)** | Главный лаунчер и мастер производства: Унификация BOM, Объединение P&P, Выходная сверка, База соответствий и Сканер. |
+| 🖥️ **Windows (Всё в одном)** | **[💾 Скачать SMD_Hub.exe (v1.0 Portable)](https://github.com/kean5782-coder/PnP_manager/raw/main/BarcodeDecoder/dist/SMD_Hub.exe)** | Главный лаунчер и мастер производства: Унификация BOM, Объединение P&P, Выходная сверка, База данных и Сканер. |
 | 🖥️ **Windows (Сканер)** | **[💾 Скачать BarcodeDecoder.exe (v1.1 Portable)](https://github.com/kean5782-coder/PnP_manager/raw/main/BarcodeDecoder/dist/BarcodeDecoder.exe)** | Автономный сканер и декодер штрихкодов катушек для рабочего места оператора. |
 | 📱 **Android (Прямой APK)** | **[📲 Скачать BarcodeDecoder.apk](https://github.com/kean5782-coder/PnP_manager/raw/main/BarcodeDecoder/dist/BarcodeDecoderForSmdResistorsAndCondensators_kean5782.apk)** | Релизный подписанный APK для мобильного сканирования камерой смартфона. |
 | 🛍️ **RuStore (Каталог)** | **[🛍️ Страница в RuStore](https://www.rustore.ru/catalog/app/com.barcodedecoder)** | Официальная страница мобильного приложения в RuStore. |
@@ -33,7 +33,7 @@ graph TD
     end
 
     subgraph Инструменты и справочники
-        DB["🗄️ База соответствий (database.txt)"] <--> STEP1
+        DB["🗄️ База данных (database.txt)"] <--> STEP1
         CAM["📷 Barcode Decoder (ПК / Android)"] -.-> DB
         COMP_PNP["🔄 Сравнение версий P&P"]
         COMP_BOM["🔄 Сверка версий BOM"]

@@ -272,21 +272,22 @@ class DatabaseTab(ttk.Frame):
         self.info_label.config(text=f"Всего записей: {len(self.db_manager.data)}")
 
     def add_manual(self):
-        dialog = create_styled_toplevel(self, "Добавить запись в базу", "460x190")
+        dialog = create_styled_toplevel(self, "Добавить запись в базу", "540x240", min_size=(500, 220))
         dialog.transient(self)
         dialog.grab_set()
 
-        frame = ttk.Frame(dialog, padding="15")
+        frame = ttk.Frame(dialog, padding="20")
         frame.pack(fill=tk.BOTH, expand=True)
+        frame.columnconfigure(1, weight=1)
 
-        ttk.Label(frame, text="Название в BOM:").grid(row=0, column=0, padx=5, pady=6, sticky=tk.W)
-        key_entry = ttk.Entry(frame, width=32)
-        key_entry.grid(row=0, column=1, padx=5, pady=6)
+        ttk.Label(frame, text="Название в BOM:").grid(row=0, column=0, padx=8, pady=8, sticky=tk.W)
+        key_entry = ttk.Entry(frame)
+        key_entry.grid(row=0, column=1, padx=8, pady=8, sticky="ew")
         key_entry.focus()
 
-        ttk.Label(frame, text="Пользовательское название:").grid(row=1, column=0, padx=5, pady=6, sticky=tk.W)
-        value_entry = ttk.Entry(frame, width=32)
-        value_entry.grid(row=1, column=1, padx=5, pady=6)
+        ttk.Label(frame, text="Пользовательское название:").grid(row=1, column=0, padx=8, pady=8, sticky=tk.W)
+        value_entry = ttk.Entry(frame)
+        value_entry.grid(row=1, column=1, padx=8, pady=8, sticky="ew")
 
         def on_save():
             key = key_entry.get().strip()
@@ -302,7 +303,7 @@ class DatabaseTab(ttk.Frame):
             dialog.destroy()
 
         btn_row = ttk.Frame(frame)
-        btn_row.grid(row=2, column=0, columnspan=2, pady=(12, 0))
+        btn_row.grid(row=2, column=0, columnspan=2, pady=(16, 0))
         ttk.Button(btn_row, text="💾 Сохранить", style="Accent.TButton", command=on_save).pack(side=tk.LEFT, padx=6)
         ttk.Button(btn_row, text="Отмена", command=dialog.destroy).pack(side=tk.LEFT, padx=6)
 
@@ -318,23 +319,24 @@ class DatabaseTab(ttk.Frame):
         if not key:
             return
 
-        dialog = create_styled_toplevel(self, "Редактировать запись базы", "460x190")
+        dialog = create_styled_toplevel(self, "Редактировать запись базы", "540x240", min_size=(500, 220))
         dialog.transient(self)
         dialog.grab_set()
 
-        frame = ttk.Frame(dialog, padding="15")
+        frame = ttk.Frame(dialog, padding="20")
         frame.pack(fill=tk.BOTH, expand=True)
+        frame.columnconfigure(1, weight=1)
 
-        ttk.Label(frame, text="Название в BOM (ключ):").grid(row=0, column=0, padx=5, pady=6, sticky=tk.W)
-        key_entry = ttk.Entry(frame, width=32)
+        ttk.Label(frame, text="Название в BOM (ключ):").grid(row=0, column=0, padx=8, pady=8, sticky=tk.W)
+        key_entry = ttk.Entry(frame)
         key_entry.insert(0, key)
         key_entry.config(state=tk.DISABLED)
-        key_entry.grid(row=0, column=1, padx=5, pady=6)
+        key_entry.grid(row=0, column=1, padx=8, pady=8, sticky="ew")
 
-        ttk.Label(frame, text="Пользовательское название:").grid(row=1, column=0, padx=5, pady=6, sticky=tk.W)
-        value_entry = ttk.Entry(frame, width=32)
+        ttk.Label(frame, text="Пользовательское название:").grid(row=1, column=0, padx=8, pady=8, sticky=tk.W)
+        value_entry = ttk.Entry(frame)
         value_entry.insert(0, value)
-        value_entry.grid(row=1, column=1, padx=5, pady=6)
+        value_entry.grid(row=1, column=1, padx=8, pady=8, sticky="ew")
         value_entry.focus()
 
         def on_save():
@@ -347,7 +349,7 @@ class DatabaseTab(ttk.Frame):
             dialog.destroy()
 
         btn_row = ttk.Frame(frame)
-        btn_row.grid(row=2, column=0, columnspan=2, pady=(12, 0))
+        btn_row.grid(row=2, column=0, columnspan=2, pady=(16, 0))
         ttk.Button(btn_row, text="💾 Сохранить", style="Accent.TButton", command=on_save).pack(side=tk.LEFT, padx=6)
         ttk.Button(btn_row, text="Отмена", command=dialog.destroy).pack(side=tk.LEFT, padx=6)
 
@@ -403,10 +405,7 @@ class DatabaseTab(ttk.Frame):
             messagebox.showinfo("Информация", "Сначала загрузите файл BOM и выберите лист.")
             return
 
-        if self.preview_window and self.preview_window.winfo_exists():
-            self.preview_window.destroy()
-
-        preview_window = create_styled_toplevel(self, "Подготовка документа – выбор столбцов и импорт соответствий", "1180x680")
+        preview_window = create_styled_toplevel(self, "Подготовка документа – выбор столбцов и импорт соответствий", "1380x860", min_size=(1100, 680))
         self.preview_window = preview_window
 
         # Верхняя панель настройки столбцов и фильтра
@@ -683,19 +682,19 @@ class DatabaseTab(ttk.Frame):
             messagebox.showinfo("Отмена", "Замены не применены.")
 
     def _show_replacement_dialog(self, replacements):
-        dialog = create_styled_toplevel(self, "Замена на пользовательские названия", "760x440")
+        dialog = create_styled_toplevel(self, "Замена на пользовательские названия", "880x540", min_size=(760, 440))
         dialog.transient(self)
         dialog.grab_set()
 
         ttk.Label(dialog, text="Найдены совпадения в базе данных. Вы можете применить замену:",
-                  wraplength=650, font=("Segoe UI", 9, "bold")).pack(pady=8)
+                  wraplength=700, font=("Segoe UI", 9, "bold")).pack(pady=8)
 
         frame = ttk.Frame(dialog, padding="5")
         frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=5)
 
         tree = ttk.Treeview(frame, columns=("original", "generated", "user"), show="headings", height=10)
-        tree.tag_configure('odd', background="#232428")
-        tree.tag_configure('even', background="#2b2d31")
+        tree.tag_configure('odd', background="#0e182e")
+        tree.tag_configure('even', background="#131e36")
         tree.heading("original", text="Исходное значение")
         tree.heading("generated", text="Сгенерированное")
         tree.heading("user", text="Пользовательское")
@@ -1112,13 +1111,6 @@ class CodeTab(ttk.Frame):
         rules_frame.grid_rowconfigure(0, weight=1)
         rules_frame.grid_columnconfigure(0, weight=1)
 
-        btn_rules = ttk.Frame(rules_frame)
-        btn_rules.grid(row=1, column=0, columnspan=2, pady=5)
-        ttk.Button(btn_rules, text="Добавить правило", command=self.add_rule_dialog).pack(side=tk.LEFT, padx=5)
-        ttk.Button(btn_rules, text="Редактировать правило", command=self.edit_rule_dialog).pack(side=tk.LEFT, padx=5)
-        ttk.Button(btn_rules, text="Удалить правило", command=self.delete_rule).pack(side=tk.LEFT, padx=5)
-        ttk.Button(btn_rules, text="Восстановить предустановленные", command=self.init_default_rules).pack(side=tk.LEFT, padx=5)
-
         # ---------- Кнопки действий ----------
         action_frame = ttk.Frame(main_frame)
         action_frame.pack(fill=tk.X, pady=5)
@@ -1195,9 +1187,7 @@ class CodeTab(ttk.Frame):
             self.rules_tree.insert("", tk.END, values=(rule.name, rule.comp_type, rule.pattern.pattern, "Да"))
 
     def add_rule_dialog(self):
-        dialog = tk.Toplevel(self)
-        dialog.title("Добавить правило")
-        dialog.geometry("600x500")
+        dialog = create_styled_toplevel(self, "Добавить правило", "680x560", min_size=(580, 480))
         dialog.transient(self)
         dialog.grab_set()
 
@@ -1299,10 +1289,10 @@ class CodeTab(ttk.Frame):
         if comp_type == 'capacitor' and self.skip_all_capacitor_code:
             return None
 
-        root = tk.Toplevel(self)
         title = f"Ручное именование {comp_type}"
-        root.title(title)
-        root.geometry("600x200")
+        root = create_styled_toplevel(self, title, "640x260", min_size=(520, 200))
+        root.transient(self)
+        root.grab_set()
 
         ttk.Label(root, text=f"Код определён как {comp_type}, но не удалось извлечь все части.").pack(pady=5)
         ttk.Label(root, text=f"Оригинал: {original_code[:80]}").pack(pady=5)
@@ -1705,7 +1695,7 @@ class CodeTab(ttk.Frame):
                                    "Предпросмотр результатов (код)", all_columns=False)
 
     def _show_generic_preview(self, col1, col2, title, all_columns=False):
-        preview_window = create_styled_toplevel(self, title, "960x540")
+        preview_window = create_styled_toplevel(self, title, "1250x750", min_size=(980, 580))
 
         filter_frame = ttk.Frame(preview_window, padding="5")
         filter_frame.pack(fill=tk.X, padx=5, pady=5)
@@ -1729,8 +1719,8 @@ class CodeTab(ttk.Frame):
             columns = [col1, col2]
 
         tree = ttk.Treeview(frame, columns=columns, show="headings")
-        tree.tag_configure('odd', background="#232428")
-        tree.tag_configure('even', background="#2b2d31")
+        tree.tag_configure('odd', background="#0e182e")
+        tree.tag_configure('even', background="#131e36")
 
         def sort_column(col, reverse=False):
             items = [(tree.set(item, col), item) for item in tree.get_children('')]
@@ -3561,7 +3551,7 @@ class DescriptionTab(ttk.Frame):
                                    "Предпросмотр результатов (описание)", all_columns=False)
 
     def _show_generic_preview(self, col1, col2, title, all_columns=False):
-        preview_window = create_styled_toplevel(self, title, "960x540")
+        preview_window = create_styled_toplevel(self, title, "1250x750", min_size=(980, 580))
 
         filter_frame = ttk.Frame(preview_window, padding="5")
         filter_frame.pack(fill=tk.X, padx=5, pady=5)
@@ -3585,8 +3575,8 @@ class DescriptionTab(ttk.Frame):
             columns = [col1, col2]
 
         tree = ttk.Treeview(frame, columns=columns, show="headings")
-        tree.tag_configure('odd', background="#232428")
-        tree.tag_configure('even', background="#2b2d31")
+        tree.tag_configure('odd', background="#0e182e")
+        tree.tag_configure('even', background="#131e36")
 
         def sort_column(col, reverse=False):
             items = [(tree.set(item, col), item) for item in tree.get_children('')]

@@ -741,129 +741,154 @@ enable_high_dpi_awareness()
 
 
 # =============================================================================
-# Дизайн-система THEMES (Discord Dark & Modern Light)
+# Дизайн-система THEMES (Dark Navy SaaS Dashboard)
 # =============================================================================
 THEMES = {
     "dark": {
-        # Discord Dark Palette
-        "bg_app": "#313338",          # Основной фон чата / рабочей зоны
-        "bg_card": "#2b2d31",         # Фон боковых панелей и карточек
-        "bg_card_inner": "#1e1f22",    # Глубокий фон внутренних контейнеров
-        "bg_input": "#1e1f22",         # Поля ввода и поиска
-        "border": "#3f4147",           # Мягкие разделители
-        "border_focus": "#5865f2",     # Discord Blurple фокус
-        "text_primary": "#f2f3f5",     # Яркий читаемый белый текст
-        "text_secondary": "#dbdee1",   # Стандартный текст
-        "text_muted": "#949ba4",       # Приглушенный текст
-        "accent": "#5865f2",           # Discord Blurple (фирменный синий)
-        "accent_hover": "#4752c4",     # Blurple при наведении
-        "accent_text": "#ffffff",      # Белый текст на акценте
-        "btn_sec_bg": "#383a40",       # Вторичные кнопки Discord
-        "btn_sec_fg": "#dbdee1",
-        "btn_sec_hover": "#4e5058",    # Кнопки при наведении
-        "badge_res_bg": "#2b2d42",
-        "badge_res_fg": "#79b8ff",
-        "badge_cap_bg": "#382b4a",
-        "badge_cap_fg": "#b392f0",
-        "badge_vendor_bg": "#23374d",
-        "badge_vendor_fg": "#58a6ff",
-        "success_bg": "#1c3829",
-        "success_fg": "#23a55a",       # Discord Green
-        "error_bg": "#442326",
-        "error_fg": "#f23f43",         # Discord Red
-        "warning_bg": "#433519",
-        "warning_fg": "#f0b232",       # Discord Yellow
-        "status_bg": "#2b2d31",
-        "tree_bg": "#2b2d31",
-        "tree_fg": "#f2f3f5",
-        "tree_head_bg": "#1e1f22",
-        "tree_head_fg": "#dbdee1",
-        "tree_sel_bg": "#5865f2",
+        # Deep Dark Navy SaaS Palette (matching modern fintech/SaaS dashboard)
+        "bg_app": "#0f172a",          # Основной фон рабочей зоны (глубокий тёмно-синий slate)
+        "bg_sidebar": "#090d1a",      # Ультра-тёмный фон сайдбара
+        "bg_header": "#090d1a",       # Верхний хедер
+        "bg_card": "#131e36",         # Контейнеры, карточки, панели
+        "bg_card_inner": "#182644",   # Внутренние плашки и блоки
+        "bg_input": "#111c33",        # Поля ввода и поиска
+        "border": "#1e2f4f",          # Тонкие границы карточек
+        "border_focus": "#38bdf8",    # Неоновый Sky Blue фокус
+        "text_primary": "#f8fafc",    # Белый чёткий текст
+        "text_secondary": "#94a3b8",  # Вторичный приглушенный сине-серый
+        "text_header": "#7dd3fc",     # Мягкий голубой для колонок и шапки
+        "text_muted": "#64748b",      # Мягкий серый
+        "accent": "#0ea5e9",          # Sky Blue (основной акцент кнопок и пилюль)
+        "accent_hover": "#38bdf8",    # Светло-голубой при наведении
+        "accent_active": "#0284c7",   # Нажатие
+        "accent_text": "#ffffff",     # Белый текст
+        "btn_sec_bg": "#1e2f4f",      # Вторичные кнопки (тёмно-синий)
+        "btn_sec_fg": "#e2e8f0",      # Текст вторичных кнопок
+        "btn_sec_hover": "#2b4169",   # Наведение вторичных кнопок
+        "nav_active_bg": "#1e2f4f",   # Активная плашка сайдбара
+        "nav_active_border": "#38bdf8",# Неоновая полоска слева
+        "badge_res_bg": "#0c4a6e",
+        "badge_res_fg": "#7dd3fc",
+        "badge_cap_bg": "#2e1065",
+        "badge_cap_fg": "#c084fc",
+        "badge_vendor_bg": "#1e3a8a",
+        "badge_vendor_fg": "#60a5fa",
+        "success_bg": "#064e3b",
+        "success_fg": "#34d399",      # Изумрудный зелёный
+        "error_bg": "#4c0519",
+        "error_fg": "#f43f5e",        # Яркий розово-красный
+        "warning_bg": "#451a03",
+        "warning_fg": "#fbbf24",      # Золотисто-янтарный
+        "status_bg": "#131e36",
+        "tree_bg": "#131e36",         # Таблицы данных
+        "tree_fg": "#f8fafc",
+        "tree_head_bg": "#0c1527",    # Заголовки таблиц
+        "tree_head_fg": "#7dd3fc",    # Голубые заголовки колонок
+        "tree_sel_bg": "#0369a1",     # Выделение строк (глубокий голубой)
         "tree_sel_fg": "#ffffff",
-        "scroll_trough": "#2b2d31",
-        "scroll_thumb": "#1e1f22",
-        "scroll_thumb_hover": "#35373c",
-        "scroll_thumb_active": "#4e5058",
-        "scroll_arrow": "#949ba4",
+        "row_odd": "#0e182e",         # Полосатые строки таблицы
+        "row_even": "#131e36",
+        "scroll_trough": "#0e182e",   # Полосы прокрутки
+        "scroll_thumb": "#1e2f4f",
+        "scroll_thumb_hover": "#2b4169",
+        "scroll_thumb_active": "#0ea5e9",
+        "scroll_arrow": "#64748b",
         "is_dark": True
     },
     "light": {
-        "bg_app": "#ffffff",
-        "bg_card": "#f2f3f5",
-        "bg_card_inner": "#e3e5e8",
-        "bg_input": "#e3e5e8",
-        "border": "#d1d4d8",
-        "border_focus": "#5865f2",
-        "text_primary": "#060607",
-        "text_secondary": "#313338",
-        "text_muted": "#5c5e66",
-        "accent": "#5865f2",
-        "accent_hover": "#4752c4",
+        # Light mode mapped to same dark navy for complete consistency
+        "bg_app": "#0f172a",
+        "bg_sidebar": "#090d1a",
+        "bg_header": "#090d1a",
+        "bg_card": "#131e36",
+        "bg_card_inner": "#182644",
+        "bg_input": "#111c33",
+        "border": "#1e2f4f",
+        "border_focus": "#38bdf8",
+        "text_primary": "#f8fafc",
+        "text_secondary": "#94a3b8",
+        "text_header": "#7dd3fc",
+        "text_muted": "#64748b",
+        "accent": "#0ea5e9",
+        "accent_hover": "#38bdf8",
+        "accent_active": "#0284c7",
         "accent_text": "#ffffff",
-        "btn_sec_bg": "#e3e5e8",
-        "btn_sec_fg": "#313338",
-        "btn_sec_hover": "#d1d4d8",
-        "badge_res_bg": "#eff6ff",
-        "badge_res_fg": "#1d4ed8",
-        "badge_cap_bg": "#faf5ff",
-        "badge_cap_fg": "#6d28d9",
-        "badge_vendor_bg": "#f0f9ff",
-        "badge_vendor_fg": "#0284c7",
-        "success_bg": "#f0fdf4",
-        "success_fg": "#23a55a",
-        "error_bg": "#fef2f2",
-        "error_fg": "#f23f43",
-        "warning_bg": "#fffbeb",
-        "warning_fg": "#b45309",
-        "status_bg": "#e3e5e8",
-        "tree_bg": "#ffffff",
-        "tree_fg": "#060607",
-        "tree_head_bg": "#f2f3f5",
-        "tree_head_fg": "#313338",
-        "tree_sel_bg": "#5865f2",
+        "btn_sec_bg": "#1e2f4f",
+        "btn_sec_fg": "#e2e8f0",
+        "btn_sec_hover": "#2b4169",
+        "nav_active_bg": "#1e2f4f",
+        "nav_active_border": "#38bdf8",
+        "badge_res_bg": "#0c4a6e",
+        "badge_res_fg": "#7dd3fc",
+        "badge_cap_bg": "#2e1065",
+        "badge_cap_fg": "#c084fc",
+        "badge_vendor_bg": "#1e3a8a",
+        "badge_vendor_fg": "#60a5fa",
+        "success_bg": "#064e3b",
+        "success_fg": "#34d399",
+        "error_bg": "#4c0519",
+        "error_fg": "#f43f5e",
+        "warning_bg": "#451a03",
+        "warning_fg": "#fbbf24",
+        "status_bg": "#131e36",
+        "tree_bg": "#131e36",
+        "tree_fg": "#f8fafc",
+        "tree_head_bg": "#0c1527",
+        "tree_head_fg": "#7dd3fc",
+        "tree_sel_bg": "#0369a1",
         "tree_sel_fg": "#ffffff",
-        "scroll_trough": "#f2f3f5",
-        "scroll_thumb": "#d1d4d8",
-        "scroll_thumb_hover": "#949ba4",
-        "scroll_thumb_active": "#5c5e66",
-        "scroll_arrow": "#949ba4",
-        "is_dark": False
+        "row_odd": "#0e182e",
+        "row_even": "#131e36",
+        "scroll_trough": "#0e182e",
+        "scroll_thumb": "#1e2f4f",
+        "scroll_thumb_hover": "#2b4169",
+        "scroll_thumb_active": "#0ea5e9",
+        "scroll_arrow": "#64748b",
+        "is_dark": True
     }
 }
 
 
 def get_system_theme() -> str:
-    """Определяет системную тему Windows через реестр."""
-    if winreg is not None:
-        try:
-            key = winreg.OpenKey(winreg.HKEY_CURRENT_USER, r"Software\Microsoft\Windows\CurrentVersion\Themes\Personalize")
-            val, _ = winreg.QueryValueEx(key, "AppsUseLightTheme")
-            winreg.CloseKey(key)
-            return "light" if val == 1 else "dark"
-        except Exception:
-            pass
+    """Возвращает тёмную SaaS тему."""
     return "dark"
 
 
-def set_window_titlebar_theme(root: tk.Tk, is_dark: bool):
-    """Применяет тёмную или светлую тему к заголовку окна Windows 10/11 через DWM API."""
+def set_window_titlebar_theme(root: tk.Tk | tk.Toplevel, is_dark: bool = True):
+    """Применяет тёмную тему к заголовку окна Windows 10/11 через DWM API."""
     try:
         root.update_idletasks()
-        hwnd = ctypes.windll.user32.GetParent(root.winfo_id())
-        if not hwnd:
-            hwnd = root.winfo_id()
-        value = ctypes.c_int(1 if is_dark else 0)
-        for attr in (20, 19):
-            res = ctypes.windll.dwmapi.DwmSetWindowAttribute(
-                hwnd, attr, ctypes.byref(value), ctypes.sizeof(value)
-            )
-            if res == 0:
-                break
+        hwnd = root.winfo_id()
+        parent_hwnd = ctypes.windll.user32.GetParent(hwnd)
+        target_hwnd = parent_hwnd if parent_hwnd else hwnd
+
+        val_int = ctypes.c_int(1 if is_dark else 0)
+        # 20 = DWMWA_USE_IMMERSIVE_DARK_MODE (Win11), 19 = Win10
+        for h in (target_hwnd, hwnd):
+            if not h:
+                continue
+            for attr in (20, 19):
+                try:
+                    ctypes.windll.dwmapi.DwmSetWindowAttribute(
+                        h, attr, ctypes.byref(val_int), ctypes.sizeof(val_int)
+                    )
+                except Exception:
+                    pass
+
+            # 35 = DWMWA_CAPTION_COLOR (Win11 build 22000+)
+            # COLORREF 0x00BBGGRR -> #090d1a -> R=0x09, G=0x0d, B=0x1a -> 0x001a0d09
+            try:
+                caption_color = ctypes.c_uint32(0x001a0d09)
+                ctypes.windll.dwmapi.DwmSetWindowAttribute(
+                    h, 35, ctypes.byref(caption_color), ctypes.sizeof(caption_color)
+                )
+            except Exception:
+                pass
     except Exception:
         pass
 
 
-def apply_ttk_theme(style: ttk.Style, theme_name: str):
+def apply_ttk_theme(style: ttk.Style, theme_name: str = "dark"):
     """Настраивает стили TTK для переданной темы с использованием движка 'clam'."""
     t = THEMES[theme_name]
 
@@ -872,7 +897,7 @@ def apply_ttk_theme(style: ttk.Style, theme_name: str):
     except Exception:
         pass
 
-    # Стиль скрытых вкладок для мастера шагов (без дублирования)
+    # Стиль скрытых вкладок для мастера шагов
     style.layout("Hidden.TNotebook", [("Notebook.client", {"sticky": "nswe"})])
     style.layout("Hidden.TNotebook.Tab", [])
 
@@ -886,7 +911,7 @@ def apply_ttk_theme(style: ttk.Style, theme_name: str):
     style.configure("Card.TLabel", background=t["bg_card"], foreground=t["text_primary"], font=("Segoe UI", 9))
     style.configure("InnerCard.TLabel", background=t["bg_card_inner"], foreground=t["text_primary"], font=("Segoe UI", 9))
     style.configure("Muted.TLabel", foreground=t["text_muted"], font=("Segoe UI", 8))
-    style.configure("Header.TLabel", foreground=t["text_primary"], font=("Segoe UI", 12, "bold"))
+    style.configure("Header.TLabel", foreground=t["text_header"], font=("Segoe UI", 12, "bold"))
     
     # Группы полей (LabelFrame)
     style.configure("TLabelframe", background=t["bg_app"], foreground=t["accent"], relief="groove", borderwidth=1)
@@ -901,7 +926,7 @@ def apply_ttk_theme(style: ttk.Style, theme_name: str):
                     font=("Segoe UI", 9),
                     borderwidth=1,
                     focuscolor="none",
-                    padding=[8, 4])
+                    padding=[10, 5])
     style.map("TButton",
               background=[("pressed", t["accent"]), ("active", t["btn_sec_hover"]), ("disabled", t["bg_input"])],
               foreground=[("pressed", t["accent_text"]), ("active", t["text_primary"]), ("disabled", t["text_muted"])],
@@ -913,20 +938,20 @@ def apply_ttk_theme(style: ttk.Style, theme_name: str):
                     font=("Segoe UI", 9, "bold"),
                     borderwidth=0,
                     focuscolor="none",
-                    padding=[10, 6])
+                    padding=[12, 6])
     style.map("Accent.TButton",
-              background=[("pressed", t["border_focus"]), ("active", t["accent_hover"])],
+              background=[("pressed", t["accent_active"]), ("active", t["accent_hover"])],
               foreground=[("active", t["accent_text"])])
 
     style.configure("Success.TButton",
-                    background=t["success_fg"] if not t["is_dark"] else "#059669",
+                    background="#059669",
                     foreground="#ffffff",
                     font=("Segoe UI", 9, "bold"),
                     borderwidth=0,
                     focuscolor="none",
-                    padding=[10, 6])
+                    padding=[12, 6])
     style.map("Success.TButton",
-              background=[("active", "#047857"), ("pressed", "#065f46")],
+              background=[("active", "#10b981"), ("pressed", "#047857")],
               foreground=[("active", "#ffffff")])
 
     # Поля ввода (Entry)
@@ -937,7 +962,7 @@ def apply_ttk_theme(style: ttk.Style, theme_name: str):
                     bordercolor=t["border"],
                     lightcolor=t["border"],
                     darkcolor=t["border"],
-                    padding=4)
+                    padding=5)
     style.map("TEntry",
               bordercolor=[("focus", t["border_focus"])],
               fieldbackground=[("disabled", t["btn_sec_bg"])],
@@ -948,9 +973,9 @@ def apply_ttk_theme(style: ttk.Style, theme_name: str):
                     fieldbackground=t["bg_input"],
                     background=t["btn_sec_bg"],
                     foreground=t["text_primary"],
-                    arrowcolor=t["text_primary"],
+                    arrowcolor=t["text_header"],
                     bordercolor=t["border"],
-                    padding=4)
+                    padding=5)
     style.map("TCombobox",
               fieldbackground=[("readonly", t["bg_input"])],
               selectbackground=[("readonly", t["accent"])],
@@ -974,7 +999,7 @@ def apply_ttk_theme(style: ttk.Style, theme_name: str):
                     foreground=t["tree_head_fg"],
                     font=("Segoe UI", 9, "bold"),
                     relief="flat",
-                    padding=5)
+                    padding=6)
     style.map("Treeview.Heading",
               background=[("active", t["btn_sec_hover"])])
 
@@ -984,7 +1009,7 @@ def apply_ttk_theme(style: ttk.Style, theme_name: str):
                     background=t["btn_sec_bg"],
                     foreground=t["btn_sec_fg"],
                     font=("Segoe UI", 9),
-                    padding=[14, 6],
+                    padding=[16, 7],
                     borderwidth=1)
     style.map("TNotebook.Tab",
               background=[("selected", t["accent"]), ("active", t["btn_sec_hover"])],
@@ -1005,7 +1030,7 @@ def apply_ttk_theme(style: ttk.Style, theme_name: str):
                   background=[("active", t["scroll_thumb_hover"]), ("pressed", t["scroll_thumb_active"])],
                   arrowcolor=[("active", t["text_primary"]), ("pressed", t["text_primary"])])
 
-    # Чекбоксы (ярко выраженный статус при выборе)
+    # Чекбоксы (неоновый Sky Blue статус при выборе с белой галочкой)
     style.configure("TCheckbutton",
                     background=t["bg_app"],
                     foreground=t["text_primary"],
@@ -1034,7 +1059,7 @@ def apply_ttk_theme(style: ttk.Style, theme_name: str):
               indicatorcolor=[("selected", "#ffffff"), ("pressed", "#ffffff"), ("!selected", t["bg_input"])],
               indicatorbackground=[("selected", t["accent"]), ("active", t["bg_card_inner"]), ("!disabled", t["bg_input"])])
 
-    # Радиокнопки (яркая Blurple кнопка с контрастной точкой при выборе)
+    # Радиокнопки (яркая Sky Blue кнопка с белой контрастной точкой при выборе)
     style.configure("TRadiobutton",
                     background=t["bg_app"],
                     foreground=t["text_primary"],
@@ -1058,10 +1083,10 @@ def apply_ttk_theme(style: ttk.Style, theme_name: str):
                     focuscolor="",
                     font=("Segoe UI", 9))
     style.map("Card.TRadiobutton",
-              background=[("active", t["bg_card"]), ("pressed", t["bg_card"]), ("!disabled", t["bg_card"])],
-              foreground=[("active", t["text_primary"]), ("pressed", t["text_primary"]), ("!disabled", t["text_primary"])],
-              indicatorforeground=[("selected", "#ffffff"), ("pressed", "#ffffff"), ("!selected", t["bg_input"])],
-              indicatorbackground=[("selected", t["accent"]), ("active", t["bg_card_inner"]), ("!disabled", t["bg_input"])])
+                    background=[("active", t["bg_card"]), ("pressed", t["bg_card"]), ("!disabled", t["bg_card"])],
+                    foreground=[("active", t["text_primary"]), ("pressed", t["text_primary"]), ("!disabled", t["text_primary"])],
+                    indicatorforeground=[("selected", "#ffffff"), ("pressed", "#ffffff"), ("!selected", t["bg_input"])],
+                    indicatorbackground=[("selected", t["accent"]), ("active", t["bg_card_inner"]), ("!disabled", t["bg_input"])])
 
 
 def style_widget_tree(widget, theme_name: str, parent_bg=None):
@@ -1137,18 +1162,28 @@ def style_widget_tree(widget, theme_name: str, parent_bg=None):
         style_widget_tree(child, theme_name, parent_bg=bg)
 
 
-def create_styled_toplevel(parent, title: str, geometry: str = None, theme_name: str = "dark"):
+def create_styled_toplevel(parent, title: str, geometry: str = None, min_size: tuple = None, theme_name: str = "dark"):
     """
-    Создает Toplevel окно с правильной темой (тёмный/светлый заголовок Windows,
-    фон в тон темы Discord, умная прокрутка колесом мыши).
+    Создает Toplevel окно с правильной темой (тёмный заголовок Windows,
+    фон в тон темы Dark Navy SaaS, минимальные размеры и умная прокрутка колесом мыши).
     """
     win = tk.Toplevel(parent)
     win.title(title)
     if geometry:
         win.geometry(geometry)
+    if min_size:
+        win.minsize(min_size[0], min_size[1])
+    elif geometry and "x" in geometry:
+        try:
+            w, h = map(int, geometry.split("+")[0].split("-")[0].split("x"))
+            win.minsize(min(w, 400), min(h, 200))
+        except Exception:
+            pass
+
     t = THEMES[theme_name]
     win.configure(bg=t["bg_app"])
-    set_window_titlebar_theme(win, t["is_dark"])
+    set_window_titlebar_theme(win, is_dark=True)
+    win.after(25, lambda: set_window_titlebar_theme(win, is_dark=True))
     enable_smooth_mousewheel(win)
     return win
 
