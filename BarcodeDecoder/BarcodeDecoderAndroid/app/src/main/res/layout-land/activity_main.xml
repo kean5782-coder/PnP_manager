@@ -13,7 +13,7 @@
         android:layout_width="0dp"
         android:layout_height="0dp"
         app:layout_constraintBottom_toBottomOf="parent"
-        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintEnd_toStartOf="@id/rightControlsLayout"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toTopOf="parent"
         app:scaleType="fillCenter" />
@@ -26,7 +26,7 @@
         android:scaleType="fitCenter"
         android:visibility="gone"
         app:layout_constraintBottom_toBottomOf="parent"
-        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintEnd_toStartOf="@id/rightControlsLayout"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toTopOf="parent" />
 
@@ -36,7 +36,7 @@
         android:layout_width="0dp"
         android:layout_height="0dp"
         app:layout_constraintBottom_toBottomOf="parent"
-        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintEnd_toStartOf="@id/rightControlsLayout"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toTopOf="parent" />
 
@@ -49,8 +49,8 @@
         android:gravity="center_vertical"
         android:orientation="horizontal"
         android:paddingHorizontal="16dp"
-        android:paddingVertical="10dp"
-        app:layout_constraintEnd_toEndOf="parent"
+        android:paddingVertical="8dp"
+        app:layout_constraintEnd_toStartOf="@id/rightControlsLayout"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toTopOf="parent">
 
@@ -111,7 +111,7 @@
             android:contentDescription="@string/info_button"
             app:tooltipText="@string/info_button"
             android:nextFocusLeft="@id/btnManualInput"
-            android:nextFocusDown="@id/btnFlashlight"
+            android:nextFocusRight="@id/btnFlashlight"
             app:strokeColor="@color/btn_focus_stroke"
             app:strokeWidth="2dp"
             app:icon="@drawable/ic_info"
@@ -123,13 +123,13 @@
         android:id="@+id/cardStatus"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:layout_marginTop="12dp"
+        android:layout_marginTop="8dp"
         android:layout_marginHorizontal="24dp"
         app:cardBackgroundColor="#CC1E1E24"
-        app:cardCornerRadius="18dp"
+        app:cardCornerRadius="16dp"
         app:cardElevation="4dp"
         app:layout_constrainedWidth="true"
-        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintEnd_toStartOf="@id/rightControlsLayout"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toBottomOf="@id/topBar"
         app:strokeColor="#33FFFFFF"
@@ -140,46 +140,106 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:gravity="center"
-            android:paddingHorizontal="20dp"
-            android:paddingVertical="10dp"
+            android:paddingHorizontal="16dp"
+            android:paddingVertical="8dp"
             android:text="@string/scanning_hint"
             android:textColor="#FFFFFF"
-            android:textSize="13sp" />
+            android:textSize="12sp" />
     </com.google.android.material.card.MaterialCardView>
 
-    <!-- Bottom Action Button (Scan Again) -->
+    <!-- Scan Again Button -->
     <com.google.android.material.button.MaterialButton
         android:id="@+id/btnScanAgain"
         style="@style/Widget.Material3.Button.ElevatedButton"
         android:layout_width="wrap_content"
-        android:layout_height="48dp"
+        android:layout_height="44dp"
         android:layout_marginBottom="16dp"
         android:focusable="true"
         android:clickable="true"
         android:text="@string/scan_again"
         android:textColor="#FFFFFF"
-        android:textSize="14sp"
+        android:textSize="13sp"
         android:visibility="gone"
         app:backgroundTint="@color/primary"
-        app:cornerRadius="24dp"
+        app:cornerRadius="22dp"
         app:strokeColor="@color/btn_focus_stroke"
         app:strokeWidth="2dp"
-        app:layout_constraintBottom_toTopOf="@id/bottomControlsLayout"
-        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintEnd_toStartOf="@id/rightControlsLayout"
         app:layout_constraintStart_toStartOf="parent" />
 
-    <!-- Bottom Control Panel: 3 Large Controls (Portrait) -->
+    <!-- Right Vertical Control Panel: 3 Large Controls (Landscape) -->
     <androidx.constraintlayout.widget.ConstraintLayout
-        android:id="@+id/bottomControlsLayout"
-        android:layout_width="0dp"
-        android:layout_height="110dp"
+        android:id="@+id/rightControlsLayout"
+        android:layout_width="100dp"
+        android:layout_height="0dp"
         android:background="#99000000"
-        android:paddingHorizontal="28dp"
+        android:paddingVertical="20dp"
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintStart_toStartOf="parent">
+        app:layout_constraintTop_toTopOf="parent">
 
-        <!-- 1. Bottom Left: Gallery with thumbnail preview -->
+        <!-- 1. Top Right: Flashlight Button -->
+        <com.google.android.material.card.MaterialCardView
+            android:id="@+id/btnFlashlight"
+            android:layout_width="56dp"
+            android:layout_height="56dp"
+            android:clickable="true"
+            android:focusable="true"
+            android:contentDescription="@string/flashlight_button"
+            app:cardBackgroundColor="#33FFFFFF"
+            app:cardCornerRadius="28dp"
+            app:cardElevation="6dp"
+            app:strokeColor="@color/btn_focus_stroke"
+            app:strokeWidth="2dp"
+            android:nextFocusLeft="@id/btnInfo"
+            android:nextFocusDown="@id/btnCapture"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toTopOf="parent">
+
+            <ImageView
+                android:id="@+id/ivFlashlightIcon"
+                android:layout_width="26dp"
+                android:layout_height="26dp"
+                android:layout_gravity="center"
+                android:src="@drawable/ic_flashlight"
+                app:tint="#FFFFFF"
+                android:contentDescription="@string/flashlight_button" />
+        </com.google.android.material.card.MaterialCardView>
+
+        <!-- 2. Middle Right: High-Res Capture Shutter Button -->
+        <com.google.android.material.card.MaterialCardView
+            android:id="@+id/btnCapture"
+            android:layout_width="76dp"
+            android:layout_height="76dp"
+            android:clickable="true"
+            android:focusable="true"
+            android:contentDescription="@string/capture_button"
+            app:cardBackgroundColor="#FFFFFF"
+            app:cardCornerRadius="38dp"
+            app:cardElevation="10dp"
+            app:strokeColor="@color/accent"
+            app:strokeWidth="3dp"
+            android:nextFocusUp="@id/btnFlashlight"
+            android:nextFocusLeft="@id/scannerOverlay"
+            android:nextFocusDown="@id/btnGallery"
+            app:layout_constraintBottom_toTopOf="@id/btnGallery"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toBottomOf="@id/btnFlashlight">
+
+            <ImageView
+                android:id="@+id/ivCaptureIcon"
+                android:layout_width="38dp"
+                android:layout_height="38dp"
+                android:layout_gravity="center"
+                android:src="@drawable/ic_capture"
+                app:tint="#1E1E24"
+                android:contentDescription="@string/capture_button" />
+        </com.google.android.material.card.MaterialCardView>
+
+        <!-- 3. Bottom Right: Gallery with thumbnail preview -->
         <com.google.android.material.card.MaterialCardView
             android:id="@+id/btnGallery"
             android:layout_width="56dp"
@@ -192,11 +252,11 @@
             app:cardElevation="6dp"
             app:strokeColor="@color/btn_focus_stroke"
             app:strokeWidth="2dp"
-            android:nextFocusUp="@id/btnManualInput"
-            android:nextFocusRight="@id/btnCapture"
+            android:nextFocusUp="@id/btnCapture"
+            android:nextFocusLeft="@id/scannerOverlay"
             app:layout_constraintBottom_toBottomOf="parent"
-            app:layout_constraintStart_toStartOf="parent"
-            app:layout_constraintTop_toTopOf="parent">
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintStart_toStartOf="parent">
 
             <FrameLayout
                 android:layout_width="match_parent"
@@ -218,66 +278,6 @@
                     app:tint="#FFFFFF"
                     android:contentDescription="@string/gallery_button" />
             </FrameLayout>
-        </com.google.android.material.card.MaterialCardView>
-
-        <!-- 2. Bottom Center: High-Res Capture Shutter Button -->
-        <com.google.android.material.card.MaterialCardView
-            android:id="@+id/btnCapture"
-            android:layout_width="76dp"
-            android:layout_height="76dp"
-            android:clickable="true"
-            android:focusable="true"
-            android:contentDescription="@string/capture_button"
-            app:cardBackgroundColor="#FFFFFF"
-            app:cardCornerRadius="38dp"
-            app:cardElevation="10dp"
-            app:strokeColor="@color/accent"
-            app:strokeWidth="3dp"
-            android:nextFocusUp="@id/btnManualInput"
-            android:nextFocusLeft="@id/btnGallery"
-            android:nextFocusRight="@id/btnFlashlight"
-            app:layout_constraintBottom_toBottomOf="parent"
-            app:layout_constraintEnd_toEndOf="parent"
-            app:layout_constraintStart_toStartOf="parent"
-            app:layout_constraintTop_toTopOf="parent">
-
-            <ImageView
-                android:id="@+id/ivCaptureIcon"
-                android:layout_width="38dp"
-                android:layout_height="38dp"
-                android:layout_gravity="center"
-                android:src="@drawable/ic_capture"
-                app:tint="#1E1E24"
-                android:contentDescription="@string/capture_button" />
-        </com.google.android.material.card.MaterialCardView>
-
-        <!-- 3. Bottom Right: Flashlight Button -->
-        <com.google.android.material.card.MaterialCardView
-            android:id="@+id/btnFlashlight"
-            android:layout_width="56dp"
-            android:layout_height="56dp"
-            android:clickable="true"
-            android:focusable="true"
-            android:contentDescription="@string/flashlight_button"
-            app:cardBackgroundColor="#33FFFFFF"
-            app:cardCornerRadius="28dp"
-            app:cardElevation="6dp"
-            app:strokeColor="@color/btn_focus_stroke"
-            app:strokeWidth="2dp"
-            android:nextFocusUp="@id/btnInfo"
-            android:nextFocusLeft="@id/btnCapture"
-            app:layout_constraintBottom_toBottomOf="parent"
-            app:layout_constraintEnd_toEndOf="parent"
-            app:layout_constraintTop_toTopOf="parent">
-
-            <ImageView
-                android:id="@+id/ivFlashlightIcon"
-                android:layout_width="26dp"
-                android:layout_height="26dp"
-                android:layout_gravity="center"
-                android:src="@drawable/ic_flashlight"
-                app:tint="#FFFFFF"
-                android:contentDescription="@string/flashlight_button" />
         </com.google.android.material.card.MaterialCardView>
     </androidx.constraintlayout.widget.ConstraintLayout>
 

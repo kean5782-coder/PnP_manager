@@ -134,8 +134,78 @@
                     android:layout_height="wrap_content"
                     android:layout_marginTop="6dp"
                     android:lineSpacingExtra="3dp"
-                    android:text="Все упомянутые в приложении наименования производителей, товарные знаки и торговые марки (Samsung, Yageo, Murata, KEMET, Taiyo Yuden, TDK, Walsin, Viking, ROHM, Hottech и др.) принадлежат их законным правообладателям. Их текстовое упоминание носит исключительно информационно-справочный характер и служит для распознавания форматов маркировки компонентов. Приложение является независимым продуктом и не аффилировано с указанными компаниями."
+                    android:text="Все упомянутые в приложении наименования производителей, товарные знаки и торговые марки (Samsung, Yageo, Murata, TDK, KEMET, Taiyo Yuden, Walsin, Viking, ROHM, Hottech, Bourns, Vishay, Panasonic, KOA Speer, Royal Ohm, Fenghua/CCTC и др.) принадлежат их законным правообладателям. Их текстовое упоминание носит исключительно информационно-справочный характер (номинативное добросовестное использование) и служит для идентификации совместимости и стандартов маркировки компонентов. Приложение является независимым программным продуктом и не аффилировано с указанными компаниями."
                     android:textColor="#E0F2F1"
+                    android:textSize="12.5sp" />
+            </LinearLayout>
+        </com.google.android.material.card.MaterialCardView>
+
+        <!-- Privacy & Offline Security Card -->
+        <com.google.android.material.card.MaterialCardView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="12dp"
+            app:cardBackgroundColor="#1A2B28"
+            app:cardCornerRadius="12dp"
+            app:strokeColor="#00BFA5"
+            app:strokeWidth="1.5dp">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:padding="14dp">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="🛡️ КОНФИДЕНЦИАЛЬНОСТЬ И 100% OFFLINE БЕЗОПАСНОСТЬ"
+                    android:textColor="#00BFA5"
+                    android:textSize="13sp"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="6dp"
+                    android:lineSpacingExtra="3dp"
+                    android:text="1. Приложение работает полностью автономно (Offline) и не требует подключения к Интернету (сетевой доступ отсутствует в манифесте приложения).\n\n2. Все операции компьютерного зрения (сканирование штрихкодов и распознавание печатного текста OCR) выполняются исключительно локально на процессоре устройства (On-Device).\n\n3. Никакие фотографии, видеокадры, сканированные артикулы или пользовательские данные не сохраняются во внешнюю память и не передаются на сторонние серверы, что гарантирует полную безопасность на режимных предприятиях и объектах с NDA."
+                    android:textColor="#E0F2F1"
+                    android:textSize="12.5sp" />
+            </LinearLayout>
+        </com.google.android.material.card.MaterialCardView>
+
+        <!-- Open Source Licenses Notice Card -->
+        <com.google.android.material.card.MaterialCardView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="12dp"
+            app:cardBackgroundColor="#26231E"
+            app:cardCornerRadius="12dp"
+            app:strokeColor="#FFB74D"
+            app:strokeWidth="1.5dp">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:padding="14dp">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="📦 СТОРОННИЕ БИБЛИОТЕКИ И ЛИЦЕНЗИИ (OPEN SOURCE)"
+                    android:textColor="#FFB74D"
+                    android:textSize="13sp"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="6dp"
+                    android:lineSpacingExtra="3dp"
+                    android:text="Приложение разработано с использованием свободно распространяемых библиотек с открытым исходным кодом под лицензией Apache License 2.0:\n• Google ML Kit (Barcode Scanning &amp; Text Recognition OCR)\n• Android Jetpack (CameraX, Core KTX, Lifecycle)\n• Google Material Design Components\n• Kotlin Coroutines\n\nВсе компоненты используются в строгом соответствии с условиями свободной лицензии Apache 2.0."
+                    android:textColor="#FFF3E0"
                     android:textSize="12.5sp" />
             </LinearLayout>
         </com.google.android.material.card.MaterialCardView>
@@ -240,7 +310,7 @@
                     android:layout_height="wrap_content"
                     android:layout_marginTop="6dp"
                     android:lineSpacingExtra="3dp"
-                    android:text="• Сканирование камерой: наведите видоискатель на штрихкод этикетки катушки. Нажмите на подсвеченную рамку пальцем (или кнопку OK/Enter на пульте TV).\n• Галерея: нажмите иконку галереи для распознавания штрихкода с сохранённого фото.\n• Ручной ввод: введите артикул производителя вручную, если штрихкод повреждён.\n• Поддерживаемые бренды: Yageo, Samsung, Murata, Kemet, Viking, Taiyo Yuden, TDK, Walsin, Hottech, ROHM, Российские Р1-12 / Р1-16."
+                    android:text="• Сканирование камерой: наведите видоискатель на штрихкод этикетки катушки. Нажмите на подсвеченную рамку пальцем (или кнопку OK/Enter на пульте TV).\n• Галерея: нажмите иконку галереи для распознавания штрихкода с сохранённого фото.\n• Ручной ввод: введите артикул производителя вручную, если штрихкод повреждён.\n• Поддерживаемые бренды: Yageo, Samsung, Murata, Kemet, Viking, Taiyo Yuden, TDK, Walsin, Hottech, ROHM, Bourns, Vishay, Panasonic, KOA Speer, Royal Ohm, Fenghua/CCTC, Российские Р1-12 / Р1-16."
                     android:textColor="#EEEEEE"
                     android:textSize="12.5sp" />
             </LinearLayout>

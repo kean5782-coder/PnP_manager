@@ -18,6 +18,8 @@
     <string name="copy_result">Копировать результат</string>
     <string name="copied_to_clipboard">Скопировано в буфер обмена</string>
     <string name="gallery_button">Галерея</string>
+    <string name="capture_button">Захват кадра</string>
+    <string name="flashlight_button">Фонарик</string>
     <string name="no_barcodes_found_in_image">Штрихкоды на изображении не найдены</string>
     <string name="select_barcode_dialog_title">Выберите штрихкод</string>
     <string name="image_processing_error">Ошибка при обработке изображения</string>

@@ -215,7 +215,7 @@ class VendorEngineTest {
 
         val jumper = parser.parse("RC0402JR-070RL")
         assertNotNull("Should parse Yageo 0R resistor", jumper)
-        assertEquals("R_0402_0R", jumper!!.unifiedName)
+        assertEquals("R_0402_0R_5%", jumper!!.unifiedName)
 
         val directRc = parser.parse("RC0805F1002")
         assertNotNull("Should parse direct RC code", directRc)
@@ -314,10 +314,10 @@ class VendorEngineTest {
         assertNotNull("Should parse Panasonic 0Ω jumper", panasonic)
         assertEquals("R_0603_0R", panasonic!!.unifiedName)
 
-        // Yageo RC 0Ω
+        // Yageo RC 0Ω (5% tolerance)
         val yageo = parser.parse("RC0402JR-070RL")
         assertNotNull("Should parse Yageo RC 0Ω jumper", yageo)
-        assertEquals("R_0402_0R", yageo!!.unifiedName)
+        assertEquals("R_0402_0R_5%", yageo!!.unifiedName)
     }
 
     // =========================================================================
@@ -340,5 +340,125 @@ class VendorEngineTest {
         val samsung10M = parser.parse("RC1608F1005CS")
         assertNotNull("Should parse Samsung 10MΩ resistor", samsung10M)
         assertEquals("R_0603_10M_1%", samsung10M!!.unifiedName)
+    }
+
+    // =========================================================================
+    // ТЕСТЫ РЕАЛЬНЫХ КАТУШЕК ИЗ ПАПКИ ARCHIVE
+    // =========================================================================
+
+    @Test
+    fun testArchiveHottechZeroOhmJumper() {
+        // HOTTECH RI 0402 0Ω 0000 1%
+        val direct = parser.parse("RI0402L0000FT")
+        assertNotNull("Should parse HOTTECH 0Ω jumper", direct)
+        assertEquals("R_0402_0R_1%", direct!!.unifiedName)
+
+        // HOTTECH QR Composite Code
+        val qrComposite = parser.parse("RI0402L0000FT&10000&01221450444")
+        assertNotNull("Should parse HOTTECH composite QR code", qrComposite)
+        assertEquals("R_0402_0R_1%", qrComposite!!.unifiedName)
+    }
+
+    @Test
+    fun testArchiveYageoCompositeDataMatrix() {
+        // Yageo 2D Composite DataMatrix with P/1P prefixes and comma delimiter
+        val composite = parser.parse("PRC0402FR-0733R2L,Q10000,9D2538,1PRC0402FR-0733R2L,5003635817")
+        assertNotNull("Should parse Yageo composite DataMatrix", composite)
+        assertEquals("R_0402_33.2R_1%", composite!!.unifiedName)
+
+        // Yageo 30P Prefix
+        val p30 = parser.parse("(30P)RC0402FR-0733R2L")
+        assertNotNull("Should parse Yageo (30P) prefix", p30)
+        assertEquals("R_0402_33.2R_1%", p30!!.unifiedName)
+    }
+
+    @Test
+    fun testArchiveSamsungComposite() {
+        // Samsung DataMatrix with slash delimiter and prefix
+        val composite = parser.parse("CLCITDT/CL05B104KA5NNNC")
+        assertNotNull("Should parse Samsung composite DataMatrix", composite)
+        assertEquals("C_0402_X7R_100nF_25V", composite!!.unifiedName)
+    }
+
+    @Test
+    fun testArchiveYageoPrecisionRE() {
+        // Yageo RE series 0.1% precision resistor
+        val re = parser.parse("RE0603BRE07200KL")
+        assertNotNull("Should parse Yageo RE precision resistor", re)
+        assertEquals("R_0603_200K_0.1%", re!!.unifiedName)
+    }
+
+    @Test
+    fun testArchiveTdkWithPrefixes() {
+        // TDK with (1P) prefix and thickness suffix
+        val tdk1 = parser.parse("(1P)C2012X5R1V226M125AC")
+        assertNotNull("Should parse TDK with (1P) prefix", tdk1)
+        assertEquals("C_0805_X5R_22uF_35V", tdk1!!.unifiedName)
+
+        // TDK 16V 22uF
+        val tdk2 = parser.parse("C2012X5R1C226K")
+        assertNotNull("Should parse TDK 16V capacitor", tdk2)
+        assertEquals("C_0805_X5R_22uF_16V", tdk2!!.unifiedName)
+    }
+
+    @Test
+    fun testArchiveFenghuaCctc() {
+        // Fenghua / CCTC 1R 1% resistor
+        val r1 = parser.parse("RC1608F1R0")
+        assertNotNull("Should parse CCTC/Fenghua 1R resistor", r1)
+        assertEquals("R_0603_1R_1%", r1!!.unifiedName)
+    }
+
+    @Test
+    fun testArchivePrintedOcrVariations() {
+        // 1. Spaced Yageo text from label: "RC 0402 F R-07 33R2"
+        val spacedYageo = parser.parse("RC 0402 F R-07 33R2")
+        assertNotNull("Should parse spaced Yageo text", spacedYageo)
+        assertEquals("R_0402_33.2R_1%", spacedYageo!!.unifiedName)
+
+        // 2. Yageo with 30P and CTC prefix: "(30P) CTC RC 0402 F R-07 33R2"
+        val ctcYageo = parser.parse("(30P) CTC RC 0402 F R-07 33R2")
+        assertNotNull("Should parse (30P) CTC Yageo text", ctcYageo)
+        assertEquals("R_0402_33.2R_1%", ctcYageo!!.unifiedName)
+
+        // 3. Hottech with P/N: prefix
+        val pnHottech = parser.parse("P/N: RI0402L0000FT")
+        assertNotNull("Should parse P/N: RI0402L0000FT", pnHottech)
+        assertEquals("R_0402_0R_1%", pnHottech!!.unifiedName)
+
+        // 4. TDK ITEM prefix
+        val tdkItem = parser.parse("TDK ITEM: C2012X5R1V226MT000N")
+        assertNotNull("Should parse TDK ITEM prefix", tdkItem)
+        assertEquals("C_0805_X5R_22uF_35V", tdkItem!!.unifiedName)
+
+        // 5. ITEM(1P) : prefix
+        val item1p = parser.parse("ITEM(1P) : C2012X5R1V226MT000N")
+        assertNotNull("Should parse ITEM(1P) prefix", item1p)
+        assertEquals("C_0805_X5R_22uF_35V", item1p!!.unifiedName)
+
+        // 6. CUST PROD ID(P) : prefix
+        val custProd = parser.parse("CUST PROD ID(P) : C2012X5R1V226M125AC")
+        assertNotNull("Should parse CUST PROD ID(P) prefix", custProd)
+        assertEquals("C_0805_X5R_22uF_35V", custProd!!.unifiedName)
+
+        // 7. Yageo 12.7K 1% from Google Lens photo
+        val lensYageo = parser.parse("RC0402FR-0712K7L")
+        assertNotNull("Should parse RC0402FR-0712K7L", lensYageo)
+        assertEquals("R_0402_12.7K_1%", lensYageo!!.unifiedName)
+
+        // 8. Murata 100uF 4V MLCC
+        val murata100u = parser.parse("GRM21BC80G107ME15L")
+        assertNotNull("Should parse GRM21BC80G107ME15L", murata100u)
+        assertEquals("C_0805_X6S_100uF_4V", murata100u!!.unifiedName)
+
+        // 9. Yageo CC 1uF 6.3V MLCC
+        val yageo1u = parser.parse("CC0402KRX7R5BB105")
+        assertNotNull("Should parse CC0402KRX7R5BB105", yageo1u)
+        assertEquals("C_0402_X7R_1uF_6.3V", yageo1u!!.unifiedName)
+
+        // 10. Samsung 100nF 25V MLCC
+        val samsung100n = parser.parse("CL05B104KA5NNNC")
+        assertNotNull("Should parse CL05B104KA5NNNC", samsung100n)
+        assertEquals("C_0402_X7R_100nF_25V", samsung100n!!.unifiedName)
     }
 }
