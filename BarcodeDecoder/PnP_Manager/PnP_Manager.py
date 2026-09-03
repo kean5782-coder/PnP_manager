@@ -930,48 +930,115 @@ class CheckTab(ttk.Frame):
 
     # ---------- Диалоги для экспорта ----------
     def get_separator_dialog(self):
-        dialog = create_styled_toplevel(self.parent, "Выбор разделителя", "480x230", min_size=(420, 200))
+        t = THEMES["dark"]
+        dialog = create_styled_toplevel(self.parent, "Выбор разделителя", "460x260", min_size=(420, 240))
         dialog.transient(self.parent)
         dialog.grab_set()
 
-        ttk.Label(dialog, text="Выберите разделитель или введите свой:", font=("Segoe UI", 10)).pack(pady=(15, 8))
+        content = tk.Frame(dialog, bg=t["bg_app"], padx=20, pady=16)
+        content.pack(fill=tk.BOTH, expand=True)
 
-        var = tk.StringVar(value=";")
-        combo = ttk.Combobox(dialog, textvariable=var, values=[";", ",", "\t", " ", "|"], state="readonly", width=12)
-        combo.pack(pady=4)
+        tk.Label(content, text="Выберите разделитель для формирования .TXT:",
+                 font=("Segoe UI", 10, "bold"), bg=t["bg_app"], fg=t["text_header"]).pack(anchor="w", pady=(0, 8))
 
-        entry = ttk.Entry(dialog, textvariable=var, width=14, justify="center")
-        entry.pack(pady=4)
+        card = tk.Frame(content, bg=t["bg_card"], highlightbackground=t["border"], highlightthickness=1, padx=16, pady=12)
+        card.pack(fill=tk.X, pady=(0, 12))
+
+        sep_map = {
+            "Табуляция (\\t)": "\t",
+            "Пробел (␣)": " ",
+            "Точка с запятой (;)": ";",
+            "Запятая (,)": ",",
+            "Вертикальная черта (|)": "|",
+        }
+        display_options = list(sep_map.keys()) + ["Свой символ..."]
+
+        combo_var = tk.StringVar(value="Табуляция (\\t)")
+        custom_var = tk.StringVar(value="")
+
+        tk.Label(card, text="Стандартный разделитель:", font=("Segoe UI", 9), bg=t["bg_card"], fg=t["text_primary"]).pack(anchor="w", pady=(0, 4))
+        combo = ttk.Combobox(card, textvariable=combo_var, values=display_options, state="readonly", width=28, font=("Segoe UI", 9))
+        combo.pack(fill=tk.X, pady=(0, 8))
+
+        custom_box = tk.Frame(card, bg=t["bg_card"])
+        custom_box.pack(fill=tk.X)
+
+        tk.Label(custom_box, text="Свой разделитель:", font=("Segoe UI", 9), bg=t["bg_card"], fg=t["text_secondary"]).pack(side=tk.LEFT)
+        custom_entry = ttk.Entry(custom_box, textvariable=custom_var, width=8, justify="center", state="disabled")
+        custom_entry.pack(side=tk.LEFT, padx=8)
+
+        hint_lbl = tk.Label(custom_box, text="(\\t - табуляция, \\s - пробел)", font=("Segoe UI", 8), bg=t["bg_card"], fg=t["text_muted"])
+        hint_lbl.pack(side=tk.LEFT)
+
+        def on_combo_change(event=None):
+            if combo_var.get() == "Свой символ...":
+                custom_entry.configure(state="normal")
+                custom_entry.focus()
+            else:
+                custom_entry.configure(state="disabled")
+
+        combo.bind("<<ComboboxSelected>>", on_combo_change)
 
         result = {"sep": None}
 
         def on_ok():
-            result["sep"] = var.get()
+            choice = combo_var.get()
+            if choice == "Свой символ...":
+                c = custom_var.get()
+                if c == r"\t":
+                    result["sep"] = "\t"
+                elif c in (r"\s", r"\p", "␣"):
+                    result["sep"] = " "
+                elif c:
+                    result["sep"] = c
+                else:
+                    result["sep"] = "\t"
+            else:
+                result["sep"] = sep_map.get(choice, "\t")
             dialog.destroy()
 
         def on_cancel():
             result["sep"] = None
             dialog.destroy()
 
-        btn_frame = ttk.Frame(dialog)
-        btn_frame.pack(pady=(10, 15))
-        ttk.Button(btn_frame, text="OK", command=on_ok).pack(side=tk.LEFT, padx=6)
-        ttk.Button(btn_frame, text="Отмена", command=on_cancel).pack(side=tk.LEFT, padx=6)
+        dialog.bind("<Return>", lambda e: on_ok())
+        dialog.bind("<Escape>", lambda e: on_cancel())
+
+        btn_frame = tk.Frame(content, bg=t["bg_app"])
+        btn_frame.pack(fill=tk.X)
+
+        btn_ok = tk.Button(btn_frame, text="OK", command=on_ok,
+                           bg=t["accent"], fg=t["accent_text"], activebackground=t["accent_hover"],
+                           font=("Segoe UI", 9, "bold"), relief="flat", padx=20, pady=5, cursor="hand2")
+        btn_ok.pack(side=tk.LEFT, padx=(0, 8))
+
+        btn_cancel = tk.Button(btn_frame, text="Отмена", command=on_cancel,
+                               bg=t["btn_sec_bg"], fg=t["btn_sec_fg"], activebackground=t["btn_sec_hover"],
+                               font=("Segoe UI", 9), relief="flat", padx=16, pady=5, cursor="hand2")
+        btn_cancel.pack(side=tk.LEFT)
 
         style_widget_tree(dialog, "dark")
         self.parent.wait_window(dialog)
         return result["sep"]
 
     def get_replacement_name_dialog(self):
-        dialog = create_styled_toplevel(self.parent, "Замена пустых названий", "500x230", min_size=(440, 200))
+        t = THEMES["dark"]
+        dialog = create_styled_toplevel(self.parent, "Замена пустых названий", "460x220", min_size=(400, 200))
         dialog.transient(self.parent)
         dialog.grab_set()
 
-        ttk.Label(dialog, text="Введите имя для пустых названий компонентов:", font=("Segoe UI", 10)).pack(pady=(15, 8))
+        content = tk.Frame(dialog, bg=t["bg_app"], padx=20, pady=16)
+        content.pack(fill=tk.BOTH, expand=True)
+
+        tk.Label(content, text="Введите имя для пустых названий компонентов:",
+                 font=("Segoe UI", 10, "bold"), bg=t["bg_app"], fg=t["text_header"]).pack(anchor="w", pady=(0, 8))
+
+        card = tk.Frame(content, bg=t["bg_card"], highlightbackground=t["border"], highlightthickness=1, padx=16, pady=12)
+        card.pack(fill=tk.X, pady=(0, 12))
 
         name_var = tk.StringVar(value="UNKNOWN_PART")
-        entry = ttk.Entry(dialog, textvariable=name_var, width=30)
-        entry.pack(pady=5)
+        entry = ttk.Entry(card, textvariable=name_var, width=32, font=("Segoe UI", 9))
+        entry.pack(fill=tk.X)
         entry.focus()
 
         result = {"name": None}
@@ -986,10 +1053,21 @@ class CheckTab(ttk.Frame):
             result["name"] = None
             dialog.destroy()
 
-        btn_frame = ttk.Frame(dialog)
-        btn_frame.pack(pady=(10, 15))
-        ttk.Button(btn_frame, text="OK", command=on_ok).pack(side=tk.LEFT, padx=6)
-        ttk.Button(btn_frame, text="Отмена", command=on_cancel).pack(side=tk.LEFT, padx=6)
+        dialog.bind("<Return>", lambda e: on_ok())
+        dialog.bind("<Escape>", lambda e: on_cancel())
+
+        btn_frame = tk.Frame(content, bg=t["bg_app"])
+        btn_frame.pack(fill=tk.X)
+
+        btn_ok = tk.Button(btn_frame, text="OK", command=on_ok,
+                           bg=t["accent"], fg=t["accent_text"], activebackground=t["accent_hover"],
+                           font=("Segoe UI", 9, "bold"), relief="flat", padx=20, pady=5, cursor="hand2")
+        btn_ok.pack(side=tk.LEFT, padx=(0, 8))
+
+        btn_cancel = tk.Button(btn_frame, text="Отмена", command=on_cancel,
+                               bg=t["btn_sec_bg"], fg=t["btn_sec_fg"], activebackground=t["btn_sec_hover"],
+                               font=("Segoe UI", 9), relief="flat", padx=16, pady=5, cursor="hand2")
+        btn_cancel.pack(side=tk.LEFT)
 
         style_widget_tree(dialog, "dark")
         self.parent.wait_window(dialog)
