@@ -2680,195 +2680,381 @@ class CompareTab(ttk.Frame):
         self.create_widgets()
         self.on_one_side_changed()
 
+    def get_separator_dialog(self):
+        t = THEMES["dark"]
+        dialog = create_styled_toplevel(self.parent, "Выбор разделителя", "460x260", min_size=(420, 240))
+        dialog.transient(self.parent)
+        dialog.grab_set()
+
+        content = tk.Frame(dialog, bg=t["bg_app"], padx=20, pady=16)
+        content.pack(fill=tk.BOTH, expand=True)
+
+        tk.Label(content, text="Выберите разделитель для формирования .TXT:",
+                 font=("Segoe UI", 10, "bold"), bg=t["bg_app"], fg=t["text_header"]).pack(anchor="w", pady=(0, 8))
+
+        card = tk.Frame(content, bg=t["bg_card"], highlightbackground=t["border"], highlightthickness=1, padx=16, pady=12)
+        card.pack(fill=tk.X, pady=(0, 12))
+
+        sep_map = {
+            "Табуляция (\\t)": "\t",
+            "Пробел (␣)": " ",
+            "Точка с запятой (;)": ";",
+            "Запятая (,)": ",",
+            "Вертикальная черта (|)": "|",
+        }
+        display_options = list(sep_map.keys()) + ["Свой символ..."]
+
+        combo_var = tk.StringVar(value="Табуляция (\\t)")
+        custom_var = tk.StringVar(value="")
+
+        tk.Label(card, text="Стандартный разделитель:", font=("Segoe UI", 9), bg=t["bg_card"], fg=t["text_primary"]).pack(anchor="w", pady=(0, 4))
+        combo = ttk.Combobox(card, textvariable=combo_var, values=display_options, state="readonly", width=28, font=("Segoe UI", 9))
+        combo.pack(fill=tk.X, pady=(0, 8))
+
+        custom_box = tk.Frame(card, bg=t["bg_card"])
+        custom_box.pack(fill=tk.X)
+
+        tk.Label(custom_box, text="Свой разделитель:", font=("Segoe UI", 9), bg=t["bg_card"], fg=t["text_secondary"]).pack(side=tk.LEFT)
+        custom_entry = ttk.Entry(custom_box, textvariable=custom_var, width=8, justify="center", state="disabled")
+        custom_entry.pack(side=tk.LEFT, padx=8)
+
+        hint_lbl = tk.Label(custom_box, text="(\\t - табуляция, \\s - пробел)", font=("Segoe UI", 8), bg=t["bg_card"], fg=t["text_muted"])
+        hint_lbl.pack(side=tk.LEFT)
+
+        def on_combo_change(event=None):
+            if combo_var.get() == "Свой символ...":
+                custom_entry.configure(state="normal")
+                custom_entry.focus()
+            else:
+                custom_entry.configure(state="disabled")
+
+        combo.bind("<<ComboboxSelected>>", on_combo_change)
+
+        result = {"sep": None}
+
+        def on_ok():
+            choice = combo_var.get()
+            if choice == "Свой символ...":
+                c = custom_var.get()
+                if c == r"\t":
+                    result["sep"] = "\t"
+                elif c in (r"\s", r"\p", "␣"):
+                    result["sep"] = " "
+                elif c:
+                    result["sep"] = c
+                else:
+                    result["sep"] = "\t"
+            else:
+                result["sep"] = sep_map.get(choice, "\t")
+            dialog.destroy()
+
+        def on_cancel():
+            result["sep"] = None
+            dialog.destroy()
+
+        dialog.bind("<Return>", lambda e: on_ok())
+        dialog.bind("<Escape>", lambda e: on_cancel())
+
+        btn_frame = tk.Frame(content, bg=t["bg_app"])
+        btn_frame.pack(fill=tk.X)
+
+        btn_ok = tk.Button(btn_frame, text="OK", command=on_ok,
+                           bg=t["accent"], fg=t["accent_text"], activebackground=t["accent_hover"],
+                           font=("Segoe UI", 9, "bold"), relief="flat", padx=20, pady=5, cursor="hand2")
+        btn_ok.pack(side=tk.LEFT, padx=(0, 8))
+
+        btn_cancel = tk.Button(btn_frame, text="Отмена", command=on_cancel,
+                               bg=t["btn_sec_bg"], fg=t["btn_sec_fg"], activebackground=t["btn_sec_hover"],
+                               font=("Segoe UI", 9), relief="flat", padx=16, pady=5, cursor="hand2")
+        btn_cancel.pack(side=tk.LEFT)
+
+        style_widget_tree(dialog, "dark")
+        self.parent.wait_window(dialog)
+        return result["sep"]
+
     def create_widgets(self):
-        main_frame = ttk.Frame(self.scrollable_frame, padding="10")
+        t = THEMES["dark"]
+        main_frame = tk.Frame(self.scrollable_frame, bg=t["bg_app"], padx=8, pady=6)
         main_frame.pack(fill=tk.BOTH, expand=True)
 
-        top_frame = ttk.Frame(main_frame)
-        top_frame.pack(fill=tk.X, pady=5)
+        top_frame = tk.Frame(main_frame, bg=t["bg_app"])
+        top_frame.pack(fill=tk.X, pady=(0, 8))
         top_frame.columnconfigure(0, weight=1)
         top_frame.columnconfigure(1, weight=1)
+        top_frame.rowconfigure(0, weight=1)
 
         # -------------------------------------------------------------
         # Старая версия P&P
         # -------------------------------------------------------------
-        old_frame = tk.LabelFrame(top_frame, text="📁 Старая версия PNP", padx=8, pady=6)
+        old_frame = tk.Frame(top_frame, bg=t["bg_card"], highlightbackground=t["border"], highlightthickness=1, padx=12, pady=10)
         old_frame.grid(row=0, column=0, sticky="nsew", padx=(0, 4), pady=2)
         old_frame.columnconfigure(1, weight=1)
 
-        tk.Label(old_frame, text="Файл:").grid(row=0, column=0, sticky="w", pady=2)
-        old_entry = ttk.Entry(old_frame, textvariable=self.old_file)
-        old_entry.grid(row=0, column=1, sticky="ew", padx=4, pady=2)
-        ttk.Button(old_frame, text="Обзор...", command=lambda: self.browse_file('old')).grid(row=0, column=2, padx=2, pady=2)
-        ttk.Button(old_frame, text="👁️", width=3, command=lambda: self.show_preview(self.df_old, "Старый PNP")).grid(row=0, column=3, padx=2, pady=2)
-        ttk.Button(old_frame, text="Загрузить", command=lambda: self.load_file('old')).grid(row=0, column=4, padx=2, pady=2)
+        tk.Label(old_frame, text="📁 Старая версия P&P", font=("Segoe UI", 10, "bold"),
+                 bg=t["bg_card"], fg=t["accent"]).grid(row=0, column=0, columnspan=4, sticky="w", pady=(0, 6))
 
-        sep_frame_old = ttk.Frame(old_frame)
-        sep_frame_old.grid(row=1, column=0, columnspan=5, sticky="w", pady=2)
-        tk.Label(sep_frame_old, text="Разделитель:").pack(side=tk.LEFT, padx=(0, 2))
+        tk.Label(old_frame, text="Файл P&P:", font=("Segoe UI", 9), bg=t["bg_card"], fg=t["text_primary"]).grid(row=1, column=0, sticky="w", pady=4)
+        old_entry = ttk.Entry(old_frame, textvariable=self.old_file)
+        old_entry.grid(row=1, column=1, sticky="ew", padx=6, pady=4)
+        old_entry.bind("<Return>", lambda e: self.load_file('old'))
+        btn_old_browse = ttk.Button(old_frame, text="Обзор...", command=lambda: self.browse_file('old'))
+        btn_old_browse.grid(row=1, column=2, padx=2, pady=4)
+        btn_old_view = ttk.Button(old_frame, text="👁️", width=3, command=lambda: self.show_preview(self.df_old, "Старый PNP"))
+        btn_old_view.grid(row=1, column=3, padx=2, pady=4)
+        ToolTip(btn_old_view, "Предпросмотр старого файла P&P")
+
+        sep_frame_old = tk.Frame(old_frame, bg=t["bg_card"])
+        sep_frame_old.grid(row=2, column=0, columnspan=4, sticky="w", pady=(2, 4))
+        tk.Label(sep_frame_old, text="Разделитель:", font=("Segoe UI", 9), bg=t["bg_card"], fg=t["text_secondary"]).pack(side=tk.LEFT, padx=(0, 4))
         for sep in [" ", "\t", ",", ";"]:
             ttk.Radiobutton(sep_frame_old, text=repr(sep), variable=self.old_sep_mode,
-                            value=sep, command=self.on_old_sep_changed).pack(side=tk.LEFT, padx=1)
+                            value=sep, command=self.on_old_sep_changed).pack(side=tk.LEFT, padx=3)
         ttk.Radiobutton(sep_frame_old, text="Свой", variable=self.old_sep_mode,
-                        value="custom", command=self.on_old_sep_changed).pack(side=tk.LEFT, padx=1)
+                        value="custom", command=self.on_old_sep_changed).pack(side=tk.LEFT, padx=3)
         self.old_custom_entry = ttk.Entry(sep_frame_old, textvariable=self.old_custom_sep, width=4, state='disabled')
-        self.old_custom_entry.pack(side=tk.LEFT, padx=2)
+        self.old_custom_entry.pack(side=tk.LEFT, padx=3)
         self.old_custom_sep.trace_add('write', self.on_old_custom_sep_changed)
-        ttk.Checkbutton(sep_frame_old, text="Есть заголовок", variable=self.old_header).pack(side=tk.LEFT, padx=(8, 0))
+        ttk.Checkbutton(sep_frame_old, text="Есть заголовок", variable=self.old_header,
+                        command=lambda: self.load_file('old') if self.old_file.get() and os.path.exists(self.old_file.get()) else None).pack(side=tk.LEFT, padx=(10, 0))
 
         # -------------------------------------------------------------
         # Новая версия P&P
         # -------------------------------------------------------------
-        new_frame = tk.LabelFrame(top_frame, text="📁 Новая версия PNP", padx=8, pady=6)
+        new_frame = tk.Frame(top_frame, bg=t["bg_card"], highlightbackground=t["border"], highlightthickness=1, padx=12, pady=10)
         new_frame.grid(row=0, column=1, sticky="nsew", padx=(4, 0), pady=2)
         new_frame.columnconfigure(1, weight=1)
 
-        tk.Label(new_frame, text="Файл:").grid(row=0, column=0, sticky="w", pady=2)
-        new_entry = ttk.Entry(new_frame, textvariable=self.new_file)
-        new_entry.grid(row=0, column=1, sticky="ew", padx=4, pady=2)
-        ttk.Button(new_frame, text="Обзор...", command=lambda: self.browse_file('new')).grid(row=0, column=2, padx=2, pady=2)
-        ttk.Button(new_frame, text="👁️", width=3, command=lambda: self.show_preview(self.df_new, "Новый PNP")).grid(row=0, column=3, padx=2, pady=2)
-        ttk.Button(new_frame, text="Загрузить", command=lambda: self.load_file('new')).grid(row=0, column=4, padx=2, pady=2)
+        tk.Label(new_frame, text="📁 Новая версия P&P", font=("Segoe UI", 10, "bold"),
+                 bg=t["bg_card"], fg=t["accent"]).grid(row=0, column=0, columnspan=4, sticky="w", pady=(0, 6))
 
-        sep_frame_new = ttk.Frame(new_frame)
-        sep_frame_new.grid(row=1, column=0, columnspan=5, sticky="w", pady=2)
-        tk.Label(sep_frame_new, text="Разделитель:").pack(side=tk.LEFT, padx=(0, 2))
+        tk.Label(new_frame, text="Файл P&P:", font=("Segoe UI", 9), bg=t["bg_card"], fg=t["text_primary"]).grid(row=1, column=0, sticky="w", pady=4)
+        new_entry = ttk.Entry(new_frame, textvariable=self.new_file)
+        new_entry.grid(row=1, column=1, sticky="ew", padx=6, pady=4)
+        new_entry.bind("<Return>", lambda e: self.load_file('new'))
+        btn_new_browse = ttk.Button(new_frame, text="Обзор...", command=lambda: self.browse_file('new'))
+        btn_new_browse.grid(row=1, column=2, padx=2, pady=4)
+        btn_new_view = ttk.Button(new_frame, text="👁️", width=3, command=lambda: self.show_preview(self.df_new, "Новый PNP"))
+        btn_new_view.grid(row=1, column=3, padx=2, pady=4)
+        ToolTip(btn_new_view, "Предпросмотр нового файла P&P")
+
+        sep_frame_new = tk.Frame(new_frame, bg=t["bg_card"])
+        sep_frame_new.grid(row=2, column=0, columnspan=4, sticky="w", pady=(2, 4))
+        tk.Label(sep_frame_new, text="Разделитель:", font=("Segoe UI", 9), bg=t["bg_card"], fg=t["text_secondary"]).pack(side=tk.LEFT, padx=(0, 4))
         for sep in [" ", "\t", ",", ";"]:
             ttk.Radiobutton(sep_frame_new, text=repr(sep), variable=self.new_sep_mode,
-                            value=sep, command=self.on_new_sep_changed).pack(side=tk.LEFT, padx=1)
+                            value=sep, command=self.on_new_sep_changed).pack(side=tk.LEFT, padx=3)
         ttk.Radiobutton(sep_frame_new, text="Свой", variable=self.new_sep_mode,
-                        value="custom", command=self.on_new_sep_changed).pack(side=tk.LEFT, padx=1)
+                        value="custom", command=self.on_new_sep_changed).pack(side=tk.LEFT, padx=3)
         self.new_custom_entry = ttk.Entry(sep_frame_new, textvariable=self.new_custom_sep, width=4, state='disabled')
-        self.new_custom_entry.pack(side=tk.LEFT, padx=2)
+        self.new_custom_entry.pack(side=tk.LEFT, padx=3)
         self.new_custom_sep.trace_add('write', self.on_new_custom_sep_changed)
-        ttk.Checkbutton(sep_frame_new, text="Есть заголовок", variable=self.new_header).pack(side=tk.LEFT, padx=(8, 0))
+        ttk.Checkbutton(sep_frame_new, text="Есть заголовок", variable=self.new_header,
+                        command=lambda: self.load_file('new') if self.new_file.get() and os.path.exists(self.new_file.get()) else None).pack(side=tk.LEFT, padx=(10, 0))
 
-        self.btn_export_to_merge = tk.Button(new_frame, text="📤 Загрузить новый PnP в объединитель",
-                                             command=self.export_new_to_merge, bg="#23a55a", fg="white",
-                                             relief="flat", padx=6, pady=2, state='disabled')
-        self.btn_export_to_merge.grid(row=2, column=0, columnspan=5, sticky="w", pady=(4, 0))
+        self.btn_export_to_merge = tk.Button(new_frame, text="📤 Загрузить новый PnP в объединитель (Шаг 2)",
+                                             command=self.export_new_to_merge, bg="#059669", fg="#ffffff",
+                                             activebackground="#10b981", activeforeground="#ffffff",
+                                             font=("Segoe UI", 9, "bold"), relief="flat", padx=10, pady=4,
+                                             state='disabled', cursor="hand2")
+        self.btn_export_to_merge.grid(row=3, column=0, columnspan=4, sticky="w", pady=(6, 2))
 
-        ttk.Separator(main_frame, orient='horizontal').pack(fill=tk.X, pady=10)
+        # -------------------------------------------------------------
+        # Настройка параметров сравнения
+        # -------------------------------------------------------------
+        settings_frame = tk.Frame(main_frame, bg=t["bg_card"], highlightbackground=t["border"], highlightthickness=1, padx=14, pady=12)
+        settings_frame.pack(fill=tk.X, pady=(0, 8))
 
-        settings_frame = ttk.LabelFrame(main_frame, text="Настройка столбцов для сравнения")
-        settings_frame.pack(fill=tk.X, pady=5, padx=5)
+        tk.Label(settings_frame, text="⚙️ Настройка параметров сравнения",
+                 font=("Segoe UI", 10, "bold"), bg=t["bg_card"], fg=t["accent"]).pack(anchor="w", pady=(0, 8))
 
-        id_frame = ttk.Frame(settings_frame)
-        id_frame.pack(fill=tk.X, pady=5)
+        id_frame = tk.Frame(settings_frame, bg=t["bg_card"])
+        id_frame.pack(fill=tk.X, pady=(0, 8))
 
-        ttk.Label(id_frame, text="Столбец REF (старый):").grid(row=0, column=0, sticky=tk.W, padx=5)
-        self.old_ref_cb = ttk.Combobox(id_frame, textvariable=self.old_ref_col, state="readonly", width=20)
-        self.old_ref_cb.grid(row=0, column=1, padx=5)
+        tk.Label(id_frame, text="Столбец REF (старый):", font=("Segoe UI", 9), bg=t["bg_card"], fg=t["text_primary"]).grid(row=0, column=0, sticky=tk.W, padx=(0, 4), pady=2)
+        self.old_ref_cb = ttk.Combobox(id_frame, textvariable=self.old_ref_col, state="readonly", width=18, font=("Segoe UI", 9))
+        self.old_ref_cb.grid(row=0, column=1, padx=4, pady=2)
         self.old_ref_cb.bind("<<ComboboxSelected>>", self.on_ref_changed)
 
-        ttk.Label(id_frame, text="Столбец REF (новый):").grid(row=0, column=2, sticky=tk.W, padx=(20,5))
-        self.new_ref_cb = ttk.Combobox(id_frame, textvariable=self.new_ref_col, state="readonly", width=20)
-        self.new_ref_cb.grid(row=0, column=3, padx=5)
+        tk.Label(id_frame, text="Столбец REF (новый):", font=("Segoe UI", 9), bg=t["bg_card"], fg=t["text_primary"]).grid(row=0, column=2, sticky=tk.W, padx=(16, 4), pady=2)
+        self.new_ref_cb = ttk.Combobox(id_frame, textvariable=self.new_ref_col, state="readonly", width=18, font=("Segoe UI", 9))
+        self.new_ref_cb.grid(row=0, column=3, padx=4, pady=2)
         self.new_ref_cb.bind("<<ComboboxSelected>>", self.on_ref_changed)
 
-        ttk.Label(id_frame, text="Разделитель REF:").grid(row=1, column=0, sticky=tk.W, padx=5, pady=5)
-        ttk.Entry(id_frame, textvariable=self.ref_sep, width=5).grid(row=1, column=1, padx=5, sticky=tk.W)
+        tk.Label(id_frame, text="Разделитель REF:", font=("Segoe UI", 9), bg=t["bg_card"], fg=t["text_primary"]).grid(row=0, column=4, sticky=tk.W, padx=(16, 4), pady=2)
+        ref_sep_entry = ttk.Entry(id_frame, textvariable=self.ref_sep, width=5, justify="center")
+        ref_sep_entry.grid(row=0, column=5, padx=4, pady=2, sticky=tk.W)
         self.ref_sep.trace_add('write', lambda *args: self.update_mapping())
 
-        side_frame = ttk.LabelFrame(settings_frame, text="Настройка стороны (Mirror)", padding=5)
-        side_frame.pack(fill=tk.X, pady=5)
+        # Настройка стороны (Mirror)
+        side_frame = tk.Frame(settings_frame, bg=t["bg_card_inner"], highlightbackground=t["border"], highlightthickness=1, padx=10, pady=8)
+        side_frame.pack(fill=tk.X, pady=(0, 8))
 
-        ttk.Checkbutton(side_frame, text="Одна сторона (игнорировать side)", variable=self.one_side,
-                        command=self.on_one_side_changed).grid(row=0, column=0, columnspan=4, sticky=tk.W, padx=5, pady=2)
+        ttk.Checkbutton(side_frame, text="Одна сторона (игнорировать сторону монтажа / Side)", variable=self.one_side,
+                        command=self.on_one_side_changed).grid(row=0, column=0, columnspan=6, sticky=tk.W, padx=2, pady=(0, 4))
 
-        ttk.Label(side_frame, text="Столбец Side (старый):").grid(row=1, column=0, sticky=tk.W, padx=5, pady=2)
-        self.old_side_cb = ttk.Combobox(side_frame, textvariable=self.old_side_col, state="readonly", width=20)
-        self.old_side_cb.grid(row=1, column=1, padx=5, pady=2)
+        tk.Label(side_frame, text="Столбец Side (старый):", font=("Segoe UI", 9), bg=t["bg_card_inner"], fg=t["text_primary"]).grid(row=1, column=0, sticky=tk.W, padx=2, pady=2)
+        self.old_side_cb = ttk.Combobox(side_frame, textvariable=self.old_side_col, state="readonly", width=16, font=("Segoe UI", 9))
+        self.old_side_cb.grid(row=1, column=1, padx=4, pady=2)
         self.old_side_cb.bind("<<ComboboxSelected>>", self.on_old_side_selected)
 
-        ttk.Label(side_frame, text="Значение TOP (в старом):").grid(row=2, column=0, sticky=tk.W, padx=5, pady=2)
-        self.old_top_cb = ttk.Combobox(side_frame, textvariable=self.old_top_val, state="readonly", width=15)
-        self.old_top_cb.grid(row=2, column=1, padx=5, pady=2)
+        tk.Label(side_frame, text="Значение TOP (старый):", font=("Segoe UI", 9), bg=t["bg_card_inner"], fg=t["text_secondary"]).grid(row=1, column=2, sticky=tk.W, padx=(12, 4), pady=2)
+        self.old_top_cb = ttk.Combobox(side_frame, textvariable=self.old_top_val, state="readonly", width=12, font=("Segoe UI", 9))
+        self.old_top_cb.grid(row=1, column=3, padx=4, pady=2)
 
-        ttk.Label(side_frame, text="Значение BOTTOM (в старом):").grid(row=2, column=2, sticky=tk.W, padx=(10,5), pady=2)
-        self.old_bottom_cb = ttk.Combobox(side_frame, textvariable=self.old_bottom_val, state="readonly", width=15)
-        self.old_bottom_cb.grid(row=2, column=3, padx=5, pady=2)
+        tk.Label(side_frame, text="Значение BOTTOM (старый):", font=("Segoe UI", 9), bg=t["bg_card_inner"], fg=t["text_secondary"]).grid(row=1, column=4, sticky=tk.W, padx=(12, 4), pady=2)
+        self.old_bottom_cb = ttk.Combobox(side_frame, textvariable=self.old_bottom_val, state="readonly", width=12, font=("Segoe UI", 9))
+        self.old_bottom_cb.grid(row=1, column=5, padx=4, pady=2)
 
-        ttk.Label(side_frame, text="Столбец Side (новый):").grid(row=3, column=0, sticky=tk.W, padx=5, pady=2)
-        self.new_side_cb = ttk.Combobox(side_frame, textvariable=self.new_side_col, state="readonly", width=20)
-        self.new_side_cb.grid(row=3, column=1, padx=5, pady=2)
+        tk.Label(side_frame, text="Столбец Side (новый):", font=("Segoe UI", 9), bg=t["bg_card_inner"], fg=t["text_primary"]).grid(row=2, column=0, sticky=tk.W, padx=2, pady=2)
+        self.new_side_cb = ttk.Combobox(side_frame, textvariable=self.new_side_col, state="readonly", width=16, font=("Segoe UI", 9))
+        self.new_side_cb.grid(row=2, column=1, padx=4, pady=2)
         self.new_side_cb.bind("<<ComboboxSelected>>", self.on_new_side_selected)
 
-        ttk.Label(side_frame, text="Значение TOP (в новом):").grid(row=4, column=0, sticky=tk.W, padx=5, pady=2)
-        self.new_top_cb = ttk.Combobox(side_frame, textvariable=self.new_top_val, state="readonly", width=15)
-        self.new_top_cb.grid(row=4, column=1, padx=5, pady=2)
+        tk.Label(side_frame, text="Значение TOP (новый):", font=("Segoe UI", 9), bg=t["bg_card_inner"], fg=t["text_secondary"]).grid(row=2, column=2, sticky=tk.W, padx=(12, 4), pady=2)
+        self.new_top_cb = ttk.Combobox(side_frame, textvariable=self.new_top_val, state="readonly", width=12, font=("Segoe UI", 9))
+        self.new_top_cb.grid(row=2, column=3, padx=4, pady=2)
 
-        ttk.Label(side_frame, text="Значение BOTTOM (в новом):").grid(row=4, column=2, sticky=tk.W, padx=(10,5), pady=2)
-        self.new_bottom_cb = ttk.Combobox(side_frame, textvariable=self.new_bottom_val, state="readonly", width=15)
-        self.new_bottom_cb.grid(row=4, column=3, padx=5, pady=2)
+        tk.Label(side_frame, text="Значение BOTTOM (новый):", font=("Segoe UI", 9), bg=t["bg_card_inner"], fg=t["text_secondary"]).grid(row=2, column=4, sticky=tk.W, padx=(12, 4), pady=2)
+        self.new_bottom_cb = ttk.Combobox(side_frame, textvariable=self.new_bottom_val, state="readonly", width=12, font=("Segoe UI", 9))
+        self.new_bottom_cb.grid(row=2, column=5, padx=4, pady=2)
 
-        compare_frame = ttk.LabelFrame(settings_frame, text="Столбцы для сравнения и их соответствие")
-        compare_frame.pack(fill=tk.BOTH, expand=True, pady=5, padx=5)
+        # Допуски
+        tol_frame = tk.Frame(settings_frame, bg=t["bg_card"])
+        tol_frame.pack(fill=tk.X)
+        tk.Label(tol_frame, text="Допуски отклонений:", font=("Segoe UI", 9, "bold"), bg=t["bg_card"], fg=t["text_primary"]).pack(side=tk.LEFT, padx=(0, 8))
+        tk.Label(tol_frame, text="По X, Y (мм):", font=("Segoe UI", 9), bg=t["bg_card"], fg=t["text_secondary"]).pack(side=tk.LEFT, padx=(0, 4))
+        ttk.Entry(tol_frame, textvariable=self.tol_xy, width=8, justify="center").pack(side=tk.LEFT, padx=(0, 16))
+        tk.Label(tol_frame, text="По углу R (градусы):", font=("Segoe UI", 9), bg=t["bg_card"], fg=t["text_secondary"]).pack(side=tk.LEFT, padx=(0, 4))
+        ttk.Entry(tol_frame, textvariable=self.tol_r, width=8, justify="center").pack(side=tk.LEFT)
 
-        left_frame = ttk.Frame(compare_frame)
-        left_frame.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=5)
+        # -------------------------------------------------------------
+        # Столбцы для сравнения и соответствие
+        # -------------------------------------------------------------
+        compare_frame = tk.Frame(main_frame, bg=t["bg_card"], highlightbackground=t["border"], highlightthickness=1, padx=14, pady=12)
+        compare_frame.pack(fill=tk.BOTH, expand=True, pady=(0, 8))
 
-        ttk.Label(left_frame, text="Столбцы из старого файла (выберите несколько):").pack(anchor=tk.W)
-        listbox_frame = ttk.Frame(left_frame)
+        tk.Label(compare_frame, text="📊 Столбцы для сравнения и их соответствие",
+                 font=("Segoe UI", 10, "bold"), bg=t["bg_card"], fg=t["accent"]).pack(anchor="w", pady=(0, 8))
+
+        cols_split = tk.Frame(compare_frame, bg=t["bg_card"])
+        cols_split.pack(fill=tk.BOTH, expand=True)
+        cols_split.columnconfigure(0, weight=1)
+        cols_split.columnconfigure(1, weight=1)
+
+        left_frame = tk.Frame(cols_split, bg=t["bg_card"])
+        left_frame.grid(row=0, column=0, sticky="nsew", padx=(0, 6))
+
+        tk.Label(left_frame, text="Столбцы из старого файла (выберите несколько):", font=("Segoe UI", 9),
+                 bg=t["bg_card"], fg=t["text_primary"]).pack(anchor=tk.W, pady=(0, 4))
+
+        listbox_frame = tk.Frame(left_frame, bg=t["border"], highlightthickness=1, highlightbackground=t["border"])
         listbox_frame.pack(fill=tk.BOTH, expand=True)
-        self.compare_listbox = tk.Listbox(listbox_frame, selectmode=tk.MULTIPLE, height=6)
+
+        self.compare_listbox = tk.Listbox(listbox_frame, selectmode=tk.MULTIPLE, height=6,
+                                          bg=t["bg_card_inner"], fg=t["text_primary"],
+                                          selectbackground=t["accent"], selectforeground="#ffffff",
+                                          relief="flat", font=("Segoe UI", 9), highlightthickness=0)
         self.compare_listbox.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+
         scroll_comp = ttk.Scrollbar(listbox_frame, orient=tk.VERTICAL, command=self.compare_listbox.yview)
         scroll_comp.pack(side=tk.RIGHT, fill=tk.Y)
         self.compare_listbox.config(yscrollcommand=scroll_comp.set)
 
-        ttk.Button(left_frame, text="Добавить выбранные →", command=self.add_selected_columns).pack(pady=5)
+        btn_add_cols = ttk.Button(left_frame, text="Добавить выбранные ➔", command=self.add_selected_columns)
+        btn_add_cols.pack(anchor="w", pady=6)
+        ToolTip(btn_add_cols, "Добавить выбранные столбцы в сопоставление")
 
-        right_frame = ttk.Frame(compare_frame)
-        right_frame.pack(side=tk.RIGHT, fill=tk.BOTH, expand=True, padx=5)
+        right_frame = tk.Frame(cols_split, bg=t["bg_card"])
+        right_frame.grid(row=0, column=1, sticky="nsew", padx=(6, 0))
 
-        ttk.Label(right_frame, text="Соответствие столбцов (старый → новый):").pack(anchor=tk.W)
-        self.mapping_frame = ttk.Frame(right_frame)
+        tk.Label(right_frame, text="Соответствие столбцов (старый ➔ новый):", font=("Segoe UI", 9),
+                 bg=t["bg_card"], fg=t["text_primary"]).pack(anchor=tk.W, pady=(0, 4))
+
+        mapping_container = tk.Frame(right_frame, bg=t["bg_card_inner"], highlightbackground=t["border"], highlightthickness=1, padx=6, pady=6)
+        mapping_container.pack(fill=tk.BOTH, expand=True)
+
+        self.mapping_frame = tk.Frame(mapping_container, bg=t["bg_card_inner"])
         self.mapping_frame.pack(fill=tk.BOTH, expand=True)
 
-        ttk.Button(settings_frame, text="🧹 Очистка выдачи", command=self.clear_mapping).pack(pady=5)
+        btn_clear = ttk.Button(right_frame, text="🧹 Очистить соответствия", command=self.clear_mapping)
+        btn_clear.pack(anchor="w", pady=6)
+        ToolTip(btn_clear, "Очистить список сопоставления")
 
-        tol_frame = ttk.LabelFrame(main_frame, text="Допуски")
-        tol_frame.pack(fill=tk.X, pady=5, padx=5)
+        # -------------------------------------------------------------
+        # Кнопка запуска сравнения
+        # -------------------------------------------------------------
+        action_bar = tk.Frame(main_frame, bg=t["bg_app"])
+        action_bar.pack(fill=tk.X, pady=6)
 
-        ttk.Label(tol_frame, text="Допуск по X,Y (мм):").grid(row=0, column=0, sticky=tk.W, padx=5)
-        ttk.Entry(tol_frame, textvariable=self.tol_xy, width=10).grid(row=0, column=1, padx=5, sticky=tk.W)
+        btn_run = tk.Button(action_bar, text="🔍 Сравнить ревизии P&P", command=self.run_comparison,
+                            bg=t["accent"], fg="#ffffff", activebackground=t["accent_hover"], activeforeground="#ffffff",
+                            font=("Segoe UI", 11, "bold"), relief="flat", padx=28, pady=7, cursor="hand2")
+        btn_run.pack(anchor="center")
 
-        ttk.Label(tol_frame, text="Допуск по R (градусы):").grid(row=0, column=2, sticky=tk.W, padx=(20,5))
-        ttk.Entry(tol_frame, textvariable=self.tol_r, width=10).grid(row=0, column=3, padx=5, sticky=tk.W)
+        # -------------------------------------------------------------
+        # Результаты сравнения
+        # -------------------------------------------------------------
+        result_card = tk.Frame(main_frame, bg=t["bg_card"], highlightbackground=t["border"], highlightthickness=1, padx=14, pady=12)
+        result_card.pack(fill=tk.BOTH, expand=True, pady=(0, 8))
 
-        ttk.Button(main_frame, text="🔍 Сравнить", command=self.run_comparison).pack(pady=10)
+        filter_bar = tk.Frame(result_card, bg=t["bg_card"])
+        filter_bar.pack(fill=tk.X, pady=(0, 8))
 
-        filter_frame = ttk.Frame(main_frame)
-        filter_frame.pack(fill=tk.X, pady=5)
+        tk.Label(filter_bar, text="📋 Результаты сравнения", font=("Segoe UI", 10, "bold"),
+                 bg=t["bg_card"], fg=t["accent"]).pack(side=tk.LEFT)
 
-        ttk.Label(filter_frame, text="Фильтр по статусу:").pack(side=tk.LEFT, padx=5)
-        self.filter_cb = ttk.Combobox(filter_frame, textvariable=self.filter_status, values=["Все","Добавлен","Удалён","Изменён","Не изменён"], state="readonly", width=15)
-        self.filter_cb.pack(side=tk.LEFT, padx=5)
+        tk.Label(filter_bar, text="Фильтр по статусу:", font=("Segoe UI", 9),
+                 bg=t["bg_card"], fg=t["text_secondary"]).pack(side=tk.LEFT, padx=(20, 6))
+        self.filter_cb = ttk.Combobox(filter_bar, textvariable=self.filter_status,
+                                      values=["Все", "Добавлен", "Удалён", "Изменён", "Не изменён"],
+                                      state="readonly", width=15, font=("Segoe UI", 9))
+        self.filter_cb.pack(side=tk.LEFT, padx=(0, 6))
         self.filter_cb.bind("<<ComboboxSelected>>", self.apply_filter)
 
-        ttk.Button(filter_frame, text="Сбросить фильтр", command=self.reset_filter).pack(side=tk.LEFT, padx=5)
+        btn_reset_filter = ttk.Button(filter_bar, text="Сбросить фильтр", command=self.reset_filter)
+        btn_reset_filter.pack(side=tk.LEFT)
 
-        result_frame = tk.LabelFrame(main_frame, text="Результаты сравнения")
-        result_frame.pack(fill=tk.BOTH, expand=True, pady=5, padx=5)
+        tree_container = tk.Frame(result_card, bg=t["bg_card"])
+        tree_container.pack(fill=tk.BOTH, expand=True)
 
-        self.tree = ttk.Treeview(result_frame, columns=(), show="headings", height=12)
-        self.tree.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        self.tree = ttk.Treeview(tree_container, columns=(), show="headings", height=13)
+        self.tree.grid(row=0, column=0, sticky="nsew")
 
-        scroll = ttk.Scrollbar(result_frame, orient=tk.VERTICAL, command=self.tree.yview)
-        scroll.pack(side=tk.RIGHT, fill=tk.Y)
-        self.tree.configure(yscrollcommand=scroll.set)
+        vsb = ttk.Scrollbar(tree_container, orient=tk.VERTICAL, command=self.tree.yview)
+        vsb.grid(row=0, column=1, sticky="ns")
+        hsb = ttk.Scrollbar(tree_container, orient=tk.HORIZONTAL, command=self.tree.xview)
+        hsb.grid(row=1, column=0, sticky="ew")
 
-        self.tree.tag_configure('changed', background='#FFFF99')
+        self.tree.configure(yscrollcommand=vsb.set, xscrollcommand=hsb.set)
+        tree_container.grid_rowconfigure(0, weight=1)
+        tree_container.grid_columnconfigure(0, weight=1)
 
-        btn_frame = ttk.Frame(main_frame)
-        btn_frame.pack(fill=tk.X, pady=5)
+        self.tree.tag_configure('evenrow', background=t["row_even"])
+        self.tree.tag_configure('oddrow', background=t["row_odd"])
+        self.tree.tag_configure('changed', background="#451a03", foreground="#fde047")
+        self.tree.tag_configure('added', background="#064e3b", foreground="#6ee7b7")
+        self.tree.tag_configure('deleted', background="#450a0a", foreground="#fca5a5")
 
-        ttk.Button(btn_frame, text="📥 Экспортировать результат (Excel)", command=self.export_excel).pack(side=tk.LEFT, padx=5)
-        ttk.Button(btn_frame, text="📥 Экспортировать результат (TXT)", command=self.export_txt).pack(side=tk.LEFT, padx=5)
+        self.tree_placeholder = tk.Label(self.tree, text="Здесь появятся результаты сравнения ревизий P&P.\nЗагрузите старый и новый файлы P&P и нажмите «Сравнить».",
+                                         font=("Segoe UI", 10), bg=t["bg_card"], fg=t["text_muted"], justify="center")
+        self.tree_placeholder.place(relx=0.5, rely=0.5, anchor="center")
 
-        self.status_label = ttk.Label(main_frame, text="Готов", relief=tk.SUNKEN, anchor=tk.W)
-        self.status_label.pack(fill=tk.X, pady=5)
+        export_bar = tk.Frame(result_card, bg=t["bg_card"])
+        export_bar.pack(fill=tk.X, pady=(10, 0))
+
+        btn_exp_xls = tk.Button(export_bar, text="📥 Экспорт в Excel (.xlsx)", command=self.export_excel,
+                                bg="#059669", fg="#ffffff", activebackground="#10b981", activeforeground="#ffffff",
+                                font=("Segoe UI", 9, "bold"), relief="flat", padx=14, pady=5, cursor="hand2")
+        btn_exp_xls.pack(side=tk.LEFT, padx=(0, 8))
+
+        btn_exp_txt = tk.Button(export_bar, text="📥 Экспорт в TXT (.txt)", command=self.export_txt,
+                                bg=t["accent"], fg="#ffffff", activebackground=t["accent_hover"], activeforeground="#ffffff",
+                                font=("Segoe UI", 9, "bold"), relief="flat", padx=14, pady=5, cursor="hand2")
+        btn_exp_txt.pack(side=tk.LEFT)
+
+        self.status_label = tk.Label(main_frame, text="Готов к работе", font=("Segoe UI", 9),
+                                     bg=t["bg_app"], fg=t["text_muted"], anchor="w")
+        self.status_label.pack(fill=tk.X, pady=(6, 2))
 
     # ---------- Обработка разделителей ----------
     def on_old_sep_changed(self):
@@ -2884,6 +3070,8 @@ class CompareTab(ttk.Frame):
         else:
             self.old_custom_entry.config(state='disabled')
             self.old_sep.set(mode)
+        if self.old_file.get() and os.path.exists(self.old_file.get()):
+            self.load_file('old')
 
     def on_old_custom_sep_changed(self, *args):
         if self.old_sep_mode.get() == "custom":
@@ -2892,6 +3080,8 @@ class CompareTab(ttk.Frame):
                 self.old_sep.set(custom_val)
             else:
                 self.old_sep.set(" ")
+            if self.old_file.get() and os.path.exists(self.old_file.get()):
+                self.load_file('old')
 
     def on_new_sep_changed(self):
         mode = self.new_sep_mode.get()
@@ -2906,6 +3096,8 @@ class CompareTab(ttk.Frame):
         else:
             self.new_custom_entry.config(state='disabled')
             self.new_sep.set(mode)
+        if self.new_file.get() and os.path.exists(self.new_file.get()):
+            self.load_file('new')
 
     def on_new_custom_sep_changed(self, *args):
         if self.new_sep_mode.get() == "custom":
@@ -2914,6 +3106,8 @@ class CompareTab(ttk.Frame):
                 self.new_sep.set(custom_val)
             else:
                 self.new_sep.set(" ")
+            if self.new_file.get() and os.path.exists(self.new_file.get()):
+                self.load_file('new')
 
     # ---------- Обработка стороны ----------
     def on_one_side_changed(self):
@@ -3180,8 +3374,12 @@ class CompareTab(ttk.Frame):
     def browse_file(self, ftype):
         f = filedialog.askopenfilename(filetypes=[("All supported", "*.txt *.csv *.xlsx *.xls"), ("Text files", "*.txt *.csv"), ("Excel files", "*.xlsx *.xls")], parent=self.parent)
         if f:
-            if ftype == 'old': self.old_file.set(f)
-            else: self.new_file.set(f)
+            if ftype == 'old':
+                self.old_file.set(f)
+                self.load_file('old')
+            else:
+                self.new_file.set(f)
+                self.load_file('new')
 
     def load_file(self, ftype):
         f = self.old_file.get() if ftype == 'old' else self.new_file.get()
@@ -3231,7 +3429,7 @@ class CompareTab(ttk.Frame):
                 self.update_compare_listbox()
                 if self.old_side_col.get().strip():
                     self.update_side_combos('old')
-                messagebox.showinfo("Загрузка", f"Старый PNP загружен: {len(df)} строк, {len(self.old_columns)} столбцов.", parent=self.parent)
+                self.status_label.config(text=f"Старый PNP загружен: {len(df)} строк, {len(self.old_columns)} столбцов.")
             else:
                 self.df_new = df
                 self.new_columns = df.columns.tolist()
@@ -3241,9 +3439,8 @@ class CompareTab(ttk.Frame):
                     self.update_side_combos('new')
                 if self.btn_export_to_merge:
                     self.btn_export_to_merge.config(state='normal')
-                messagebox.showinfo("Загрузка", f"Новый PNP загружен: {len(df)} строк, {len(self.new_columns)} столбцов.", parent=self.parent)
+                self.status_label.config(text=f"Новый PNP загружен: {len(df)} строк, {len(self.new_columns)} столбцов.")
 
-            self.status_label.config(text=f"{'Старый' if ftype=='old' else 'Новый'} PNP загружен.")
             self.update_mapping()
         except Exception as e:
             messagebox.showerror("Ошибка загрузки", str(e), parent=self.parent)
@@ -3486,6 +3683,8 @@ class CompareTab(ttk.Frame):
     def apply_filter(self, event=None):
         filter_text = self.filter_status.get()
         if not self.all_data or not hasattr(self, 'old_cols_order'):
+            if hasattr(self, 'tree_placeholder'):
+                self.tree_placeholder.place(relx=0.5, rely=0.5, anchor="center")
             return
         for item in self.tree.get_children():
             self.tree.delete(item)
@@ -3493,6 +3692,12 @@ class CompareTab(ttk.Frame):
             data = self.all_data
         else:
             data = [row for row in self.all_data if row[1] == filter_text]
+
+        if hasattr(self, 'tree_placeholder'):
+            if data:
+                self.tree_placeholder.place_forget()
+            else:
+                self.tree_placeholder.place(relx=0.5, rely=0.5, anchor="center")
 
         old_cols = self.old_cols_order
         n = len(old_cols)
@@ -3511,7 +3716,7 @@ class CompareTab(ttk.Frame):
             side_old_idx = 2 + 3*n
             side_new_idx = 2 + 3*n + 1
 
-        for row in data:
+        for row_idx, row in enumerate(data):
             display_row = []
             for idx, val in enumerate(row):
                 if idx == 0 or idx == 1:
@@ -3576,7 +3781,17 @@ class CompareTab(ttk.Frame):
                 else:
                     display_row.append(str(val))
 
-            tags = ('changed',) if row[1] == "Изменён" else ()
+            status = row[1]
+            base_zebra = 'evenrow' if row_idx % 2 == 0 else 'oddrow'
+            if status == "Изменён":
+                tags = ('changed', base_zebra)
+            elif status == "Добавлен":
+                tags = ('added', base_zebra)
+            elif status == "Удалён":
+                tags = ('deleted', base_zebra)
+            else:
+                tags = (base_zebra,)
+
             self.tree.insert("", tk.END, values=display_row, tags=tags)
 
         if data:
@@ -3621,10 +3836,13 @@ class CompareTab(ttk.Frame):
         if self.result_df is None:
             messagebox.showwarning("Предупреждение", "Сначала выполните сравнение.", parent=self.parent)
             return
+        sep = self.get_separator_dialog()
+        if sep is None:
+            return
         file_path = filedialog.asksaveasfilename(defaultextension=".txt", filetypes=[("Text files", "*.txt")], parent=self.parent)
         if file_path:
             try:
-                self.result_df.to_csv(file_path, sep=';', index=False, encoding='utf-8')
+                self.result_df.to_csv(file_path, sep=sep, index=False, encoding='utf-8')
                 messagebox.showinfo("Успех", f"Результат сохранён в {file_path}", parent=self.parent)
             except Exception as e:
                 messagebox.showerror("Ошибка", str(e), parent=self.parent)
