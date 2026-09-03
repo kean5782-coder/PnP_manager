@@ -38,12 +38,21 @@ echo [2/4] Проверка библиотек (pandas, openpyxl, pyinstaller)..
 set "DIST_DIR=%SCRIPT_DIR%\dist"
 set "WORK_DIR=%SCRIPT_DIR%\build"
 set "ICON_FILE=%SCRIPT_DIR%\icon.ico"
+set "ICON_HUB_FILE=%SCRIPT_DIR%\icon_hub.ico"
+set "ICON_HUB_PNG=%SCRIPT_DIR%\icon_hub.png"
 set "DB_FILE=%SCRIPT_DIR%\database.txt"
 set "DB_UNIF=%SCRIPT_DIR%\Unification\database.txt"
 
 set "ICON_ARG="
 if exist "%ICON_FILE%" (
     set "ICON_ARG=--icon \"%ICON_FILE%\" --add-data \"%ICON_FILE%;.\""
+)
+
+set "ICON_HUB_ARG="
+if exist "%ICON_HUB_FILE%" (
+    set "ICON_HUB_ARG=--icon \"%ICON_HUB_FILE%\" --add-data \"%ICON_HUB_FILE%;.\" --add-data \"%ICON_HUB_PNG%;.\""
+) else (
+    set "ICON_HUB_ARG=%ICON_ARG%"
 )
 
 set "DB_ARG="
@@ -59,7 +68,7 @@ echo [3/4] Компиляция Главного Лаунчера SMD_Hub.exe (�
     --windowed ^
     --name "SMD_Hub" ^
     --clean ^
-    %ICON_ARG% ^
+    %ICON_HUB_ARG% ^
     %DB_ARG% ^
     --add-data "smd_engine.py;." ^
     --add-data "smd_icons.py;." ^

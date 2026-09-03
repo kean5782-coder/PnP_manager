@@ -144,12 +144,27 @@ class SMDHubApp:
         enable_smooth_mousewheel(self.root)
 
     def _setup_window_icon(self):
-        icon_path = os.path.join(CURRENT_DIR, "icon.ico")
-        if os.path.exists(icon_path):
-            try:
-                self.root.iconbitmap(icon_path)
-            except Exception:
-                pass
+        base_dir = CURRENT_DIR
+        meipass = getattr(sys, "_MEIPASS", base_dir)
+        candidates = [
+            os.path.join(base_dir, "icon_hub.ico"),
+            os.path.join(meipass, "icon_hub.ico"),
+            os.path.join(base_dir, "icon_hub.png"),
+            os.path.join(meipass, "icon_hub.png"),
+            os.path.join(base_dir, "icon.ico"),
+            os.path.join(meipass, "icon.ico"),
+        ]
+        for path in candidates:
+            if os.path.exists(path):
+                try:
+                    if path.endswith(".ico"):
+                        self.root.iconbitmap(path)
+                    else:
+                        img = tk.PhotoImage(file=path)
+                        self.root.iconphoto(True, img)
+                    break
+                except Exception:
+                    pass
 
     def apply_theme(self, theme_name: str = "dark"):
         """Применяет тёмную SaaS тему ко всем элементам главного окна."""
