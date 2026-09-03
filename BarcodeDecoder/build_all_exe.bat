@@ -37,28 +37,6 @@ echo [2/4] Проверка библиотек (pandas, openpyxl, pyinstaller)..
 
 set "DIST_DIR=%SCRIPT_DIR%\dist"
 set "WORK_DIR=%SCRIPT_DIR%\build"
-set "ICON_FILE=%SCRIPT_DIR%\icon.ico"
-set "ICON_HUB_FILE=%SCRIPT_DIR%\icon_hub.ico"
-set "ICON_HUB_PNG=%SCRIPT_DIR%\icon_hub.png"
-set "DB_FILE=%SCRIPT_DIR%\database.txt"
-set "DB_UNIF=%SCRIPT_DIR%\Unification\database.txt"
-
-set "ICON_ARG="
-if exist "%ICON_FILE%" (
-    set "ICON_ARG=--icon \"%ICON_FILE%\" --add-data \"%ICON_FILE%;.\""
-)
-
-set "ICON_HUB_ARG="
-if exist "%ICON_HUB_FILE%" (
-    set "ICON_HUB_ARG=--icon \"%ICON_HUB_FILE%\" --add-data \"%ICON_HUB_FILE%;.\" --add-data \"%ICON_HUB_PNG%;.\""
-) else (
-    set "ICON_HUB_ARG=%ICON_ARG%"
-)
-
-set "DB_ARG="
-if exist "%DB_FILE%" (
-    set "DB_ARG=--add-data \"%DB_FILE%;.\" --add-data \"%DB_FILE%;Unification\""
-)
 
 echo.
 echo [3/4] Компиляция Главного Лаунчера SMD_Hub.exe (включая все библиотеки)...
@@ -68,8 +46,11 @@ echo [3/4] Компиляция Главного Лаунчера SMD_Hub.exe (�
     --windowed ^
     --name "SMD_Hub" ^
     --clean ^
-    %ICON_HUB_ARG% ^
-    %DB_ARG% ^
+    --icon "icon_hub.ico" ^
+    --add-data "icon_hub.ico;." ^
+    --add-data "icon_hub.png;." ^
+    --add-data "database.txt;." ^
+    --add-data "database.txt;Unification" ^
     --add-data "smd_engine.py;." ^
     --add-data "smd_icons.py;." ^
     --add-data "smd_auth.py;." ^
@@ -100,11 +81,20 @@ echo [4/4] Компиляция автономного BarcodeDecoder.exe...
     --windowed ^
     --name "BarcodeDecoder" ^
     --clean ^
-    %ICON_ARG% ^
+    --icon "icon.ico" ^
+    --add-data "icon.ico;." ^
+    --add-data "icon.png;." ^
+    --add-data "database.txt;." ^
     --add-data "smd_engine.py;." ^
     --distpath "%DIST_DIR%" ^
     --workpath "%WORK_DIR%" ^
     "BarcodeDecoder_1.1.py"
+
+if errorlevel 1 (
+    echo [ОШИБКА] Ошибка компиляции BarcodeDecoder.exe!
+    pause
+    exit /b 1
+)
 
 echo.
 echo ======================================================================
