@@ -2051,14 +2051,17 @@ class MergeTab(ttk.Frame):
         self.bom_columns = df.columns.tolist()
         self.bom_ref_cb['values'] = self.bom_columns
         self.bom_data_cb['values'] = self.bom_columns
+
+        # Автовыбор: самый правый столбец для данных BOM (по требованию: данные в этом боме всегда там)
+        if self.bom_columns:
+            self.bom_data_cb.set(self.bom_columns[-1])
+
+        # Автовыбор столбца позиционных обозначений (RefDes)
         for col in self.bom_columns:
             cl = col.lower()
-            if 'part reference' in cl or 'refdes' in cl or 'designator' in cl:
+            if 'part reference' in cl or 'refdes' in cl or 'designator' in cl or 'позиц' in cl:
                 self.bom_ref_cb.set(col)
-            elif 'manufacturer' in cl and 'pn' in cl:
-                self.bom_data_cb.set(col)
-            elif 'description' in cl and not self.bom_data_cb.get():
-                self.bom_data_cb.set(col)
+                break
         # Сохраняем BOM настройки
         self.save_bom_settings()
         self.status_label.config(text=f"BOM загружен: лист '{sheet_name}', {len(df)} строк, {len(self.bom_columns)} столбцов")
@@ -2343,6 +2346,15 @@ class MergeTab(ttk.Frame):
         cols = list(df.columns) if df is not None else []
         self.bom_ref_cb['values'] = cols
         self.bom_data_cb['values'] = cols
+        if cols:
+            # Автовыбор: самый правый столбец для данных BOM
+            self.bom_data_cb.set(cols[-1])
+            for col in cols:
+                cl = col.lower()
+                if 'part reference' in cl or 'refdes' in cl or 'designator' in cl or 'позиц' in cl:
+                    self.bom_ref_cb.set(col)
+                    break
+        self.save_bom_settings()
         self.on_setting_changed('bom_update')
 
     def show_preview(self, df, file_type):

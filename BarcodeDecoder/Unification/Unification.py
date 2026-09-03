@@ -21,166 +21,33 @@ from smd_engine import (
 )
 
 # =============================================================================
-# Класс для управления базой данных пользовательских названий
+# Менеджер базы данных соответствий (SQLite с поддержкой метаданных)
 # =============================================================================
-class DatabaseManager:
-    def __init__(self, filename="database.txt"):
-        self.filename = filename
-        self.backup_filename = filename + ".bak"
-        self.data = {}  # key -> user_name
-        self.load()
-
-    def load(self):
-        """Загружает базу из текстового файла с разделителем табуляции.
-           Поддерживает восстановление при ошибках формата."""
-        if not os.path.exists(self.filename):
-            self.data = {}
-            self.save()
-            return
-
-        # Пытаемся прочитать файл
-        raw_lines = []
-        errors = []
-        valid_data = {}
-        try:
-            with open(self.filename, 'r', encoding='utf-8') as f:
-                raw_lines = f.readlines()
-        except Exception as e:
-            # Если файл не читается, пробуем восстановить из бэкапа
-            if os.path.exists(self.backup_filename):
-                if self._ask_restore_backup():
-                    shutil.copy2(self.backup_filename, self.filename)
-                    self.load()  # повторная загрузка
-                    return
-            self.data = {}
-            self.save()
-            return
-
-        # Парсим строки
-        line_errors = []
-        for line_num, line in enumerate(raw_lines, 1):
-            line = line.rstrip('\n\r')
-            if not line.strip():
-                continue  # пустые строки игнорируем
-            parts = line.split('\t')
-            if len(parts) == 2:
-                key, value = parts
-                if key.strip() and value.strip():
-                    valid_data[key.strip()] = value.strip()
-                else:
-                    line_errors.append(f"Строка {line_num}: пустой ключ или значение")
-            elif len(parts) > 2:
-                # Лишние табуляции – объединяем всё после первой табуляции в значение
-                key = parts[0].strip()
-                value = '\t'.join(parts[1:]).strip()
-                if key and value:
-                    valid_data[key] = value
-                    line_errors.append(f"Строка {line_num}: обнаружена лишняя табуляция (исправлено автоматически)")
-                else:
-                    line_errors.append(f"Строка {line_num}: некорректный формат (пропущена)")
-            else:
-                line_errors.append(f"Строка {line_num}: нет разделителя (пропущена)")
-
-        # Если есть ошибки, предлагаем пользователю восстановить
-        if line_errors:
-            error_msg = "Обнаружены проблемы в файле базы данных:\n" + "\n".join(line_errors[:5])
-            if len(line_errors) > 5:
-                error_msg += f"\n... и ещё {len(line_errors) - 5} ошибок"
-            error_msg += "\n\nХотите автоматически исправить базу (будут сохранены только корректные записи)?"
-
-            from tkinter import messagebox
-            if messagebox.askyesno("Восстановление базы данных", error_msg):
-                self.data = valid_data
-                self.save()
-                # Создаём бэкап старого файла
-                if os.path.exists(self.filename):
-                    shutil.copy2(self.filename, self.backup_filename)
-                messagebox.showinfo("Успех", "База данных восстановлена. Некорректные строки удалены.")
-            else:
-                # Пользователь отказался – загружаем только валидные данные
-                self.data = valid_data
-                # Но не сохраняем, чтобы пользователь мог вручную править
-                messagebox.showwarning("Предупреждение", "Некорректные строки сохранены в файле, но программа будет использовать только валидные записи.")
-        else:
-            self.data = valid_data
-
-    def save(self):
-        """Сохраняет базу в текстовый файл с разделителем табуляции."""
-        # Создаём резервную копию перед сохранением
-        if os.path.exists(self.filename):
-            try:
-                shutil.copy2(self.filename, self.backup_filename)
-            except:
-                pass
-
-        try:
-            with open(self.filename, 'w', encoding='utf-8') as f:
-                for key, value in self.data.items():
-                    # Заменяем переносы строк и табуляции внутри значений, чтобы не ломать структуру
-                    clean_key = key.replace('\t', ' ').replace('\n', ' ').replace('\r', ' ')
-                    clean_value = value.replace('\t', ' ').replace('\n', ' ').replace('\r', ' ')
-                    f.write(f"{clean_key}\t{clean_value}\n")
-        except Exception as e:
-            from tkinter import messagebox
-            messagebox.showerror("Ошибка", f"Не удалось сохранить базу данных:\n{e}")
-            # Пытаемся сохранить в резервный файл
-            try:
-                with open("database_emergency.txt", 'w', encoding='utf-8') as f:
-                    for key, value in self.data.items():
-                        f.write(f"{key}\t{value}\n")
-                messagebox.showinfo("Информация", "Данные сохранены в database_emergency.txt")
-            except:
-                pass
-
-    def _ask_restore_backup(self):
-        """Спрашивает пользователя, восстановить ли базу из бэкапа."""
-        from tkinter import messagebox
-        return messagebox.askyesno(
-            "Восстановление из резервной копии",
-            f"Файл базы данных повреждён. Найден резервный файл {self.backup_filename}.\n"
-            "Восстановить из него?"
-        )
-
-    # --- Остальные методы без изменений ---
-    def add_or_update(self, key, value):
-        self.data[key] = value
-        self.save()
-
-    def delete(self, key):
-        if key in self.data:
-            del self.data[key]
-            self.save()
-
-    def get(self, key):
-        return self.data.get(key)
-
-    def contains(self, key):
-        return key in self.data
-
-    def get_all(self):
-        return list(self.data.items())
-
-    def add_multiple(self, items, overwrite=False):
-        added = []
-        skipped = []
-        for key, value in items:
-            if key in self.data:
-                if overwrite:
-                    self.data[key] = value
-                    added.append(key)
-                else:
-                    skipped.append(key)
-            else:
-                self.data[key] = value
-                added.append(key)
-        self.save()
-        return added, skipped
+try:
+    from smd_db import DatabaseManager, COMPONENT_CATEGORIES
+except ImportError:
+    import smd_db
+    DatabaseManager = smd_db.DatabaseManager
+    COMPONENT_CATEGORIES = smd_db.COMPONENT_CATEGORIES
 
 
+try:
+    from smd_icons import get_icon, apply_label_icon, apply_button_icon
+except Exception:
+    try:
+        import smd_icons
+        get_icon = smd_icons.get_icon
+        apply_label_icon = smd_icons.apply_label_icon
+        apply_button_icon = smd_icons.apply_button_icon
+    except Exception:
+        def get_icon(*a, **k): return None
+        def apply_label_icon(lbl, name, txt="", *a, **k): lbl.configure(text=txt)
+        def apply_button_icon(btn, name, txt="", *a, **k):
+            if txt: btn.configure(text=txt)
 
 
 # =============================================================================
-# НОВОЕ: вкладка "База данных"
+# Вкладка "База данных" (Просмотр, Редактирование, Импорт, Экспорт)
 # =============================================================================
 class DatabaseTab(ttk.Frame):
     def __init__(self, parent, db_manager):
@@ -197,6 +64,15 @@ class DatabaseTab(ttk.Frame):
         self.create_widgets()
         self.refresh_tree()
 
+    def get_active_author(self) -> str:
+        """Возвращает отображаемое имя активного пользователя для авторства."""
+        try:
+            import smd_auth
+            mgr = smd_auth.AccountManager()
+            return mgr.get_active_display_name()
+        except Exception:
+            return "Технолог"
+
     def create_widgets(self):
         canvas = tk.Canvas(self, borderwidth=0, highlightthickness=0)
         canvas.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
@@ -210,18 +86,28 @@ class DatabaseTab(ttk.Frame):
         main_frame.bind('<Configure>', lambda e: canvas.configure(scrollregion=canvas.bbox('all')))
         canvas.bind('<Configure>', lambda e: canvas.itemconfig(self.canvas_window, width=e.width))
 
-        # Таблица базы данных
-        tree_frame = ttk.LabelFrame(main_frame, text="🗄️ База данных соответствий", padding="8")
+        # Таблица базы данных с поддержкой метаданных (6 колонок)
+        tree_frame = ttk.LabelFrame(main_frame, text="🗄️ База данных соответствий (SQLite)", padding="8")
         tree_frame.pack(fill=tk.BOTH, expand=True, pady=5)
 
-        columns = ("key", "value")
+        columns = ("key", "value", "category", "comment", "author", "created_at")
         self.tree = ttk.Treeview(tree_frame, columns=columns, show="headings", height=12, selectmode='extended')
         self.tree.tag_configure('odd', background="#232428")
         self.tree.tag_configure('even', background="#2b2d31")
-        self.tree.heading("key", text="Название в BOM")
-        self.tree.heading("value", text="Пользовательское название")
-        self.tree.column("key", width=250, stretch=True)
-        self.tree.column("value", width=250, stretch=True)
+
+        self.tree.heading("key", text="Название в BOM (Ключ)")
+        self.tree.heading("value", text="Унифицированное наименование")
+        self.tree.heading("category", text="Категория")
+        self.tree.heading("comment", text="Комментарий")
+        self.tree.heading("author", text="Автор")
+        self.tree.heading("created_at", text="Дата добавления")
+
+        self.tree.column("key", width=220, stretch=True)
+        self.tree.column("value", width=240, stretch=True)
+        self.tree.column("category", width=140, stretch=False)
+        self.tree.column("comment", width=200, stretch=True)
+        self.tree.column("author", width=120, stretch=False)
+        self.tree.column("created_at", width=130, stretch=False)
 
         scroll_y = ttk.Scrollbar(tree_frame, orient=tk.VERTICAL, command=self.tree.yview, style="Vertical.TScrollbar")
         self.tree.configure(yscrollcommand=scroll_y.set)
@@ -230,11 +116,27 @@ class DatabaseTab(ttk.Frame):
 
         # Кнопки управления
         btn_frame = ttk.Frame(main_frame)
-        btn_frame.pack(fill=tk.X, pady=5)
+        btn_frame.pack(fill=tk.X, pady=6)
 
-        ttk.Button(btn_frame, text="➕ Добавить вручную", command=self.add_manual).pack(side=tk.LEFT, padx=3)
-        ttk.Button(btn_frame, text="✏️ Редактировать", command=self.edit_selected).pack(side=tk.LEFT, padx=3)
-        ttk.Button(btn_frame, text="🗑️ Удалить", command=self.delete_selected).pack(side=tk.LEFT, padx=3)
+        btn_add = ttk.Button(btn_frame, command=self.add_manual)
+        apply_button_icon(btn_add, "add", "Добавить вручную", size=16)
+        btn_add.pack(side=tk.LEFT, padx=3)
+
+        btn_edit = ttk.Button(btn_frame, command=self.edit_selected)
+        apply_button_icon(btn_edit, "edit", "Редактировать", size=16)
+        btn_edit.pack(side=tk.LEFT, padx=3)
+
+        btn_del = ttk.Button(btn_frame, command=self.delete_selected)
+        apply_button_icon(btn_del, "trash", "Удалить", size=16)
+        btn_del.pack(side=tk.LEFT, padx=3)
+
+        btn_imp = ttk.Button(btn_frame, command=self.import_db_dialog)
+        apply_button_icon(btn_imp, "import", "Импорт базы (.txt)", size=16)
+        btn_imp.pack(side=tk.LEFT, padx=(14, 3))
+
+        btn_exp = ttk.Button(btn_frame, command=self.export_db_dialog)
+        apply_button_icon(btn_exp, "export", "Экспорт базы (.txt / .xlsx)", size=16)
+        btn_exp.pack(side=tk.LEFT, padx=3)
 
         # Загрузка из BOM
         bom_frame = ttk.LabelFrame(main_frame, text="📥 Импорт соответствий из файла BOM", padding="10")
@@ -266,13 +168,28 @@ class DatabaseTab(ttk.Frame):
     def refresh_tree(self):
         for item in self.tree.get_children():
             self.tree.delete(item)
-        for idx, (key, value) in enumerate(self.db_manager.get_all()):
-            tag = 'even' if idx % 2 == 0 else 'odd'
-            self.tree.insert("", tk.END, values=(key, value), tags=(tag,))
-        self.info_label.config(text=f"Всего записей: {len(self.db_manager.data)}")
+        if hasattr(self.db_manager, 'get_all_full'):
+            records = self.db_manager.get_all_full()
+            for idx, r in enumerate(records):
+                tag = 'even' if idx % 2 == 0 else 'odd'
+                self.tree.insert("", tk.END, values=(
+                    r.get("key", ""),
+                    r.get("value", ""),
+                    r.get("category", "Резисторы"),
+                    r.get("comment", ""),
+                    r.get("author", "Технолог"),
+                    r.get("created_at", "")
+                ), tags=(tag,))
+            count = len(records)
+        else:
+            for idx, (key, value) in enumerate(self.db_manager.get_all()):
+                tag = 'even' if idx % 2 == 0 else 'odd'
+                self.tree.insert("", tk.END, values=(key, value, "Резисторы", "", "Технолог", ""), tags=(tag,))
+            count = len(self.db_manager.data)
+        self.info_label.config(text=f"Всего записей: {count}")
 
     def add_manual(self):
-        dialog = create_styled_toplevel(self, "Добавить запись в базу", "540x240", min_size=(500, 220))
+        dialog = create_styled_toplevel(self, "Добавить запись в базу", "580x380", min_size=(520, 340))
         dialog.transient(self)
         dialog.grab_set()
 
@@ -280,30 +197,46 @@ class DatabaseTab(ttk.Frame):
         frame.pack(fill=tk.BOTH, expand=True)
         frame.columnconfigure(1, weight=1)
 
-        ttk.Label(frame, text="Название в BOM:").grid(row=0, column=0, padx=8, pady=8, sticky=tk.W)
+        ttk.Label(frame, text="Название в BOM (ключ):").grid(row=0, column=0, padx=8, pady=6, sticky=tk.W)
         key_entry = ttk.Entry(frame)
-        key_entry.grid(row=0, column=1, padx=8, pady=8, sticky="ew")
+        key_entry.grid(row=0, column=1, padx=8, pady=6, sticky="ew")
         key_entry.focus()
 
-        ttk.Label(frame, text="Пользовательское название:").grid(row=1, column=0, padx=8, pady=8, sticky=tk.W)
+        ttk.Label(frame, text="Пользовательское название:").grid(row=1, column=0, padx=8, pady=6, sticky=tk.W)
         value_entry = ttk.Entry(frame)
-        value_entry.grid(row=1, column=1, padx=8, pady=8, sticky="ew")
+        value_entry.grid(row=1, column=1, padx=8, pady=6, sticky="ew")
+
+        ttk.Label(frame, text="Категория компонента:").grid(row=2, column=0, padx=8, pady=6, sticky=tk.W)
+        cat_cb = ttk.Combobox(frame, values=COMPONENT_CATEGORIES)
+        cat_cb.set("Резисторы")
+        cat_cb.grid(row=2, column=1, padx=8, pady=6, sticky="ew")
+
+        ttk.Label(frame, text="Комментарий (примечание):").grid(row=3, column=0, padx=8, pady=6, sticky=tk.W)
+        comm_entry = ttk.Entry(frame)
+        comm_entry.grid(row=3, column=1, padx=8, pady=6, sticky="ew")
+
+        author_name = self.get_active_author()
+        ttk.Label(frame, text="Автор правила:").grid(row=4, column=0, padx=8, pady=6, sticky=tk.W)
+        author_lbl = ttk.Label(frame, text=author_name, font=("Segoe UI", 9, "bold"), foreground="#60a5fa")
+        author_lbl.grid(row=4, column=1, padx=8, pady=6, sticky=tk.W)
 
         def on_save():
             key = key_entry.get().strip()
             value = value_entry.get().strip()
+            category = cat_cb.get().strip() or "Резисторы"
+            comment = comm_entry.get().strip()
             if not key or not value:
-                messagebox.showerror("Ошибка", "Оба поля должны быть заполнены.", parent=dialog)
+                messagebox.showerror("Ошибка", "Поля 'Название в BOM' и 'Пользовательское название' обязательны.", parent=dialog)
                 return
             if self.db_manager.contains(key):
                 if not messagebox.askyesno("Дубликат", f"Запись с ключом '{key}' уже существует. Перезаписать?", parent=dialog):
                     return
-            self.db_manager.add_or_update(key, value)
+            self.db_manager.add_or_update(key, value, category=category, comment=comment, author=author_name)
             self.refresh_tree()
             dialog.destroy()
 
         btn_row = ttk.Frame(frame)
-        btn_row.grid(row=2, column=0, columnspan=2, pady=(16, 0))
+        btn_row.grid(row=5, column=0, columnspan=2, pady=(16, 0))
         ttk.Button(btn_row, text="💾 Сохранить", style="Accent.TButton", command=on_save).pack(side=tk.LEFT, padx=6)
         ttk.Button(btn_row, text="Отмена", command=dialog.destroy).pack(side=tk.LEFT, padx=6)
 
@@ -315,11 +248,16 @@ class DatabaseTab(ttk.Frame):
             messagebox.showinfo("Информация", "Выберите запись для редактирования.")
             return
         item = selection[0]
-        key, value = self.tree.item(item, 'values')
-        if not key:
+        vals = self.tree.item(item, 'values')
+        if not vals:
             return
+        key = vals[0]
+        curr_val = vals[1] if len(vals) > 1 else ""
+        curr_cat = vals[2] if len(vals) > 2 and vals[2] else "Резисторы"
+        curr_comm = vals[3] if len(vals) > 3 else ""
+        curr_author = vals[4] if len(vals) > 4 and vals[4] else self.get_active_author()
 
-        dialog = create_styled_toplevel(self, "Редактировать запись базы", "540x240", min_size=(500, 220))
+        dialog = create_styled_toplevel(self, "Редактировать запись базы", "580x380", min_size=(520, 340))
         dialog.transient(self)
         dialog.grab_set()
 
@@ -327,29 +265,46 @@ class DatabaseTab(ttk.Frame):
         frame.pack(fill=tk.BOTH, expand=True)
         frame.columnconfigure(1, weight=1)
 
-        ttk.Label(frame, text="Название в BOM (ключ):").grid(row=0, column=0, padx=8, pady=8, sticky=tk.W)
+        ttk.Label(frame, text="Название в BOM (ключ):").grid(row=0, column=0, padx=8, pady=6, sticky=tk.W)
         key_entry = ttk.Entry(frame)
         key_entry.insert(0, key)
         key_entry.config(state=tk.DISABLED)
-        key_entry.grid(row=0, column=1, padx=8, pady=8, sticky="ew")
+        key_entry.grid(row=0, column=1, padx=8, pady=6, sticky="ew")
 
-        ttk.Label(frame, text="Пользовательское название:").grid(row=1, column=0, padx=8, pady=8, sticky=tk.W)
+        ttk.Label(frame, text="Пользовательское название:").grid(row=1, column=0, padx=8, pady=6, sticky=tk.W)
         value_entry = ttk.Entry(frame)
-        value_entry.insert(0, value)
-        value_entry.grid(row=1, column=1, padx=8, pady=8, sticky="ew")
+        value_entry.insert(0, curr_val)
+        value_entry.grid(row=1, column=1, padx=8, pady=6, sticky="ew")
         value_entry.focus()
+
+        ttk.Label(frame, text="Категория компонента:").grid(row=2, column=0, padx=8, pady=6, sticky=tk.W)
+        cat_cb = ttk.Combobox(frame, values=COMPONENT_CATEGORIES)
+        cat_cb.set(curr_cat)
+        cat_cb.grid(row=2, column=1, padx=8, pady=6, sticky="ew")
+
+        ttk.Label(frame, text="Комментарий (примечание):").grid(row=3, column=0, padx=8, pady=6, sticky=tk.W)
+        comm_entry = ttk.Entry(frame)
+        comm_entry.insert(0, curr_comm)
+        comm_entry.grid(row=3, column=1, padx=8, pady=6, sticky="ew")
+
+        new_author = self.get_active_author()
+        ttk.Label(frame, text="Автор изменения:").grid(row=4, column=0, padx=8, pady=6, sticky=tk.W)
+        author_lbl = ttk.Label(frame, text=f"{new_author} (было: {curr_author})", font=("Segoe UI", 9), foreground="#60a5fa")
+        author_lbl.grid(row=4, column=1, padx=8, pady=6, sticky=tk.W)
 
         def on_save():
             new_value = value_entry.get().strip()
+            new_category = cat_cb.get().strip() or "Резисторы"
+            new_comment = comm_entry.get().strip()
             if not new_value:
-                messagebox.showerror("Ошибка", "Поле не может быть пустым.", parent=dialog)
+                messagebox.showerror("Ошибка", "Поле 'Пользовательское название' не может быть пустым.", parent=dialog)
                 return
-            self.db_manager.add_or_update(key, new_value)
+            self.db_manager.add_or_update(key, new_value, category=new_category, comment=new_comment, author=new_author)
             self.refresh_tree()
             dialog.destroy()
 
         btn_row = ttk.Frame(frame)
-        btn_row.grid(row=2, column=0, columnspan=2, pady=(16, 0))
+        btn_row.grid(row=5, column=0, columnspan=2, pady=(16, 0))
         ttk.Button(btn_row, text="💾 Сохранить", style="Accent.TButton", command=on_save).pack(side=tk.LEFT, padx=6)
         ttk.Button(btn_row, text="Отмена", command=dialog.destroy).pack(side=tk.LEFT, padx=6)
 
@@ -360,11 +315,114 @@ class DatabaseTab(ttk.Frame):
         if not selection:
             messagebox.showinfo("Информация", "Выберите записи для удаления.")
             return
-        if messagebox.askyesno("Подтверждение", f"Удалить {len(selection)} записей?"):
-            for item in selection:
-                key = self.tree.item(item, 'values')[0]
-                self.db_manager.delete(key)
+
+        keys = [self.tree.item(item, 'values')[0] for item in selection if self.tree.item(item, 'values')]
+        if not keys:
+            return
+
+        msg = (
+            f"Вы собираетесь удалить {len(keys)} записей из базы данных.\n\n"
+            "Это действие необратимо, вы уверены?"
+        )
+        if messagebox.askyesno("⚠️ Внимание: Удаление записей", msg, icon="warning"):
+            if hasattr(self.db_manager, 'delete_multiple'):
+                self.db_manager.delete_multiple(keys)
+            else:
+                for k in keys:
+                    self.db_manager.delete(k)
             self.refresh_tree()
+
+    def import_db_dialog(self):
+        filepath = filedialog.askopenfilename(
+            title="Выберите файл для импорта базы",
+            filetypes=[("Текстовые файлы", "*.txt"), ("Все файлы", "*.*")]
+        )
+        if not filepath:
+            return
+
+        def conflict_resolver(existing_rec: dict, new_rec: dict) -> str:
+            decision = {"choice": "keep"}
+            conf_win = create_styled_toplevel(self, "⚠️ Конфликт значений при импорте", "640x380", min_size=(580, 320))
+            conf_win.transient(self)
+            conf_win.grab_set()
+
+            main_f = ttk.Frame(conf_win, padding="15")
+            main_f.pack(fill=tk.BOTH, expand=True)
+
+            ttk.Label(main_f, text="Обнаружен компонент с отличающимся значением:", font=("Segoe UI", 10, "bold")).pack(anchor="w", pady=(0, 10))
+
+            card_key = ttk.LabelFrame(main_f, text="Ключ (компонент в BOM)", padding="8")
+            card_key.pack(fill=tk.X, pady=4)
+            ttk.Label(card_key, text=existing_rec.get("key", ""), font=("Segoe UI", 10, "bold"), foreground="#60a5fa").pack(anchor="w")
+
+            diff_frame = ttk.Frame(main_f)
+            diff_frame.pack(fill=tk.BOTH, expand=True, pady=8)
+            diff_frame.columnconfigure(0, weight=1)
+            diff_frame.columnconfigure(1, weight=1)
+
+            # Текущее в базе
+            cur_box = ttk.LabelFrame(diff_frame, text="📌 Текущее в вашей базе", padding="8")
+            cur_box.grid(row=0, column=0, sticky="nsew", padx=(0, 5))
+            ttk.Label(cur_box, text=f"Значение:\n{existing_rec.get('value', '')}", wraplength=260, font=("Segoe UI", 9, "bold")).pack(anchor="w")
+            ttk.Label(cur_box, text=f"Автор: {existing_rec.get('author', '—')}", foreground="gray").pack(anchor="w", pady=(4, 0))
+            ttk.Label(cur_box, text=f"Категория: {existing_rec.get('category', '—')}", foreground="gray").pack(anchor="w")
+
+            # Новое из файла
+            new_box = ttk.LabelFrame(diff_frame, text="📥 Новое из импортируемого файла", padding="8")
+            new_box.grid(row=0, column=1, sticky="nsew", padx=(5, 0))
+            ttk.Label(new_box, text=f"Значение:\n{new_rec.get('value', '')}", wraplength=260, font=("Segoe UI", 9, "bold"), foreground="#34d399").pack(anchor="w")
+            ttk.Label(new_box, text=f"Автор: {new_rec.get('author', '—')}", foreground="gray").pack(anchor="w", pady=(4, 0))
+            ttk.Label(new_box, text=f"Категория: {new_rec.get('category', '—')}", foreground="gray").pack(anchor="w")
+
+            btn_box = ttk.Frame(main_f)
+            btn_box.pack(fill=tk.X, pady=(12, 0))
+
+            def choose(choice):
+                decision["choice"] = choice
+                conf_win.destroy()
+
+            ttk.Button(btn_box, text="Оставить текущее", command=lambda: choose("keep")).pack(side=tk.LEFT, padx=3)
+            ttk.Button(btn_box, text="Заменить на новое", style="Accent.TButton", command=lambda: choose("replace")).pack(side=tk.LEFT, padx=3)
+            ttk.Button(btn_box, text="Оставить текущее для всех", command=lambda: choose("keep_all")).pack(side=tk.RIGHT, padx=3)
+            ttk.Button(btn_box, text="Заменить все конфликты", command=lambda: choose("replace_all")).pack(side=tk.RIGHT, padx=3)
+
+            style_widget_tree(conf_win, "dark")
+            conf_win.wait_window()
+            return decision["choice"]
+
+        try:
+            stats = self.db_manager.import_from_txt(filepath, conflict_callback=conflict_resolver)
+            self.refresh_tree()
+            messagebox.showinfo(
+                "Импорт завершен",
+                f"Результаты импорта из файла:\n\n"
+                f"• Добавлено новых записей: {stats['added']}\n"
+                f"• Обновлено (заменено) записей: {stats['updated']}\n"
+                f"• Пропущено (без изменений): {stats['skipped']}"
+            )
+        except Exception as e:
+            messagebox.showerror("Ошибка импорта", f"Не удалось импортировать базу:\n{e}")
+
+    def export_db_dialog(self):
+        filepath = filedialog.asksaveasfilename(
+            title="Экспорт базы данных",
+            defaultextension=".txt",
+            filetypes=[
+                ("Текстовый файл с метаданными (*.txt)", "*.txt"),
+                ("Таблица Excel (*.xlsx)", "*.xlsx")
+            ]
+        )
+        if not filepath:
+            return
+
+        try:
+            if filepath.lower().endswith(".xlsx"):
+                self.db_manager.export_to_excel(filepath)
+            else:
+                self.db_manager.export_to_txt(filepath)
+            messagebox.showinfo("Успех", f"База данных успешно экспортирована в:\n{filepath}")
+        except Exception as e:
+            messagebox.showerror("Ошибка", f"Не удалось экспортировать базу данных:\n{e}")
 
     def load_bom_file(self):
         file_path = filedialog.askopenfilename(filetypes=[("Excel files", "*.xlsx"), ("All files", "*.*")])
@@ -1023,7 +1081,7 @@ class CodeTab(ttk.Frame):
         '1kV', '2kV', '3.15kV', 'AC250V'
     }
     # Допустимые допуски для резисторов (стандартные значения)
-    VALID_TOLERANCES = ['0.05%', '0.1%', '0.25%', '0.5%', '1%', '2%', '5%', '10%', '20%']
+    VALID_TOLERANCES = ['0%', '0.05%', '0.1%', '0.25%', '0.5%', '1%', '2%', '5%', '10%', '20%']
 
     def __init__(self, parent, db_manager):
         super().__init__(parent)
@@ -1254,7 +1312,7 @@ class CodeTab(ttk.Frame):
                 messagebox.showerror("Ошибка", f"Некорректное регулярное выражение: {e}")
                 return
             self.rules.append(rule)
-            self.parser = VendorParser(self.rules)
+            self.parser = smd_engine.VendorParser(self.rules)
             self.update_rules_tree()
             dialog.destroy()
 
@@ -1279,7 +1337,7 @@ class CodeTab(ttk.Frame):
         if idx < 0 or idx >= len(self.rules):
             return
         del self.rules[idx]
-        self.parser = VendorParser(self.rules)
+        self.parser = smd_engine.VendorParser(self.rules)
         self.update_rules_tree()
 
     # ========== Диалог ручного именования ==========
@@ -1348,77 +1406,93 @@ class CodeTab(ttk.Frame):
             messagebox.showwarning("Предупреждение", "Нет ни одного правила парсинга.")
             return
 
-        new_col_name = "Converted_Description_Vendor"
-        if new_col_name in self.df.columns:
-            i = 1
-            while f"{new_col_name}_{i}" in self.df.columns:
-                i += 1
-            new_col_name = f"{new_col_name}_{i}"
+        try:
+            new_col_name = "Converted_Description_Vendor"
+            if new_col_name in self.df.columns:
+                i = 1
+                while f"{new_col_name}_{i}" in self.df.columns:
+                    i += 1
+                new_col_name = f"{new_col_name}_{i}"
 
-        converted = []
-        original_codes = []
-        parse_errors = 0
+            converted = []
+            original_codes = []
+            parse_errors = 0
 
-        for idx, row in self.df.iterrows():
-            code = str(row[self.selected_code_column]).strip() if pd.notna(row[self.selected_code_column]) else ""
-            original_codes.append(code)
-            if not code:
-                converted.append("")
-                continue
+            for idx, row in self.df.iterrows():
+                code = str(row[self.selected_code_column]).strip() if pd.notna(row[self.selected_code_column]) else ""
+                original_codes.append(code)
+                if not code:
+                    converted.append("")
+                    continue
 
-            rule, groups = self.parser.parse(code, None)
-            if rule and groups:
-                try:
-                    unified = self.parser.convert_to_unified(code, rule, groups)
-                    if '?' in unified or 'ОШИБКА' in unified:
-                        comp_type = rule.comp_type
+                parse_res = self.parser.parse(code, None)
+                rule = None
+                groups = None
+                matched_code = code
+                if parse_res and len(parse_res) >= 2 and parse_res[0] is not None:
+                    rule = parse_res[0]
+                    groups = parse_res[1]
+                    if len(parse_res) > 2 and parse_res[2]:
+                        matched_code = parse_res[2]
+
+                if rule and groups:
+                    try:
+                        unified = self.parser.convert_to_unified(matched_code, rule, groups)
+                        if '?' in unified or 'ОШИБКА' in unified:
+                            comp_type = getattr(rule, 'comp_type', 'resistor')
+                            user_name = self.ask_user_for_name(code, comp_type)
+                            if user_name is not None:
+                                unified = user_name
+                            else:
+                                unified = code
+                        converted.append(unified)
+                    except Exception as e:
+                        comp_type = getattr(rule, 'comp_type', 'resistor')
                         user_name = self.ask_user_for_name(code, comp_type)
                         if user_name is not None:
-                            unified = user_name
+                            converted.append(user_name)
                         else:
-                            unified = code
-                    converted.append(unified)
-                except Exception as e:
-                    comp_type = rule.comp_type
-                    user_name = self.ask_user_for_name(code, comp_type)
-                    if user_name is not None:
-                        converted.append(user_name)
-                    else:
-                        converted.append(code)
+                            converted.append(code)
+                        parse_errors += 1
+                else:
+                    converted.append(code)
                     parse_errors += 1
+
+            # Валидация и редактирование невалидных имен (только для распознанных и преобразованных компонентов)
+            for i, name in enumerate(converted):
+                if not name or name == original_codes[i]:
+                    continue
+                if name.startswith("R_"):
+                    valid, _ = self._validate_resistor_name(name)
+                    if not valid:
+                        new_name = self._show_edit_dialog(original_codes[i], name, "resistor")
+                        if new_name is not None:
+                            converted[i] = new_name
+                elif name.startswith("C_"):
+                    valid, _ = self._validate_capacitor_name(name)
+                    if not valid:
+                        new_name = self._show_edit_dialog(original_codes[i], name, "capacitor")
+                        if new_name is not None:
+                            converted[i] = new_name
+
+            # ---- ДОБАВЛЕНО: проверка базы данных и замена ----
+            # Получаем список исходных кодов и сгенерированных имён
+            original_values = [str(x) if pd.notna(x) else "" for x in self.df[self.selected_code_column]]
+            converted = self.apply_database_replacements(original_values, converted)
+
+            self.df[new_col_name] = converted
+            self.parsed_column = new_col_name
+            if parse_errors > 0:
+                messagebox.showwarning("Предупреждение", f"Не удалось распознать {parse_errors} строк(и). Они скопированы без изменений.")
             else:
-                converted.append(code)
-                parse_errors += 1
+                messagebox.showinfo("Успех", f"Преобразование завершено. Создан столбец: {new_col_name}")
 
-        # Валидация и редактирование невалидных имен
-        for i, name in enumerate(converted):
-            if name.startswith("R_"):
-                valid, _ = self._validate_resistor_name(name)
-                if not valid:
-                    new_name = self._show_edit_dialog(original_codes[i], name, "resistor")
-                    if new_name is not None:
-                        converted[i] = new_name
-            elif name.startswith("C_"):
-                valid, _ = self._validate_capacitor_name(name)
-                if not valid:
-                    new_name = self._show_edit_dialog(original_codes[i], name, "capacitor")
-                    if new_name is not None:
-                        converted[i] = new_name
-
-        # ---- ДОБАВЛЕНО: проверка базы данных и замена ----
-        # Получаем список исходных кодов и сгенерированных имён
-        original_values = [str(x) if pd.notna(x) else "" for x in self.df[self.selected_code_column]]
-        converted = self.apply_database_replacements(original_values, converted)
-
-        self.df[new_col_name] = converted
-        self.parsed_column = new_col_name
-        if parse_errors > 0:
-            messagebox.showwarning("Предупреждение", f"Не удалось распознать {parse_errors} строк(и). Они скопированы без изменений.")
-        else:
-            messagebox.showinfo("Успех", f"Преобразование завершено. Создан столбец: {new_col_name}")
-
-        self.result_preview_btn.config(state=tk.NORMAL)
-        self.update_preview()
+            self.result_preview_btn.config(state=tk.NORMAL)
+            self.update_preview()
+        except Exception as err:
+            import traceback
+            traceback.print_exc()
+            messagebox.showerror("Ошибка", f"Произошла ошибка при применении правил:\n{err}")
 
     # ========== НОВЫЙ МЕТОД: применение замен из базы данных ==========
     def apply_database_replacements(self, original_values, converted_values):
@@ -1438,49 +1512,52 @@ class CodeTab(ttk.Frame):
         if not replacements:
             return converted_values
 
+        # Дедупликация для диалога
+        seen = set()
+        unique_replacements = []
+        for r in replacements:
+            if r not in seen:
+                seen.add(r)
+                unique_replacements.append(r)
+
         # Показываем диалог предпросмотра
-        result = self._show_replacement_dialog(replacements)
+        result = self._show_replacement_dialog(unique_replacements)
         if result:  # Применить замены
-            new_converted = converted_values[:]
-            # Заменяем только те, которые есть в списке replacements
-            for orig, conv, user_name in replacements:
-                # Ищем все вхождения этого orig и conv (может быть несколько одинаковых)
-                for i, (o, c) in enumerate(zip(original_values, new_converted)):
-                    if o == orig and c == conv:
-                        new_converted[i] = user_name
-            return new_converted
+            repl_map = {orig: user_name for orig, _, user_name in unique_replacements}
+            return [repl_map.get(orig, conv) for orig, conv in zip(original_values, converted_values)]
         else:
             return converted_values
 
     def _show_replacement_dialog(self, replacements):
         """Показывает диалог с таблицей замен и возвращает True, если пользователь нажал 'Применить'."""
-        dialog = tk.Toplevel(self)
-        dialog.title("Замена на пользовательские названия")
-        dialog.geometry("700x400")
+        dialog = create_styled_toplevel(self, "Замена на пользовательские названия", "880x540", min_size=(700, 400))
         dialog.transient(self)
         dialog.grab_set()
 
         ttk.Label(dialog, text="Найдены совпадения в базе данных. Вы можете заменить сгенерированные имена на пользовательские:",
-                  wraplength=600).pack(pady=5)
+                  wraplength=700, font=("Segoe UI", 9, "bold")).pack(pady=8)
 
-        frame = ttk.Frame(dialog)
+        frame = ttk.Frame(dialog, padding="5")
         frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=5)
 
         tree = ttk.Treeview(frame, columns=("original", "generated", "user"), show="headings", height=10)
+        tree.tag_configure('odd', background="#0e182e")
+        tree.tag_configure('even', background="#131e36")
         tree.heading("original", text="Исходное значение")
         tree.heading("generated", text="Сгенерированное")
         tree.heading("user", text="Пользовательское")
-        tree.column("original", width=200)
-        tree.column("generated", width=200)
-        tree.column("user", width=200)
+        tree.column("original", width=220)
+        tree.column("generated", width=220)
+        tree.column("user", width=220)
 
         scroll = ttk.Scrollbar(frame, orient=tk.VERTICAL, command=tree.yview)
         tree.configure(yscrollcommand=scroll.set)
         tree.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
         scroll.pack(side=tk.RIGHT, fill=tk.Y)
 
-        for orig, conv, user in replacements:
-            tree.insert("", tk.END, values=(orig, conv, user))
+        for i, (orig, conv, user) in enumerate(replacements):
+            tag = 'even' if i % 2 == 0 else 'odd'
+            tree.insert("", tk.END, values=(orig, conv, user), tags=(tag,))
 
         result = {"apply": False}
 
@@ -1495,13 +1572,6 @@ class CodeTab(ttk.Frame):
         btn_frame.pack(pady=10)
         ttk.Button(btn_frame, text="Применить замены", command=on_apply).pack(side=tk.LEFT, padx=5)
         ttk.Button(btn_frame, text="Отмена", command=on_cancel).pack(side=tk.LEFT, padx=5)
-
-        dialog.update_idletasks()
-        width = dialog.winfo_width()
-        height = dialog.winfo_height()
-        x = (dialog.winfo_screenwidth() // 2) - (width // 2)
-        y = (dialog.winfo_screenheight() // 2) - (height // 2)
-        dialog.geometry(f"{width}x{height}+{x}+{y}")
 
         self.wait_window(dialog)
         return result["apply"]
@@ -1533,6 +1603,16 @@ class CodeTab(ttk.Frame):
             self.preview_tree.insert("", tk.END, values=(orig, conv))
 
     def _validate_resistor_name(self, name):
+        # 0-ohm jumpers: R_<size>_0R или R_<size>_0R_<tol>
+        jumper_match = re.match(r'^R_(?P<size>\d{4})_0R(?:_(?P<tolerance>\d+\.?\d*%))?$', name)
+        if jumper_match:
+            size = jumper_match.group('size')
+            valid_sizes = ['0402','0603','0805','1206','0201','1210','2010','2512','1005']
+            if size in valid_sizes:
+                tol = jumper_match.group('tolerance')
+                if tol is None or tol in self.VALID_TOLERANCES:
+                    return True, {}
+
         pattern = r'^R_(?P<size>\d{4})_(?P<value>\d*\.?\d*[KMR]?)_(?P<tolerance>\d+\.?\d*%)$'
         m = re.match(pattern, name)
         if not m:
@@ -1559,7 +1639,7 @@ class CodeTab(ttk.Frame):
         value = m.group('value')
         voltage = m.group('voltage')
         valid_sizes = ['0402','0603','0805','1206','0201','1210','2010','2512','1005']
-        valid_dielectrics = ['X5R','X7R','C0G','NPO','X6S','X8R','Y5V','X7S','X6T','X5S','X7T','X8L']
+        valid_dielectrics = ['X5R','X7R','C0G','NPO','NP0','X6S','X8R','Y5V','X7S','X6T','X5S','X7T','X8L']
         if size not in valid_sizes:
             return False, {'size': size}
         if dielectric not in valid_dielectrics:
@@ -1571,9 +1651,7 @@ class CodeTab(ttk.Frame):
         return True, {}
 
     def _show_edit_dialog(self, original_text, current_name, comp_type):
-        dialog = tk.Toplevel(self)
-        dialog.title(f"Редактирование {comp_type}")
-        dialog.geometry("700x500")
+        dialog = create_styled_toplevel(self, f"Редактирование {comp_type}", "760x520", min_size=(620, 420))
         dialog.transient(self)
         dialog.grab_set()
 

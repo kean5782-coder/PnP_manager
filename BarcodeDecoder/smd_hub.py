@@ -41,15 +41,44 @@ from smd_engine import (
     enable_smooth_mousewheel, create_styled_toplevel
 )
 
-# Импортируем классы из Unification и PnP_Manager
+# Импортируем модуль цветных иконок
 try:
-    from Unification import DatabaseManager, DatabaseTab, CodeTab, DescriptionTab
+    from smd_icons import get_icon, apply_label_icon, apply_button_icon
+except Exception:
+    try:
+        import smd_icons
+        get_icon = smd_icons.get_icon
+        apply_label_icon = smd_icons.apply_label_icon
+        apply_button_icon = smd_icons.apply_button_icon
+    except Exception:
+        def get_icon(*a, **k): return None
+        def apply_label_icon(lbl, name, txt="", *a, **k): lbl.configure(text=txt)
+        def apply_button_icon(btn, name, txt="", *a, **k):
+            if txt: btn.configure(text=txt)
+
+# Импортируем классы из Unification, PnP_Manager, smd_auth и smd_db
+try:
+    from smd_auth import AccountManager
+except Exception:
+    import smd_auth
+    AccountManager = smd_auth.AccountManager
+
+try:
+    from smd_db import DatabaseManager, COMPONENT_CATEGORIES
+except Exception:
+    try:
+        from Unification import DatabaseManager, COMPONENT_CATEGORIES
+    except Exception:
+        DatabaseManager = None
+        COMPONENT_CATEGORIES = []
+
+try:
+    from Unification import DatabaseTab, CodeTab, DescriptionTab
 except Exception as e:
-    DatabaseManager = None
     DatabaseTab = None
     CodeTab = None
     DescriptionTab = None
-    print(f"Warning: Could not import Unification directly: {e}")
+    print(f"Warning: Could not import Unification tabs directly: {e}")
 
 try:
     from PnP_Manager import MergeTab, CheckTab, CompareTab, CompareBOMTab
@@ -68,31 +97,36 @@ class SMDHubApp:
     def __init__(self, root: tk.Tk):
         self.root = root
         self.root.title("SMD Hub — Интегрированная среда подготовки монтажа SMD")
-        self.root.geometry("1520x960")
-        self.root.minsize(1280, 780)
+
+        # Размер окна: увеличен на 30% как fallback (1660x980) с центрированием
+        screen_w = self.root.winfo_screenwidth()
+        screen_h = self.root.winfo_screenheight()
+        target_w = 1660
+        target_h = 980
+        win_w = min(target_w, max(1280, int(screen_w * 0.94)))
+        win_h = min(target_h, max(760, int(screen_h * 0.88)))
+        pos_x = max(0, (screen_w - win_w) // 2)
+        pos_y = max(0, (screen_h - win_h) // 2 - 20)
+        self.root.geometry(f"{win_w}x{win_h}+{pos_x}+{pos_y}")
+        self.root.minsize(1280, 720)
+
+        # Автоматический разворот окна на весь экран при запуске (как на Скрине 2)
+        try:
+            self.root.state('zoomed')
+        except Exception:
+            pass
 
         # Тема оформления — строго Dark Navy SaaS
         self.current_theme = "dark"
         self.style = ttk.Style()
         self._setup_window_icon()
 
-        # База данных для унификации (сохраняем рядом с exe в portable-режиме)
-        if getattr(sys, 'frozen', False):
-            exe_dir = os.path.dirname(sys.executable)
-            user_db_path = os.path.join(exe_dir, "database.txt")
-            bundled_db_path = os.path.join(CURRENT_DIR, "database.txt")
-            if not os.path.exists(user_db_path) and os.path.exists(bundled_db_path):
-                try:
-                    import shutil
-                    shutil.copy2(bundled_db_path, user_db_path)
-                except Exception:
-                    pass
-            db_path = user_db_path if os.path.exists(user_db_path) else bundled_db_path
-        else:
-            db_path = os.path.join(CURRENT_DIR, "Unification", "database.txt")
-            if not os.path.exists(db_path):
-                db_path = os.path.join(CURRENT_DIR, "database.txt")
-        self.db_manager = DatabaseManager(db_path) if DatabaseManager else None
+        # Инициализация пользователей (учетные записи в %APPDATA%\SMD_Hub\users.json)
+        self.account_manager = AccountManager()
+
+        # База данных для унификации (SQLite в %APPDATA%\SMD_Hub\database.db)
+        self.db_manager = DatabaseManager() if DatabaseManager else None
+        self.db_path = getattr(self.db_manager, "filename", "database.db")
 
         # Общие переменные сквозного заказа
         self.unified_bom_path = ""
@@ -138,6 +172,9 @@ class SMDHubApp:
         # 1. Левый навигационный сайдбар
         self._build_sidebar(self.layout_frame)
 
+        # Тонкий вертикальный разделитель сайдбара
+        tk.Frame(self.layout_frame, width=1, bg=t["border"]).pack(side=tk.LEFT, fill=tk.Y)
+
         # 2. Правая рабочая область (Хедер + Контент)
         self.right_workspace = tk.Frame(self.layout_frame, bg=t["bg_app"])
         self.right_workspace.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
@@ -145,12 +182,9 @@ class SMDHubApp:
         # Верхний хедер
         self._build_top_header(self.right_workspace)
 
-        # Верхняя панель быстрых действий (Action Bar)
-        self._build_action_bar(self.right_workspace)
-
         # Главный контейнер страниц
         self.pages_container = tk.Frame(self.right_workspace, bg=t["bg_app"])
-        self.pages_container.pack(fill=tk.BOTH, expand=True, padx=16, pady=(0, 12))
+        self.pages_container.pack(fill=tk.BOTH, expand=True, padx=16, pady=(8, 8))
 
         # Создаем страницы
         self.pages = {}
@@ -162,7 +196,8 @@ class SMDHubApp:
         self._build_page_compare_bom(self.pages_container)
         self._build_page_database(self.pages_container)
 
-        # Показываем стартовую страницу Dashboard
+        # Показываем стартовую страницу Dashboard и актуализируем профиль
+        self._update_user_display()
         self.show_page("dashboard")
 
     # =========================================================================
@@ -174,44 +209,66 @@ class SMDHubApp:
         self.sidebar_frame.pack(side=tk.LEFT, fill=tk.Y)
         self.sidebar_frame.pack_propagate(False)
 
-        # Логотип и бренд
-        brand_frame = tk.Frame(self.sidebar_frame, bg=t["bg_sidebar"], padx=18, pady=16)
-        brand_frame.pack(fill=tk.X)
+        # Логотип и кнопка сворачивания меню
+        self.brand_frame = tk.Frame(self.sidebar_frame, bg=t["bg_sidebar"], padx=10, pady=12)
+        self.brand_frame.pack(fill=tk.X)
 
-        logo_title = tk.Label(
-            brand_frame,
-            text="⚡ SMD Hub",
-            font=("Segoe UI", 15, "bold"),
+        self.brand_left = tk.Frame(self.brand_frame, bg=t["bg_sidebar"])
+        self.brand_left.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+
+        self.logo_title = tk.Label(
+            self.brand_left,
+            font=("Segoe UI", 14, "bold"),
             bg=t["bg_sidebar"],
             fg=t["text_primary"]
         )
-        logo_title.pack(anchor="w")
+        apply_label_icon(self.logo_title, "lightning", "SMD Hub", size=24)
+        self.logo_title.pack(anchor="w")
 
-        logo_sub = tk.Label(
-            brand_frame,
+        self.logo_sub = tk.Label(
+            self.brand_left,
             text="SMD Production Suite",
             font=("Segoe UI", 8),
             bg=t["bg_sidebar"],
             fg=t["text_muted"]
         )
-        logo_sub.pack(anchor="w", pady=(1, 0))
+        self.logo_sub.pack(anchor="w", pady=(1, 0))
+
+        # Кнопка сворачивания/разворачивания сайдбара
+        self.btn_collapse = tk.Button(
+            self.brand_frame,
+            text="◀",
+            font=("Segoe UI", 8, "bold"),
+            bg=t["bg_card"],
+            fg=t["text_secondary"],
+            activebackground=t["accent"],
+            activeforeground="#ffffff",
+            relief="flat",
+            padx=7,
+            pady=3,
+            cursor="hand2",
+            command=self.toggle_sidebar
+        )
+        self.btn_collapse.pack(side=tk.RIGHT)
+        ToolTip(self.btn_collapse, "Свернуть боковое меню в компактный режим (иконки)")
 
         # Разделитель
         sep = tk.Frame(self.sidebar_frame, height=1, bg=t["border"])
         sep.pack(fill=tk.X, padx=14, pady=(0, 10))
 
         # Контейнер для навигационных элементов
-        self.nav_items_frame = tk.Frame(self.sidebar_frame, bg=t["bg_sidebar"], padx=8)
+        self.nav_items_frame = tk.Frame(self.sidebar_frame, bg=t["bg_sidebar"], padx=6)
         self.nav_items_frame.pack(fill=tk.BOTH, expand=True)
 
         self.nav_widgets = {}
         self.hovered_nav_id = None
+        self.is_sidebar_collapsed = False
 
         # 1. Dashboard
-        self._add_nav_item("dashboard", "📊  Обзор (Dashboard)", lambda: self.show_page("dashboard"))
+        self._add_nav_item("dashboard", "Обзор (Dashboard)", "dashboard", lambda: self.show_page("dashboard"), "Обзор состояния и модулей")
 
         # 2. Сквозной заказ (Заголовок группы)
-        group_label = tk.Label(
+        self.group_label = tk.Label(
             self.nav_items_frame,
             text="СКВОЗНОЙ ЗАКАЗ",
             font=("Segoe UI", 8, "bold"),
@@ -221,18 +278,18 @@ class SMDHubApp:
             padx=10,
             pady=8
         )
-        group_label.pack(fill=tk.X, pady=(6, 2))
+        self.group_label.pack(fill=tk.X, pady=(6, 2))
 
         # Поддерево шагов с точками-маркерами (Sub-tree timeline)
-        tree_container = tk.Frame(self.nav_items_frame, bg=t["bg_sidebar"])
-        tree_container.pack(fill=tk.X, padx=(4, 0))
+        self.tree_container = tk.Frame(self.nav_items_frame, bg=t["bg_sidebar"])
+        self.tree_container.pack(fill=tk.X, padx=(4, 0))
 
-        self._add_nav_subitem(tree_container, "step1", "1. Унификация BOM", lambda: self.show_page("step1"))
-        self._add_nav_subitem(tree_container, "step2", "2. Объединение P&P", lambda: self.show_page("step2"))
-        self._add_nav_subitem(tree_container, "step3", "3. Финальная сверка", lambda: self.show_page("step3"))
+        self._add_nav_subitem(self.tree_container, "step1", "1. Унификация BOM", "step1", lambda: self.show_page("step1"), "Шаг 1: Унификация спецификации (BOM)")
+        self._add_nav_subitem(self.tree_container, "step2", "2. Объединение P&P", "step2", lambda: self.show_page("step2"), "Шаг 2: Объединение координат расстановщика")
+        self._add_nav_subitem(self.tree_container, "step3", "3. Финальная сверка", "step3", lambda: self.show_page("step3"), "Шаг 3: Финальный аудит и сверка")
 
         # 3. Сервисные модули
-        group_label2 = tk.Label(
+        self.group_label2 = tk.Label(
             self.nav_items_frame,
             text="СЕРВИСЫ И БАЗЫ",
             font=("Segoe UI", 8, "bold"),
@@ -242,29 +299,405 @@ class SMDHubApp:
             padx=10,
             pady=8
         )
-        group_label2.pack(fill=tk.X, pady=(10, 2))
+        self.group_label2.pack(fill=tk.X, pady=(10, 2))
 
-        self._add_nav_item("compare_pnp", "🔄  Сравнение P&P", lambda: self.show_page("compare_pnp"))
-        self._add_nav_item("compare_bom", "🔄  Сверка BOM", lambda: self.show_page("compare_bom"))
-        self._add_nav_item("database", "🗄️  База данных", lambda: self.show_page("database"))
-        self._add_nav_item("barcode", "📷  Barcode Decoder", self.open_barcode_decoder)
+        self._add_nav_item("compare_pnp", "Сравнение P&P", "compare_pnp", lambda: self.show_page("compare_pnp"), "Сравнение двух файлов координат P&P")
+        self._add_nav_item("compare_bom", "Сверка BOM", "compare_bom", lambda: self.show_page("compare_bom"), "Сверка двух спецификаций BOM")
+        self._add_nav_item("database", "База данных", "database", lambda: self.show_page("database"), "Справочник замен (database.db)")
 
         # Привязка сброса наведения при выходе мыши из сайдбара
         self.sidebar_frame.bind("<Leave>", self._on_sidebar_leave)
         self.nav_items_frame.bind("<Leave>", self._on_sidebar_leave)
-        tree_container.bind("<Leave>", self._on_sidebar_leave)
+        self.tree_container.bind("<Leave>", self._on_sidebar_leave)
 
-        # Нижняя карточка пользователя
-        user_card = tk.Frame(self.sidebar_frame, bg=t["bg_card"], padx=12, pady=10, highlightbackground=t["border"], highlightthickness=1)
-        user_card.pack(side=tk.BOTTOM, fill=tk.X, padx=10, pady=12)
+        # Нижняя плашка пользователя (интерактивная, с возможностью смены аккаунта)
+        sep_user = tk.Frame(self.sidebar_frame, height=1, bg=t["border"])
+        sep_user.pack(side=tk.BOTTOM, fill=tk.X, padx=14, pady=(0, 6))
 
-        user_top = tk.Frame(user_card, bg=t["bg_card"])
+        user_card = tk.Frame(self.sidebar_frame, bg=t["bg_sidebar"], padx=10, pady=8, cursor="hand2")
+        user_card.pack(side=tk.BOTTOM, fill=tk.X, padx=4, pady=(0, 8))
+
+        user_top = tk.Frame(user_card, bg=t["bg_sidebar"], cursor="hand2")
         user_top.pack(fill=tk.X)
 
-        tk.Label(user_top, text="👤 Оператор SMD", font=("Segoe UI", 9, "bold"), bg=t["bg_card"], fg=t["text_primary"]).pack(side=tk.LEFT)
-        tk.Label(user_top, text="🟢 Готов", font=("Segoe UI", 8), bg=t["bg_card"], fg=t["success_fg"]).pack(side=tk.RIGHT)
+        self.user_title = tk.Label(user_top, font=("Segoe UI", 9, "bold"), bg=t["bg_sidebar"], fg=t["text_primary"], cursor="hand2")
+        self.user_title.pack(side=tk.LEFT)
 
-        tk.Label(user_card, text="PnP Manager v1.2 SaaS", font=("Segoe UI", 8), bg=t["bg_card"], fg=t["text_muted"]).pack(anchor="w", pady=(2, 0))
+        self.user_status = tk.Label(user_top, font=("Segoe UI", 8), bg=t["bg_sidebar"], fg=t["success_fg"], cursor="hand2")
+        self.user_status.pack(side=tk.RIGHT)
+
+        self.user_sub = tk.Label(user_card, text="Роль: Оператор • Нажмите для смены", font=("Segoe UI", 8), bg=t["bg_sidebar"], fg=t["text_muted"], cursor="hand2")
+        self.user_sub.pack(anchor="w", pady=(2, 0))
+
+        # Привязка клика и ховера ко всем дочерним элементам плашки
+        self.user_card_widget = user_card
+        for w in (user_card, user_top, self.user_title, self.user_status, self.user_sub):
+            w.bind("<Button-1>", lambda e: self.show_account_dialog())
+            w.bind("<Enter>", lambda e: self._on_user_card_hover(True))
+            w.bind("<Leave>", lambda e: self._on_user_card_hover(False))
+
+    def _on_user_card_hover(self, entering: bool):
+        t = THEMES["dark"]
+        bg = "#1e293b" if entering else t["bg_sidebar"]
+        if hasattr(self, 'user_card_widget'):
+            self.user_card_widget.configure(bg=bg)
+            for child in self.user_card_widget.winfo_children():
+                try:
+                    child.configure(bg=bg)
+                    for sub in child.winfo_children():
+                        sub.configure(bg=bg)
+                except Exception:
+                    pass
+
+    def _update_user_display(self):
+        """Обновляет отображение пользователя в левой нижней плашке сайдбара."""
+        user = self.account_manager.get_active_user()
+        disp_name = user.get("display_name", "Технолог")
+        role = user.get("role", "operator")
+        role_label = "Администратор" if role == "admin" else "Оператор"
+        avatar_icon = "admin" if role == "admin" else "user"
+        status_icon = "admin" if role == "admin" else "status_green"
+        status_text = "Admin" if role == "admin" else "Готов"
+
+        if getattr(self, 'is_sidebar_collapsed', False):
+            apply_label_icon(self.user_status, status_icon, "", size=20)
+            ToolTip(self.user_status, f"{disp_name} ({role_label})\nНажмите для смены аккаунта")
+        else:
+            apply_label_icon(self.user_title, avatar_icon, disp_name, size=18)
+            apply_label_icon(self.user_status, status_icon, status_text, size=12)
+            self.user_sub.configure(text=f"Роль: {role_label} • Сменить аккаунт")
+
+    def show_account_dialog(self):
+        """Модальное окно управления аккаунтами, смены пользователя и добавления новых учетных записей."""
+        dialog = create_styled_toplevel(self.root, "👤 Управление пользователями и смена аккаунта", "640x520", min_size=(560, 440))
+        dialog.transient(self.root)
+        dialog.grab_set()
+
+        t = THEMES["dark"]
+        main_frame = ttk.Frame(dialog, padding="15")
+        main_frame.pack(fill=tk.BOTH, expand=True)
+
+        active_u = self.account_manager.get_active_user()
+        active_disp = active_u.get("display_name", "Технолог")
+        active_role = "Администратор" if active_u.get("role") == "admin" else "Оператор"
+
+        # Плашка текущей сессии
+        curr_box = ttk.LabelFrame(main_frame, text="Текущая активная сессия", padding="12")
+        curr_box.pack(fill=tk.X, pady=(0, 10))
+
+        lbl_active = ttk.Label(
+            curr_box,
+            text=f"🟢 {active_disp}   [{active_role}]",
+            font=("Segoe UI", 11, "bold")
+        )
+        lbl_active.pack(side=tk.LEFT)
+
+        ttk.Label(
+            curr_box,
+            text=f"Логин: @{active_u.get('username', 'user')}",
+            foreground="gray",
+            font=("Segoe UI", 9)
+        ).pack(side=tk.RIGHT)
+
+        # Скроллируемый список пользователей
+        users_box = ttk.LabelFrame(main_frame, text="Доступные учетные записи", padding="10")
+        users_box.pack(fill=tk.BOTH, expand=True, pady=4)
+
+        canvas = tk.Canvas(users_box, bg=t["bg_card"], highlightthickness=0)
+        v_bar = ttk.Scrollbar(users_box, orient="vertical", command=canvas.yview)
+        cards_frame = tk.Frame(canvas, bg=t["bg_card"])
+
+        canvas.configure(yscrollcommand=v_bar.set)
+        canvas.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        v_bar.pack(side=tk.RIGHT, fill=tk.Y)
+
+        win_id = canvas.create_window((0, 0), window=cards_frame, anchor="nw")
+        cards_frame.bind("<Configure>", lambda e: canvas.configure(scrollregion=canvas.bbox("all")))
+        canvas.bind("<Configure>", lambda e: canvas.itemconfig(win_id, width=e.width))
+
+        def refresh_users_list():
+            for child in cards_frame.winfo_children():
+                child.destroy()
+
+            users = self.account_manager.get_all_users()
+            is_admin = self.account_manager.is_current_admin()
+
+            for u in users:
+                uname = u.get("username", "")
+                disp = u.get("display_name", uname)
+                role = u.get("role", "operator")
+                role_str = "Администратор" if role == "admin" else "Оператор"
+                has_pwd = bool(u.get("password_hash"))
+                is_curr = (uname == self.account_manager.active_username)
+
+                row = tk.Frame(cards_frame, bg="#1e2536" if is_curr else "#161b26", bd=1, relief="solid", padx=10, pady=8)
+                row.pack(fill=tk.X, pady=3, padx=2)
+
+                icon_txt = "🛡️" if role == "admin" else "👤"
+                tk.Label(row, text=icon_txt, font=("Segoe UI", 12), bg=row["bg"], fg="#60a5fa").pack(side=tk.LEFT, padx=(0, 8))
+
+                info_col = tk.Frame(row, bg=row["bg"])
+                info_col.pack(side=tk.LEFT, fill=tk.Y)
+                tk.Label(info_col, text=f"{disp} (@{uname})", font=("Segoe UI", 9, "bold"), bg=row["bg"], fg="#ffffff").pack(anchor="w")
+                pwd_hint = "🔒 Требуется пароль" if has_pwd else "🔓 Вход без пароля"
+                tk.Label(info_col, text=f"{role_str} • {pwd_hint}", font=("Segoe UI", 8), bg=row["bg"], fg="#94a3b8").pack(anchor="w")
+
+                btn_col = tk.Frame(row, bg=row["bg"])
+                btn_col.pack(side=tk.RIGHT)
+
+                if is_curr:
+                    tk.Label(btn_col, text="[Активен]", font=("Segoe UI", 9, "bold"), fg="#10b981", bg=row["bg"]).pack(side=tk.LEFT, padx=6)
+                else:
+                    btn_login = ttk.Button(btn_col, text="Войти ➔", command=lambda un=uname: on_user_select(un))
+                    btn_login.pack(side=tk.LEFT, padx=4)
+
+                if is_admin and not is_curr and uname != "admin":
+                    btn_del = tk.Button(
+                        btn_col, text="🗑️", font=("Segoe UI", 8), bg="#3b1d22", fg="#f87171",
+                        relief="flat", cursor="hand2", padx=4,
+                        command=lambda un=uname, d=disp: on_delete_user(un, d)
+                    )
+                    btn_del.pack(side=tk.LEFT, padx=2)
+
+        def on_user_select(username: str):
+            user = self.account_manager.users.get(username)
+            if not user:
+                return
+
+            if not self.account_manager.requires_password(username):
+                self.account_manager.login(username)
+                self._update_user_display()
+                dialog.destroy()
+                messagebox.showinfo("Вход выполнен", f"Вы успешно вошли как: {user.get('display_name', username)}")
+                return
+
+            pwd_win = create_styled_toplevel(dialog, f"Вход: {user.get('display_name', username)}", "420x210", min_size=(380, 180))
+            pwd_win.transient(dialog)
+            pwd_win.grab_set()
+
+            pf = ttk.Frame(pwd_win, padding="15")
+            pf.pack(fill=tk.BOTH, expand=True)
+
+            ttk.Label(pf, text=f"Введите пароль для пользователя {user.get('display_name')}:", font=("Segoe UI", 9, "bold")).pack(anchor="w", pady=(0, 8))
+            pwd_entry = ttk.Entry(pf, show="*")
+            pwd_entry.pack(fill=tk.X, pady=(0, 12))
+            pwd_entry.focus()
+
+            def try_login():
+                p = pwd_entry.get()
+                ok, msg = self.account_manager.login(username, p)
+                if ok:
+                    self._update_user_display()
+                    pwd_win.destroy()
+                    dialog.destroy()
+                    messagebox.showinfo("Вход выполнен", f"Вы вошли под учетной записью:\n{user.get('display_name')}")
+                else:
+                    messagebox.showerror("Ошибка входа", msg, parent=pwd_win)
+
+            pwd_entry.bind("<Return>", lambda e: try_login())
+
+            btn_box = ttk.Frame(pf)
+            btn_box.pack(fill=tk.X)
+            ttk.Button(btn_box, text="Войти", style="Accent.TButton", command=try_login).pack(side=tk.LEFT, padx=4)
+            ttk.Button(btn_box, text="Отмена", command=pwd_win.destroy).pack(side=tk.LEFT, padx=4)
+            style_widget_tree(pwd_win, "dark")
+
+        def on_delete_user(username: str, disp_name: str):
+            if messagebox.askyesno("Удаление пользователя", f"Удалить аккаунт '{disp_name}' (@{username})?\nЭто действие необратимо.", parent=dialog):
+                ok, msg = self.account_manager.delete_user(username)
+                if ok:
+                    refresh_users_list()
+                    messagebox.showinfo("Успех", msg, parent=dialog)
+                else:
+                    messagebox.showerror("Ошибка", msg, parent=dialog)
+
+        refresh_users_list()
+
+        # Нижняя панель действий
+        bottom_frame = ttk.Frame(main_frame)
+        bottom_frame.pack(fill=tk.X, pady=(10, 0))
+
+        if self.account_manager.is_current_admin():
+            ttk.Button(
+                bottom_frame,
+                text="➕ Создать новый аккаунт",
+                style="Accent.TButton",
+                command=lambda: self._open_create_user_modal(dialog, refresh_users_list)
+            ).pack(side=tk.LEFT)
+        else:
+            ttk.Label(
+                bottom_frame,
+                text="💡 Добавление аккаунтов доступно только Администратору",
+                foreground="#94a3b8",
+                font=("Segoe UI", 8)
+            ).pack(side=tk.LEFT)
+
+        ttk.Button(bottom_frame, text="Закрыть", command=dialog.destroy).pack(side=tk.RIGHT)
+        style_widget_tree(dialog, "dark")
+
+    def _open_create_user_modal(self, parent_dialog, on_created_callback):
+        modal = create_styled_toplevel(parent_dialog, "➕ Создание нового пользователя", "480x360", min_size=(440, 320))
+        modal.transient(parent_dialog)
+        modal.grab_set()
+
+        f = ttk.Frame(modal, padding="20")
+        f.pack(fill=tk.BOTH, expand=True)
+        f.columnconfigure(1, weight=1)
+
+        ttk.Label(f, text="Логин (тех. имя):").grid(row=0, column=0, sticky="w", pady=6)
+        u_entry = ttk.Entry(f)
+        u_entry.grid(row=0, column=1, sticky="ew", pady=6)
+        u_entry.focus()
+
+        ttk.Label(f, text="Имя пользователя (ФИО):").grid(row=1, column=0, sticky="w", pady=6)
+        d_entry = ttk.Entry(f)
+        d_entry.grid(row=1, column=1, sticky="ew", pady=6)
+
+        ttk.Label(f, text="Роль пользователя:").grid(row=2, column=0, sticky="w", pady=6)
+        role_cb = ttk.Combobox(f, values=["Оператор", "Администратор"], state="readonly")
+        role_cb.set("Оператор")
+        role_cb.grid(row=2, column=1, sticky="ew", pady=6)
+
+        ttk.Label(f, text="Пароль (пусто = без пароля):").grid(row=3, column=0, sticky="w", pady=6)
+        p1_entry = ttk.Entry(f, show="*")
+        p1_entry.grid(row=3, column=1, sticky="ew", pady=6)
+
+        ttk.Label(f, text="Повтор пароля:").grid(row=4, column=0, sticky="w", pady=6)
+        p2_entry = ttk.Entry(f, show="*")
+        p2_entry.grid(row=4, column=1, sticky="ew", pady=6)
+
+        def save_user():
+            un = u_entry.get().strip().lower()
+            dn = d_entry.get().strip()
+            role_val = "admin" if role_cb.get() == "Администратор" else "operator"
+            p1 = p1_entry.get()
+            p2 = p2_entry.get()
+
+            if not un:
+                messagebox.showerror("Ошибка", "Введите логин.", parent=modal)
+                return
+            if not dn:
+                messagebox.showerror("Ошибка", "Введите имя пользователя.", parent=modal)
+                return
+            if p1 != p2:
+                messagebox.showerror("Ошибка", "Введенные пароли не совпадают.", parent=modal)
+                return
+
+            ok, msg = self.account_manager.create_user(un, dn, password=p1, role=role_val)
+            if ok:
+                messagebox.showinfo("Успех", msg, parent=modal)
+                modal.destroy()
+                if on_created_callback:
+                    on_created_callback()
+            else:
+                messagebox.showerror("Ошибка", msg, parent=modal)
+
+        btn_row = ttk.Frame(f)
+        btn_row.grid(row=5, column=0, columnspan=2, pady=(16, 0))
+        ttk.Button(btn_row, text="Создать аккаунт", style="Accent.TButton", command=save_user).pack(side=tk.LEFT, padx=4)
+        ttk.Button(btn_row, text="Отмена", command=modal.destroy).pack(side=tk.LEFT, padx=4)
+
+        style_widget_tree(modal, "dark")
+
+    def toggle_sidebar(self):
+        """Сворачивает сайдбар до компактных иконок или разворачивает обратно."""
+        self.is_sidebar_collapsed = not getattr(self, 'is_sidebar_collapsed', False)
+
+        if self.is_sidebar_collapsed:
+            # 1. Сжатие сайдбара до 64px
+            self.sidebar_frame.configure(width=64)
+
+            # Переставляем кнопку раскрытия на самый верх по центру — она видна ВСЕГДА!
+            self.brand_left.pack_forget()
+            self.btn_collapse.pack_forget()
+            self.btn_collapse.configure(text="▶", font=("Segoe UI", 10, "bold"), padx=12, pady=5)
+            self.btn_collapse.pack(side=tk.TOP, pady=(4, 6))
+            ToolTip(self.btn_collapse, "Развернуть боковое меню (240px)")
+
+            # Скрываем заголовки групп
+            self.group_label.pack_forget()
+            self.group_label2.pack_forget()
+
+            # Нижняя плашка пользователя: показываем только статус-индикатор
+            self.user_title.pack_forget()
+            self.user_sub.pack_forget()
+            self.user_status.pack_forget()
+            role = self.account_manager.get_active_user().get("role", "operator")
+            self.user_status.configure(text="🛡️" if role == "admin" else "🟢")
+            self.user_status.pack(side=tk.TOP, pady=2)
+            ToolTip(self.user_status, f"{self.account_manager.get_active_display_name()}: Сменить пользователя")
+
+            # Переводим навигационные элементы в чистый режим одиночных цветных иконок
+            for item in self.nav_widgets.values():
+                if item.get("is_subitem") and "line_box" in item:
+                    item["line_box"].pack_forget()
+                if "indicator" in item:
+                    item["indicator"].pack_forget()
+                icon_img = item.get("icon_img")
+                if icon_img:
+                    item["label"].configure(
+                        image=icon_img,
+                        compound=tk.CENTER,
+                        text="",
+                        anchor="center",
+                        padx=0
+                    )
+                else:
+                    item["label"].configure(
+                        text=item.get("icon_key", "")[:1],
+                        anchor="center",
+                        padx=0,
+                        font=("Segoe UI", 12)
+                    )
+        else:
+            # 2. Разворачивание сайдбара до 240px
+            self.sidebar_frame.configure(width=240)
+
+            # Восстанавливаем шапку бренда и кнопку сворачивания справа
+            self.btn_collapse.pack_forget()
+            self.brand_left.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+            self.btn_collapse.configure(text="◀", font=("Segoe UI", 8, "bold"), padx=6, pady=3)
+            self.btn_collapse.pack(side=tk.RIGHT)
+            ToolTip(self.btn_collapse, "Свернуть боковое меню в компактный режим (иконки)")
+
+            # Восстанавливаем заголовки групп
+            self.group_label.pack(fill=tk.X, pady=(6, 2), before=self.tree_container)
+            self.group_label2.pack(fill=tk.X, pady=(10, 2), before=self.nav_widgets["compare_pnp"]["frame"])
+
+            # Восстанавливаем нижнюю плашку пользователя
+            self.user_status.pack_forget()
+            self.user_title.pack(side=tk.LEFT)
+            self.user_status.pack(side=tk.RIGHT)
+            self.user_sub.pack(anchor="w", pady=(2, 0))
+            self._update_user_display()
+
+            # Восстанавливаем навигационные элементы с цветной иконкой и полным текстом
+            for item in self.nav_widgets.values():
+                if "indicator" in item:
+                    item["indicator"].pack(side=tk.LEFT, fill=tk.Y)
+                if item.get("is_subitem") and "line_box" in item:
+                    item["line_box"].pack(side=tk.LEFT, fill=tk.Y)
+                icon_img = item.get("icon_img")
+                pad = 4 if item.get("is_subitem") else 10
+                if icon_img:
+                    item["label"].configure(
+                        image=icon_img,
+                        compound=tk.LEFT,
+                        text=f"  {item['full_text']}",
+                        anchor="w",
+                        padx=pad,
+                        font=("Segoe UI", 9)
+                    )
+                else:
+                    item["label"].configure(
+                        text=item["full_text"],
+                        anchor="w",
+                        padx=pad,
+                        font=("Segoe UI", 9)
+                    )
+
+        # Синхронно освежаем подсветку активного пункта
+        self._set_nav_item_visual(self.active_page_id, "active")
 
     def _set_nav_item_visual(self, item_id: str, state: str):
         """
@@ -281,27 +714,31 @@ class SMDHubApp:
             fg_col = "#ffffff"
             dot_col = "#38bdf8"
             ind_col = "#38bdf8"
-            fnt = ("Segoe UI", 9, "bold")
+            fnt_name = ("Segoe UI", 9, "bold")
         elif state == "hover":
-            bg_col = "#141f38"
+            bg_col = "#18243b"
             fg_col = "#f8fafc"
             dot_col = "#38bdf8"
-            ind_col = "#141f38"
-            fnt = ("Segoe UI", 9)
+            ind_col = "#18243b"
+            fnt_name = ("Segoe UI", 9)
         else: # normal
-            bg_col = t["bg_sidebar"]           # #090d1a
-            fg_col = t["text_secondary"]       # #94a3b8
-            dot_col = t["text_muted"]          # #64748b
-            ind_col = t["bg_sidebar"]          # #090d1a
-            fnt = ("Segoe UI", 9)
+            bg_col = t["bg_sidebar"]
+            fg_col = t["text_secondary"]
+            dot_col = t["text_muted"]
+            ind_col = t["bg_sidebar"]
+            fnt_name = ("Segoe UI", 9)
+
+        is_collapsed = getattr(self, 'is_sidebar_collapsed', False)
+        fnt = ("Segoe UI", 12) if is_collapsed else fnt_name
+        anchor_mode = "center" if is_collapsed else "w"
 
         item["frame"].configure(bg=bg_col)
-        item["label"].configure(bg=bg_col, fg=fg_col, font=fnt)
-        if "indicator" in item:
+        item["label"].configure(bg=bg_col, fg=fg_col, font=fnt, anchor=anchor_mode)
+        if "indicator" in item and not is_collapsed:
             item["indicator"].configure(bg=ind_col)
-        if "line_box" in item:
+        if "line_box" in item and not is_collapsed:
             item["line_box"].configure(bg=bg_col)
-        if "dot" in item:
+        if "dot" in item and not is_collapsed:
             item["dot"].configure(bg=bg_col, fg=dot_col)
 
     def _on_nav_enter(self, item_id: str):
@@ -331,7 +768,7 @@ class SMDHubApp:
             else:
                 self._set_nav_item_visual(pid, "normal")
 
-    def _add_nav_item(self, item_id: str, text: str, command):
+    def _add_nav_item(self, item_id: str, text: str, icon_key: str, command, tip_text: str = ""):
         t = THEMES["dark"]
         btn_frame = tk.Frame(self.nav_items_frame, bg=t["bg_sidebar"], cursor="hand2")
         btn_frame.pack(fill=tk.X, pady=2)
@@ -342,7 +779,6 @@ class SMDHubApp:
 
         label = tk.Label(
             btn_frame,
-            text=text,
             font=("Segoe UI", 9),
             bg=t["bg_sidebar"],
             fg=t["text_secondary"],
@@ -350,14 +786,27 @@ class SMDHubApp:
             padx=10,
             pady=7
         )
+        icon_img = get_icon(icon_key, 18)
+        if icon_img:
+            label.configure(image=icon_img, compound=tk.LEFT, text=f"  {text}")
+            label.image = icon_img
+        else:
+            label.configure(text=text)
         label.pack(side=tk.LEFT, fill=tk.X, expand=True)
 
         self.nav_widgets[item_id] = {
             "frame": btn_frame,
             "label": label,
             "indicator": indicator,
+            "full_text": text,
+            "icon_key": icon_key,
+            "icon_img": icon_img,
             "is_subitem": False
         }
+
+        if tip_text:
+            ToolTip(btn_frame, tip_text)
+            ToolTip(label, tip_text)
 
         def on_click(e=None):
             command()
@@ -367,7 +816,7 @@ class SMDHubApp:
             w.bind("<Enter>", lambda e, i=item_id: self._on_nav_enter(i))
             w.bind("<Leave>", lambda e, i=item_id: self._on_nav_leave(i))
 
-    def _add_nav_subitem(self, container, item_id: str, text: str, command):
+    def _add_nav_subitem(self, container, item_id: str, text: str, icon_key: str, command, tip_text: str = ""):
         t = THEMES["dark"]
         btn_frame = tk.Frame(container, bg=t["bg_sidebar"], cursor="hand2")
         btn_frame.pack(fill=tk.X, pady=1)
@@ -381,7 +830,6 @@ class SMDHubApp:
 
         label = tk.Label(
             btn_frame,
-            text=text,
             font=("Segoe UI", 9),
             bg=t["bg_sidebar"],
             fg=t["text_secondary"],
@@ -389,6 +837,12 @@ class SMDHubApp:
             padx=4,
             pady=6
         )
+        icon_img = get_icon(icon_key, 18)
+        if icon_img:
+            label.configure(image=icon_img, compound=tk.LEFT, text=f"  {text}")
+            label.image = icon_img
+        else:
+            label.configure(text=text)
         label.pack(side=tk.LEFT, fill=tk.X, expand=True)
 
         self.nav_widgets[item_id] = {
@@ -396,8 +850,15 @@ class SMDHubApp:
             "label": label,
             "line_box": line_box,
             "dot": dot,
+            "full_text": text,
+            "icon_key": icon_key,
+            "icon_img": icon_img,
             "is_subitem": True
         }
+
+        if tip_text:
+            ToolTip(btn_frame, tip_text)
+            ToolTip(label, tip_text)
 
         def on_click(e=None):
             command()
@@ -426,13 +887,13 @@ class SMDHubApp:
             ("step1", "Шаг 1: BOM"),
             ("step2", "Шаг 2: P&P"),
             ("step3", "Шаг 3: Сверка"),
-            ("database", "База данных"),
             ("compare_pnp", "Сравнение P&P"),
-            ("compare_bom", "Сверка BOM")
+            ("compare_bom", "Сверка BOM"),
+            ("database", "База данных")
         ]
 
         for tab_id, tab_title in tabs:
-            tab_box = tk.Frame(self.header_tabs_frame, bg=t["bg_header"], cursor="hand2", padx=12)
+            tab_box = tk.Frame(self.header_tabs_frame, bg=t["bg_header"], cursor="hand2", padx=9)
             tab_box.pack(side=tk.LEFT, fill=tk.Y)
 
             tab_lbl = tk.Label(
@@ -465,115 +926,154 @@ class SMDHubApp:
         right_header = tk.Frame(self.header_frame, bg=t["bg_header"])
         right_header.pack(side=tk.RIGHT, fill=tk.Y)
 
-        db_count = len(self.db_manager.data) if self.db_manager else 0
-        self.badge_db = tk.Label(
+        # Бейдж сквозного конвейера
+        self.badge_pipeline = tk.Label(
             right_header,
-            text=f"🗄️ База: {db_count} записей",
+            text="📍 Конвейер: Шаг 1 (BOM)",
             font=("Segoe UI", 8, "bold"),
-            bg=t["bg_card"],
-            fg=t["text_header"],
-            padx=10,
+            bg="#0c4a6e",
+            fg="#38bdf8",
+            padx=8,
             pady=4,
             cursor="hand2"
         )
-        self.badge_db.pack(side=tk.LEFT, padx=6, pady=12)
+        self.badge_pipeline.pack(side=tk.LEFT, padx=3, pady=12)
+        self.badge_pipeline.bind("<Button-1>", lambda e: self._on_pipeline_badge_click())
+        ToolTip(self.badge_pipeline, "Текущий прогресс сквозного заказа (нажмите для перехода)")
+
+        db_count = len(self.db_manager.data) if self.db_manager else 0
+        self.badge_db = tk.Label(
+            right_header,
+            font=("Segoe UI", 8, "bold"),
+            bg=t["bg_card"],
+            fg=t["text_header"],
+            padx=8,
+            pady=4,
+            cursor="hand2"
+        )
+        apply_label_icon(self.badge_db, "database", f"База: {db_count} записей", size=14)
+        self.badge_db.pack(side=tk.LEFT, padx=3, pady=12)
         self.badge_db.bind("<Button-1>", lambda e: self.show_page("database"))
-        ToolTip(self.badge_db, "Открыть базу данных (database.txt)")
+        ToolTip(self.badge_db, "Открыть базу данных (database.db)")
 
         btn_faq = tk.Button(
             right_header,
-            text="📖 FAQ & Справка",
             font=("Segoe UI", 8),
             bg=t["btn_sec_bg"],
             fg=t["btn_sec_fg"],
             relief="flat",
             padx=8,
-            pady=3,
+            pady=4,
             cursor="hand2",
             command=lambda: show_faq_dialog(self.root, "dark")
         )
-        btn_faq.pack(side=tk.LEFT, padx=4, pady=12)
+        apply_button_icon(btn_faq, "book", "FAQ & Справка", size=14)
+        btn_faq.pack(side=tk.LEFT, padx=3, pady=12)
 
         btn_feedback = tk.Button(
             right_header,
-            text="✉️ Обратная связь",
             font=("Segoe UI", 8),
             bg=t["btn_sec_bg"],
             fg=t["btn_sec_fg"],
             relief="flat",
             padx=8,
-            pady=3,
+            pady=4,
             cursor="hand2",
             command=lambda: show_feedback_dialog(self.root, "dark")
         )
-        btn_feedback.pack(side=tk.LEFT, padx=4, pady=12)
+        apply_button_icon(btn_feedback, "mail", "Обратная связь", size=14)
+        btn_feedback.pack(side=tk.LEFT, padx=(3, 6), pady=12)
 
-    # =========================================================================
-    # Верхняя панель действий (Action Bar)
-    # =========================================================================
-    def _build_action_bar(self, parent):
+        # Тонкая разделительная линия под хедером
+        sep_h = tk.Frame(parent, height=1, bg=t["border"])
+        sep_h.pack(fill=tk.X, side=tk.TOP)
+
+    def _on_pipeline_badge_click(self):
+        """Быстрый переход к текущему активному этапу заказа по клику на бейдж."""
+        if getattr(self, 'merged_pnp_path', None):
+            self.show_page("step3")
+        elif getattr(self, 'unified_bom_path', None):
+            self.show_page("step2")
+        else:
+            self.show_page("step1")
+
+    def _update_dashboard_file_status(self):
+        """Обновляет индикаторы открытых файлов и бейджи конвейера в реальном времени."""
         t = THEMES["dark"]
-        self.action_bar = tk.Frame(parent, height=50, bg=t["bg_app"], padx=16, pady=8)
-        self.action_bar.pack(fill=tk.X)
+        has_merged = bool(getattr(self, 'merged_pnp_path', None))
+        has_bom = bool(getattr(self, 'unified_bom_path', None))
 
-        # Ярко-голубые кнопки-пилюли в стиле референса
-        self.btn_act_new = tk.Button(
-            self.action_bar,
-            text="➕ Загрузить BOM / Создать заказ ▼",
-            font=("Segoe UI", 9, "bold"),
-            bg=t["accent"],
-            fg=t["accent_text"],
-            activebackground=t["accent_hover"],
-            activeforeground=t["accent_text"],
-            relief="flat",
-            padx=14,
-            pady=6,
-            cursor="hand2",
-            command=lambda: self.show_page("step1")
-        )
-        self.btn_act_new.pack(side=tk.LEFT, padx=(0, 8))
+        # 1. Бейдж конвейера в шапке
+        if hasattr(self, 'badge_pipeline'):
+            if has_merged:
+                self.badge_pipeline.configure(
+                    text="🟢 Конвейер: Шаг 3 (Сверка)",
+                    bg="#064e3b",
+                    fg="#34d399"
+                )
+            elif has_bom:
+                self.badge_pipeline.configure(
+                    text="🔵 Конвейер: Шаг 2 (P&P)",
+                    bg="#1e3a8a",
+                    fg="#60a5fa"
+                )
+            else:
+                self.badge_pipeline.configure(
+                    text="📍 Конвейер: Шаг 1 (BOM)",
+                    bg="#0c4a6e",
+                    fg="#38bdf8"
+                )
 
-        self.btn_act_merge = tk.Button(
-            self.action_bar,
-            text="⚙️ Сшить P&P координаты",
-            font=("Segoe UI", 9),
-            bg=t["btn_sec_bg"],
-            fg=t["btn_sec_fg"],
-            activebackground=t["btn_sec_hover"],
-            activeforeground=t["text_primary"],
-            relief="flat",
-            padx=12,
-            pady=6,
-            cursor="hand2",
-            command=lambda: self.show_page("step2")
-        )
-        self.btn_act_merge.pack(side=tk.LEFT, padx=4)
+        # 2. Индикаторы файлов в карточках на Dashboard
+        if hasattr(self, 'lbl_dash_step1_file'):
+            if has_bom:
+                fname = os.path.basename(self.unified_bom_path)
+                self.lbl_dash_step1_file.configure(
+                    text=f"📄 Загружен: {fname}",
+                    fg=t["success_fg"],
+                    bg="#064e3b"
+                )
+            else:
+                self.lbl_dash_step1_file.configure(
+                    text="📄 Файл еще не выбран",
+                    fg=t["text_muted"],
+                    bg=t["bg_card_inner"]
+                )
 
-        self.btn_act_check = tk.Button(
-            self.action_bar,
-            text="🔍 Проверить и сформировать отчет",
-            font=("Segoe UI", 9),
-            bg=t["btn_sec_bg"],
-            fg=t["btn_sec_fg"],
-            activebackground=t["btn_sec_hover"],
-            activeforeground=t["text_primary"],
-            relief="flat",
-            padx=12,
-            pady=6,
-            cursor="hand2",
-            command=lambda: self.show_page("step3")
-        )
-        self.btn_act_check.pack(side=tk.LEFT, padx=4)
+        if hasattr(self, 'lbl_dash_step2_file'):
+            if has_merged:
+                fname = os.path.basename(self.merged_pnp_path)
+                self.lbl_dash_step2_file.configure(
+                    text=f"📍 Сшит: {fname}",
+                    fg=t["success_fg"],
+                    bg="#064e3b"
+                )
+            elif has_bom:
+                self.lbl_dash_step2_file.configure(
+                    text="📍 BOM готов ➔ выберите P&P",
+                    fg=t["text_header"],
+                    bg="#0c4a6e"
+                )
+            else:
+                self.lbl_dash_step2_file.configure(
+                    text="📍 Ожидает исходные файлы",
+                    fg=t["text_muted"],
+                    bg=t["bg_card_inner"]
+                )
 
-        # Правый статус текущего процесса
-        self.lbl_pipeline_status = tk.Label(
-            self.action_bar,
-            text="📍 Процесс: Шаг 1 (Унификация) ➔ Шаг 2 (Объединение) ➔ Шаг 3 (Сверка)",
-            font=("Segoe UI", 8),
-            bg=t["bg_app"],
-            fg=t["text_muted"]
-        )
-        self.lbl_pipeline_status.pack(side=tk.RIGHT, padx=4)
+        if hasattr(self, 'lbl_dash_step3_file'):
+            if has_merged:
+                self.lbl_dash_step3_file.configure(
+                    text="🛡️ Данные готовы к аудиту",
+                    fg=t["success_fg"],
+                    bg="#064e3b"
+                )
+            else:
+                self.lbl_dash_step3_file.configure(
+                    text="🛡️ Ожидает данные из Шага 2",
+                    fg=t["text_muted"],
+                    bg=t["bg_card_inner"]
+                )
 
     # =========================================================================
     # Переключение экранов (Show Page)
@@ -591,28 +1091,8 @@ class SMDHubApp:
             self.pages[page_id].pack(fill=tk.BOTH, expand=True)
 
         # Обновляем визуальный статус сайдбара
-        for pid, item in self.nav_widgets.items():
-            is_active = (pid == page_id)
-            if item.get("is_subitem"):
-                item["frame"].configure(bg=t["nav_active_bg"] if is_active else t["bg_sidebar"])
-                item["label"].configure(
-                    bg=t["nav_active_bg"] if is_active else t["bg_sidebar"],
-                    fg=t["text_primary"] if is_active else t["text_secondary"],
-                    font=("Segoe UI", 9, "bold" if is_active else "normal")
-                )
-                item["dot"].configure(
-                    bg=t["nav_active_bg"] if is_active else t["bg_sidebar"],
-                    fg=t["accent"] if is_active else t["text_muted"]
-                )
-            else:
-                item["frame"].configure(bg=t["nav_active_bg"] if is_active else t["bg_sidebar"])
-                item["label"].configure(
-                    bg=t["nav_active_bg"] if is_active else t["bg_sidebar"],
-                    fg=t["text_primary"] if is_active else t["text_secondary"],
-                    font=("Segoe UI", 9, "bold" if is_active else "normal")
-                )
-                if "indicator" in item:
-                    item["indicator"].configure(bg=t["nav_active_border"] if is_active else t["bg_sidebar"])
+        for pid in self.nav_widgets:
+            self._set_nav_item_visual(pid, "active" if pid == page_id else "normal")
 
         # Обновляем горизонтальные вкладки в хедере
         for tid, tab in self.header_tabs.items():
@@ -624,9 +1104,12 @@ class SMDHubApp:
                 bg=t["nav_active_border"] if is_active else t["bg_header"]
             )
 
-        # Обновляем бейдж базы
+        # Обновляем бейдж базы и индикаторы конвейера
         if hasattr(self, 'badge_db') and self.db_manager:
-            self.badge_db.configure(text=f"🗄️ База: {len(self.db_manager.data)} записей")
+            apply_label_icon(self.badge_db, "database", f"База: {len(self.db_manager.data)} записей", size=14)
+        if page_id == "database" and hasattr(self, 'database_tab') and hasattr(self.database_tab, 'refresh_tree'):
+            self.database_tab.refresh_tree()
+        self._update_dashboard_file_status()
 
     # =========================================================================
     # Страница 0: Dashboard (Обзор состояния заказа)
@@ -636,90 +1119,318 @@ class SMDHubApp:
         page = tk.Frame(parent, bg=t["bg_app"])
         self.pages["dashboard"] = page
 
-        # Метрические карточки в один ряд (как в современных SaaS-дашбордах)
-        metrics_frame = tk.Frame(page, bg=t["bg_app"])
-        metrics_frame.pack(fill=tk.X, pady=(0, 14))
+        # Холст с плавной прокруткой для идеальной адаптивности на любых мониторах
+        canvas = tk.Canvas(page, bg=t["bg_app"], highlightthickness=0)
+        v_scroll = ttk.Scrollbar(page, orient=tk.VERTICAL, command=canvas.yview)
+        scroll_content = tk.Frame(canvas, bg=t["bg_app"])
 
-        db_count = len(self.db_manager.data) if self.db_manager else 0
+        scroll_content.bind(
+            "<Configure>",
+            lambda e: canvas.configure(scrollregion=canvas.bbox("all"))
+        )
+        canvas_window = canvas.create_window((0, 0), window=scroll_content, anchor="nw")
 
-        cards_data = [
-            ("🗄️ База данных", f"{db_count}", "Записей в database.txt", lambda: self.show_page("database")),
-            ("🗂️ Исходный BOM", "Не загружен" if not self.unified_bom_path else os.path.basename(self.unified_bom_path), "Файл спецификации компонентов", lambda: self.show_page("step1")),
-            ("📍 Монтажный P&P", "Не загружен" if not self.merged_pnp_path else os.path.basename(self.merged_pnp_path), "Координаты расстановщика", lambda: self.show_page("step2")),
-            ("🔍 Статус проверки", "Готов к работе", "Финальный выходной контроль", lambda: self.show_page("step3"))
-        ]
+        def _on_canvas_configure(event):
+            canvas.itemconfig(canvas_window, width=event.width)
 
-        for title, value, subtitle, cmd in cards_data:
-            card = tk.Frame(metrics_frame, bg=t["bg_card"], padx=16, pady=14, cursor="hand2",
-                            highlightbackground=t["border"], highlightthickness=1)
-            card.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=5)
+        canvas.bind("<Configure>", _on_canvas_configure)
+        canvas.configure(yscrollcommand=v_scroll.set)
 
-            tk.Label(card, text=title, font=("Segoe UI", 9, "bold"), bg=t["bg_card"], fg=t["text_header"]).pack(anchor="w")
-            lbl_val = tk.Label(card, text=value, font=("Segoe UI", 13, "bold"), bg=t["bg_card"], fg=t["text_primary"])
-            lbl_val.pack(anchor="w", pady=(4, 2))
-            tk.Label(card, text=subtitle, font=("Segoe UI", 8), bg=t["bg_card"], fg=t["text_muted"]).pack(anchor="w")
+        def _on_mousewheel(event):
+            if canvas.winfo_exists():
+                canvas.yview_scroll(int(-1 * (event.delta / 120)), "units")
+        canvas.bind_all("<MouseWheel>", _on_mousewheel)
 
-            card.bind("<Button-1>", lambda e, c=cmd: c())
-            lbl_val.bind("<Button-1>", lambda e, c=cmd: c())
+        canvas.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        v_scroll.pack(side=tk.RIGHT, fill=tk.Y)
 
-        # Главная карточка: Пошаговый пайплайн заказа
-        pipeline_card = tk.Frame(page, bg=t["bg_card"], padx=20, pady=18, highlightbackground=t["border"], highlightthickness=1)
-        pipeline_card.pack(fill=tk.BOTH, expand=True)
+        # ---------------------------------------------------------------------
+        # 1. Заголовочный баннер (Hero Header)
+        # ---------------------------------------------------------------------
+        hero = tk.Frame(scroll_content, bg=t["bg_card"], padx=20, pady=12, highlightbackground=t["border"], highlightthickness=1)
+        hero.pack(fill=tk.X, pady=(0, 10))
+
+        hero_top = tk.Frame(hero, bg=t["bg_card"])
+        hero_top.pack(fill=tk.X)
 
         tk.Label(
-            pipeline_card,
-            text="🚀 Сквозной производственный цикл подготовки монтажа",
-            font=("Segoe UI", 12, "bold"),
+            hero_top,
+            text="ПРОИЗВОДСТВЕННЫЙ ТЕХНОЛОГИЧЕСКИЙ КОМПЛЕКС",
+            font=("Segoe UI", 8, "bold"),
+            bg="#0c4a6e",
+            fg="#38bdf8",
+            padx=10,
+            pady=2
+        ).pack(side=tk.LEFT)
+
+        self.hero_title = tk.Label(
+            hero,
+            font=("Segoe UI", 15, "bold"),
             bg=t["bg_card"],
             fg=t["text_primary"]
-        ).pack(anchor="w", pady=(0, 4))
+        )
+        apply_label_icon(self.hero_title, "rocket", "Сквозной производственный цикл подготовки SMD-монтажа", size=26)
+        self.hero_title.pack(anchor="w", pady=(8, 3))
 
         tk.Label(
-            pipeline_card,
-            text="Выполняйте этапы последовательно. Результат каждого шага автоматически передается на следующий этап без необходимости повторного выбора файлов.",
+            hero,
+            text="Автоматизированный конвейер подготовки данных: от нормализации спецификаций компонентов и сшивания\nкоординат расстановщика до комплексного аудита перед запуском на монтажную линию.",
             font=("Segoe UI", 9),
             bg=t["bg_card"],
-            fg=t["text_secondary"]
-        ).pack(anchor="w", pady=(0, 16))
+            fg=t["text_secondary"],
+            justify=tk.LEFT,
+            anchor="w"
+        ).pack(anchor="w")
 
-        # 3 большие карточки шагов
-        steps_box = tk.Frame(pipeline_card, bg=t["bg_card"])
-        steps_box.pack(fill=tk.BOTH, expand=True)
+        # ---------------------------------------------------------------------
+        # 2. Основные этапы конвейера (Шаги 1, 2, 3)
+        # ---------------------------------------------------------------------
+        steps_container = tk.Frame(scroll_content, bg=t["bg_app"])
+        steps_container.pack(fill=tk.X, pady=(0, 10))
 
-        step_cards_info = [
-            ("Шаг 1: 🗂️ Унификация BOM",
-             "Нормализация заводских кодов (Samsung, Murata, Yageo, TDK, Р1-12...) и русскоязычных описаний. Приведение к единому складскому стандарту.",
-             "Начать унификацию BOM ➔", "step1"),
-            ("Шаг 2: ⚙️ Объединение P&P + BOM",
-             "Сшивание монтажных координат (X, Y, Rotation, Side) с унифицированными наименованиями. Автоподбор колонок и конвертация mil/мм.",
-             "Перейти к объединению P&P ➔", "step2"),
-            ("Шаг 3: 🔍 Финальная сверка",
-             "Контроль DNP позиций, выявление пропущенных или лишних элементов, сводная статистика по слоям TOP/BOTTOM и экспорт для автомата.",
-             "Перейти к сверке ➔", "step3")
+        pipeline_steps = [
+            {
+                "step_num": "ШАГ 1",
+                "step_tag": "BOM • СПЕЦИФИКАЦИЯ",
+                "badge_bg": "#0c4a6e",
+                "badge_fg": "#38bdf8",
+                "icon": "step1",
+                "title": "Унификация спецификации (BOM)",
+                "purpose": "Интеллектуальное приведение перечней элементов и спецификаций из любых CAD-систем (Altium, KiCad, PCAD) к единому стандарту предприятия.",
+                "features": [
+                    "Автоматическое распознавание партномеров 15+ брендов (Vishay, Murata, Yageo, Samsung, Kemet, TDK, Panasonic, KOA, Bourns, Р1-12/16 и др.).",
+                    "Стандартизация: R_<Размер>_<Номинал>_<Допуск> и C_<Размер>_<Диэлектрик>_<Емкость>_<Напряжение>.",
+                    "Обязательное отображение допуска у всех резисторов, включая перемычки 0R (R_0603_0R_0%, R_0402_0R_5%).",
+                    "Поддержка корпоративного справочника замен database.txt и встроенный интерактивный редактор исключений."
+                ],
+                "pipeline_note": "⚡ Результат унификации автоматически подставляется в Шаг 2 без необходимости повторного выбора файлов.",
+                "btn_text": "Запустить унификацию BOM ➔",
+                "target": "step1"
+            },
+            {
+                "step_num": "ШАГ 2",
+                "step_tag": "P&P • КООРДИНАТЫ",
+                "badge_bg": "#1e3a8a",
+                "badge_fg": "#60a5fa",
+                "icon": "step2",
+                "title": "Объединение P&P и BOM",
+                "purpose": "Сшивание файлов монтажных координат расстановщика (Centroid / Pick & Place) с унифицированной спецификацией BOM по позиционным обозначениям.",
+                "features": [
+                    "Автоматический подбор колонок: Designator (RefDes), Center-X, Center-Y, Rotation, Side/Layer, Footprint.",
+                    "Прямая сквозная интеграция с нормализованным BOM из Шага 1 в один клик.",
+                    "Автоматическая конвертация координат из дюймов и mils в метрическую систему (мм).",
+                    "Разделение слоев платы (TOP / BOTTOM), проверка полярности и поддержка составных корпусов."
+                ],
+                "pipeline_note": "⚡ Сшитый монтажный файл мгновенно передается в модуль финального аудита Шага 3.",
+                "btn_text": "Перейти к объединению P&P ➔",
+                "target": "step2"
+            },
+            {
+                "step_num": "ШАГ 3",
+                "step_tag": "QA • АУДИТ И КОНТРОЛЬ",
+                "badge_bg": "#064e3b",
+                "badge_fg": "#34d399",
+                "icon": "step3",
+                "title": "Финальная сверка и контроль",
+                "purpose": "Комплексная трёхсторонняя верификация технологических данных перед непосредственной загрузкой программы в автомат SMD-монтажа.",
+                "features": [
+                    "Автоматическая фильтрация позиций DNP (Do Not Place / Не устанавливать) для предотвращения ошибочной пайки.",
+                    "Выявление критических расхождений: элементы есть в BOM, но отсутствуют в P&P (или наоборот).",
+                    "Контроль дубликатов координат, некорректных углов поворота и пропущенных компонентов схемы.",
+                    "Формирование сводного аудиторского протокола и экспорт очищенных файлов для автомата."
+                ],
+                "pipeline_note": "🛡️ Гарантия защиты от брака, остановок сборочной линии и повреждения компонентов.",
+                "btn_text": "Перейти к финальной сверке ➔",
+                "target": "step3"
+            }
         ]
 
-        for st_title, st_desc, st_btn, st_target in step_cards_info:
-            c = tk.Frame(steps_box, bg=t["bg_card_inner"], padx=16, pady=16, highlightbackground=t["border"], highlightthickness=1)
-            c.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=6)
+        for s in pipeline_steps:
+            card = tk.Frame(steps_container, bg=t["bg_card"], padx=16, pady=12, highlightbackground=t["border"], highlightthickness=1)
+            card.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=6)
 
-            tk.Label(c, text=st_title, font=("Segoe UI", 11, "bold"), bg=t["bg_card_inner"], fg=t["text_header"]).pack(anchor="w")
-            tk.Label(c, text=st_desc, font=("Segoe UI", 9), bg=t["bg_card_inner"], fg=t["text_secondary"], wraplength=260, justify=tk.LEFT).pack(anchor="w", pady=(8, 14), fill=tk.BOTH, expand=True)
+            # Верхняя строка бейджей
+            badge_row = tk.Frame(card, bg=t["bg_card"])
+            badge_row.pack(fill=tk.X, pady=(0, 6))
 
+            tk.Label(
+                badge_row,
+                text=s["step_num"],
+                font=("Segoe UI", 8, "bold"),
+                bg=s["badge_bg"],
+                fg=s["badge_fg"],
+                padx=8,
+                pady=2
+            ).pack(side=tk.LEFT)
+
+            tk.Label(
+                badge_row,
+                text=s["step_tag"],
+                font=("Segoe UI", 7, "bold"),
+                bg=t["bg_card_inner"],
+                fg=t["text_muted"],
+                padx=8,
+                pady=2
+            ).pack(side=tk.RIGHT)
+
+            # Заголовок карточки
+            title_lbl = tk.Label(
+                card,
+                font=("Segoe UI", 12, "bold"),
+                bg=t["bg_card"],
+                fg=t["text_header"]
+            )
+            apply_label_icon(title_lbl, s.get("icon", "step1"), s.get("title", "Этап"), size=22)
+            title_lbl.pack(anchor="w", pady=(2, 4))
+
+            # Назначение
+            tk.Label(
+                card,
+                text=s["purpose"],
+                font=("Segoe UI", 9),
+                bg=t["bg_card"],
+                fg=t["text_secondary"],
+                wraplength=340,
+                justify=tk.LEFT
+            ).pack(anchor="w", pady=(0, 6))
+
+            # Разделитель
+            tk.Frame(card, height=1, bg=t["border"]).pack(fill=tk.X, pady=(2, 6))
+
+            # Список возможностей
+            tk.Label(
+                card,
+                text="КЛЮЧЕВЫЕ ВОЗМОЖНОСТИ:",
+                font=("Segoe UI", 7, "bold"),
+                bg=t["bg_card"],
+                fg=t["text_muted"]
+            ).pack(anchor="w", pady=(0, 3))
+
+            for feat in s["features"]:
+                f_row = tk.Frame(card, bg=t["bg_card"])
+                f_row.pack(fill=tk.X, pady=1)
+                tk.Label(f_row, text="•", font=("Segoe UI", 9, "bold"), bg=t["bg_card"], fg=t["accent"]).pack(side=tk.LEFT, anchor="n", padx=(0, 4))
+                tk.Label(f_row, text=feat, font=("Segoe UI", 8), bg=t["bg_card"], fg=t["text_secondary"], wraplength=320, justify=tk.LEFT).pack(side=tk.LEFT, anchor="w")
+
+            # Блок автоматизации
+            note_box = tk.Frame(card, bg=t["bg_card_inner"], padx=10, pady=6, highlightbackground=t["border"], highlightthickness=1)
+            note_box.pack(fill=tk.X, pady=(8, 10))
+            tk.Label(note_box, text=s["pipeline_note"], font=("Segoe UI", 8), bg=t["bg_card_inner"], fg=t["text_primary"], wraplength=320, justify=tk.LEFT).pack(anchor="w")
+
+            # Кнопка действия (скругленная современная пилюля)
             btn = tk.Button(
-                c,
-                text=st_btn,
+                card,
+                text=s["btn_text"],
                 font=("Segoe UI", 9, "bold"),
                 bg=t["accent"],
                 fg=t["accent_text"],
                 activebackground=t["accent_hover"],
                 activeforeground=t["accent_text"],
                 relief="flat",
-                padx=12,
-                pady=6,
+                padx=16,
+                pady=8,
                 cursor="hand2",
-                command=lambda target=st_target: self.show_page(target)
+                command=lambda target=s["target"]: self.show_page(target)
             )
-            btn.pack(side=tk.BOTTOM, fill=tk.X)
+            btn.pack(side=tk.BOTTOM, fill=tk.X, pady=(0, 2))
+
+            # Индикатор открытого файла / статуса этапа
+            lbl_file = tk.Label(
+                card,
+                text="📄 Файл еще не выбран",
+                font=("Segoe UI", 8, "bold"),
+                bg=t["bg_card_inner"],
+                fg=t["text_muted"],
+                padx=10,
+                pady=4,
+                anchor="w"
+            )
+            lbl_file.pack(side=tk.BOTTOM, fill=tk.X, pady=(0, 6))
+
+            if s["target"] == "step1":
+                self.lbl_dash_step1_file = lbl_file
+            elif s["target"] == "step2":
+                self.lbl_dash_step2_file = lbl_file
+            elif s["target"] == "step3":
+                self.lbl_dash_step3_file = lbl_file
+
+        # ---------------------------------------------------------------------
+        # 3. Дополнительные сервисные инструменты
+        # ---------------------------------------------------------------------
+        srv_header = tk.Frame(scroll_content, bg=t["bg_app"])
+        srv_header.pack(fill=tk.X, pady=(8, 4), padx=6)
+
+        srv_title_lbl = tk.Label(
+            srv_header,
+            font=("Segoe UI", 11, "bold"),
+            bg=t["bg_app"],
+            fg=t["text_primary"]
+        )
+        apply_label_icon(srv_title_lbl, "tools", "Автономные сервисные инструменты", size=18)
+        srv_title_lbl.pack(side=tk.LEFT)
+
+        tk.Label(
+            srv_header,
+            text="Сравнение ревизий проектов и ведение корпоративной базы соответствий",
+            font=("Segoe UI", 8),
+            bg=t["bg_app"],
+            fg=t["text_muted"]
+        ).pack(side=tk.LEFT, padx=(12, 0), pady=(2, 0))
+
+        services_container = tk.Frame(scroll_content, bg=t["bg_app"])
+        services_container.pack(fill=tk.X, pady=(0, 10))
+
+        services_data = [
+            (
+                "compare_pnp",
+                "Сравнение файлов P&P",
+                "Поэлементный анализ различий между двумя файлами координат расстановщика (ревизии Rev.A и Rev.B). Детекция смещений (ΔX, ΔY), изменений углов поворота, удалённых и добавленных компонентов.",
+                "Сравнить файлы P&P ➔",
+                "compare_pnp"
+            ),
+            (
+                "compare_bom",
+                "Сверка спецификаций BOM",
+                "Сопоставление двух ревизий спецификаций схемы. Выявление различий в номиналах, количествах, типах корпусов, артикулах и альтернативных компонентах.",
+                "Сверить спецификации ➔",
+                "compare_bom"
+            ),
+            (
+                "database",
+                "База данных замен",
+                "Локальный справочник соответствий и синонимов (database.db). Быстрый поиск, добавление правил нормализации и корпоративных артикулов компонентов.",
+                "Открыть базу данных ➔",
+                "database"
+            )
+        ]
+
+        for s_icon, s_title, s_desc, s_btn, s_target in services_data:
+            s_card = tk.Frame(services_container, bg=t["bg_card"], padx=18, pady=14, highlightbackground=t["border"], highlightthickness=1)
+            s_card.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=6)
+
+            card_title_lbl = tk.Label(s_card, font=("Segoe UI", 10, "bold"), bg=t["bg_card"], fg=t["text_header"])
+            apply_label_icon(card_title_lbl, s_icon, s_title, size=20)
+            card_title_lbl.pack(anchor="w")
+            tk.Label(s_card, text=s_desc, font=("Segoe UI", 8), bg=t["bg_card"], fg=t["text_secondary"], wraplength=340, justify=tk.LEFT).pack(anchor="w", pady=(6, 12), fill=tk.BOTH, expand=True)
+
+            s_btn_w = tk.Button(
+                s_card,
+                text=s_btn,
+                font=("Segoe UI", 8, "bold"),
+                bg=t["btn_sec_bg"],
+                fg=t["btn_sec_fg"],
+                activebackground=t["btn_sec_hover"],
+                activeforeground=t["text_primary"],
+                relief="flat",
+                padx=12,
+                pady=8,
+                cursor="hand2",
+                command=lambda target=s_target: self.show_page(target)
+            )
+            s_btn_w.pack(side=tk.BOTTOM, fill=tk.X)
+
+        # Актуализируем статусы файлов
+        self._update_dashboard_file_status()
 
     # =========================================================================
     # Страница 1: Шаг 1 — Унификация BOM
@@ -749,7 +1460,6 @@ class SMDHubApp:
 
         self.btn_step1_next = tk.Button(
             bottom_bar,
-            text="✅ Готово: Перейти к Объединению P&P (Шаг 2) ➔",
             font=("Segoe UI", 10, "bold"),
             bg=t["accent"],
             fg=t["accent_text"],
@@ -761,6 +1471,7 @@ class SMDHubApp:
             cursor="hand2",
             command=self.complete_step1_and_go_step2
         )
+        apply_button_icon(self.btn_step1_next, "check", "Готово: Перейти к Объединению P&P (Шаг 2) ➔", size=18)
         self.btn_step1_next.pack(side=tk.RIGHT)
         ToolTip(self.btn_step1_next, "Сохранить результат унификации и автоматически подставить BOM в Шаг 2")
 
@@ -800,10 +1511,11 @@ class SMDHubApp:
             if self.unified_bom_path and hasattr(self, 'merge_tab'):
                 self.merge_tab.bom_file.set(self.unified_bom_path)
                 self.merge_tab.load_bom()
-                for col in self.merge_tab.bom_columns:
-                    if "унифиц" in col.lower() or "unified" in col.lower() or "part" in col.lower():
-                        self.merge_tab.bom_data_cb.set(col)
-                        break
+                if self.merge_tab.bom_columns:
+                    # Автовыбор: самый правый столбец (данные в этом боме всегда там)
+                    self.merge_tab.bom_data_cb.set(self.merge_tab.bom_columns[-1])
+                    self.merge_tab.save_bom_settings()
+                    self.merge_tab.on_setting_changed('bom_data')
 
         self.show_page("step2")
 
@@ -824,7 +1536,6 @@ class SMDHubApp:
 
             btn_step2_next = tk.Button(
                 next_btn_frame,
-                text="✅ Сформировать и перейти к Сверке (Шаг 3) ➔",
                 font=("Segoe UI", 10, "bold"),
                 bg=t["accent"],
                 fg=t["accent_text"],
@@ -836,6 +1547,7 @@ class SMDHubApp:
                 cursor="hand2",
                 command=self.complete_step2_and_go_step3
             )
+            apply_button_icon(btn_step2_next, "check", "Сформировать и перейти к Сверке (Шаг 3) ➔", size=18)
             btn_step2_next.pack(side=tk.RIGHT)
             ToolTip(btn_step2_next, "Объединить P&P с BOM и автоматически передать файл в модуль сверки (Шаг 3)")
 
@@ -888,6 +1600,185 @@ class SMDHubApp:
             self.check_tab = CheckTab(page, self)
             self.check_tab.pack(fill=tk.BOTH, expand=True)
 
+        # Нижняя панель завершения сессии и сброса
+        bottom_bar = tk.Frame(page, bg=t["bg_app"], pady=6)
+        bottom_bar.pack(fill=tk.X, side=tk.BOTTOM)
+
+        lbl_info = tk.Label(
+            bottom_bar,
+            font=("Segoe UI", 9),
+            bg=t["bg_app"],
+            fg=t["text_muted"]
+        )
+        apply_label_icon(lbl_info, "step3", "Финальный этап: аудит данных выполнен. Для подготовки нового заказа завершите текущую сессию.", size=16)
+        lbl_info.pack(side=tk.LEFT, padx=4)
+
+        btn_finish = tk.Button(
+            bottom_bar,
+            font=("Segoe UI", 10, "bold"),
+            bg="#7f1d1d",
+            fg="#fecaca",
+            activebackground="#991b1b",
+            activeforeground="#ffffff",
+            relief="flat",
+            padx=18,
+            pady=8,
+            cursor="hand2",
+            command=self.finish_session_and_reset
+        )
+        apply_button_icon(btn_finish, "reset", "Завершить сессию (Сброс программы) ➔", size=18)
+        btn_finish.pack(side=tk.RIGHT, padx=4)
+        ToolTip(btn_finish, "Завершить текущую сессию создания файла и полностью сбросить программу до состояния «Только что открыта»")
+
+    def finish_session_and_reset(self):
+        """
+        Завершает текущую сессию создания файла и сбрасывает программу
+        до состояния 'Только что открыта'. Показывает модальное окно с предупреждением.
+        """
+        t = THEMES["dark"]
+
+        dialog = tk.Toplevel(self.root)
+        dialog.title("⚠️ Завершение сессии и сброс программы")
+        dw, dh = 580, 420
+        dialog.geometry(f"{dw}x{dh}")
+        dialog.minsize(540, 390)
+        dialog.transient(self.root)
+        dialog.grab_set()
+        dialog.configure(bg=t["bg_app"])
+        set_window_titlebar_theme(dialog, True)
+
+        # Центрирование окна относительно главного приложения
+        dialog.update_idletasks()
+        rx = self.root.winfo_x()
+        ry = self.root.winfo_y()
+        rw = self.root.winfo_width()
+        rh = self.root.winfo_height()
+        dx = max(0, rx + (rw - dw) // 2)
+        dy = max(0, ry + (rh - dh) // 2)
+        dialog.geometry(f"{dw}x{dh}+{dx}+{dy}")
+
+        card = tk.Frame(dialog, bg=t["bg_card"], padx=24, pady=20, highlightbackground="#dc2626", highlightthickness=1)
+        card.pack(fill=tk.BOTH, expand=True, padx=16, pady=16)
+
+        confirmed = {"value": False}
+
+        def on_confirm():
+            confirmed["value"] = True
+            dialog.destroy()
+
+        def on_cancel():
+            dialog.destroy()
+
+        # 1. Пакуем панель кнопок снизу (side=tk.BOTTOM) ПЕРВОЙ, чтобы она ВСЕГДА гарантированно отображалась
+        btn_box = tk.Frame(card, bg=t["bg_card"])
+        btn_box.pack(fill=tk.X, side=tk.BOTTOM, pady=(16, 0))
+
+        btn_cancel = tk.Button(
+            btn_box,
+            text="Отмена (вернуться к работе)",
+            font=("Segoe UI", 9),
+            bg=t["btn_sec_bg"],
+            fg=t["btn_sec_fg"],
+            relief="flat",
+            padx=16,
+            pady=8,
+            cursor="hand2",
+            command=on_cancel
+        )
+        btn_cancel.pack(side=tk.LEFT)
+
+        btn_yes = tk.Button(
+            btn_box,
+            text="🔄 Да, сбросить всю программу",
+            font=("Segoe UI", 9, "bold"),
+            bg="#b91c1c",
+            fg="#ffffff",
+            activebackground="#dc2626",
+            activeforeground="#ffffff",
+            relief="flat",
+            padx=18,
+            pady=8,
+            cursor="hand2",
+            command=on_confirm
+        )
+        btn_yes.pack(side=tk.RIGHT)
+
+        # 2. Шапка диалога сверху
+        header_frame = tk.Frame(card, bg=t["bg_card"])
+        header_frame.pack(fill=tk.X, side=tk.TOP, pady=(0, 10))
+
+        tk.Label(
+            header_frame,
+            text="⚠️ Внимание: Полный сброс программы",
+            font=("Segoe UI", 13, "bold"),
+            bg=t["bg_card"],
+            fg="#f87171"
+        ).pack(side=tk.LEFT)
+
+        warning_text = (
+            "Вы собираетесь завершить текущую сессию создания файлов.\n\n"
+            "Это действие ПОЛНОСТЬЮ СБРОСИТ всю программу до первоначального "
+            "состояния «Только что открыта»:\n\n"
+            "• Все загруженные спецификации (BOM) и файлы расстановщика (P&P) будут очищены\n"
+            "• Все результаты унификации, сопоставления и финальной сверки удалятся\n"
+            "• Любые несохранённые промежуточные данные будут утеряны\n\n"
+            "Вы действительно хотите завершить сессию и сбросить всё?"
+        )
+
+        tk.Label(
+            card,
+            text=warning_text,
+            font=("Segoe UI", 9),
+            bg=t["bg_card"],
+            fg=t["text_secondary"],
+            justify=tk.LEFT,
+            wraplength=490
+        ).pack(side=tk.TOP, fill=tk.BOTH, expand=True, pady=(0, 10))
+
+        dialog.wait_window()
+
+        if not confirmed["value"]:
+            return
+
+        self.reset_all_data()
+
+    def reset_all_data(self):
+        """Полный сброс всех данных программы к состоянию 'Только что открыта'."""
+        # 1. Очистка переменных сквозного заказа
+        self.unified_bom_path = ""
+        self.unified_bom_df = None
+        self.merged_pnp_path = ""
+        self.merged_pnp_df = None
+        self.bom_ref_col = ""
+        self.bom_val_col = ""
+        self.bom_sep = ","
+
+        # 2. Пересоздание страниц Шагов 1, 2, 3 и вспомогательных модулей
+        for pid in ["step1", "step2", "step3", "compare_pnp", "compare_bom"]:
+            if pid in self.pages and self.pages[pid]:
+                try:
+                    self.pages[pid].destroy()
+                except Exception:
+                    pass
+
+        self._build_page_step1(self.pages_container)
+        self._build_page_step2(self.pages_container)
+        self._build_page_step3(self.pages_container)
+        self._build_page_compare_pnp(self.pages_container)
+        self._build_page_compare_bom(self.pages_container)
+
+        # 3. Обновление бейджей и индикаторов файлов
+        self._update_dashboard_file_status()
+
+        # 4. Переход на стартовую страницу Dashboard
+        self.show_page("dashboard")
+
+        # 5. Уведомление пользователя
+        messagebox.showinfo(
+            "Сессия завершена",
+            "Текущая сессия успешно завершена.\nВсе временные данные очищены, программа сброшена в исходное состояние «Только что открыта»."
+        )
+
     # =========================================================================
     # Страница 4: Сравнение P&P версий
     # =========================================================================
@@ -922,6 +1813,7 @@ class SMDHubApp:
 
         if DatabaseTab and self.db_manager:
             self.database_tab = DatabaseTab(page, self.db_manager)
+            self.database_tab.account_manager = self.account_manager
             self.database_tab.pack(fill=tk.BOTH, expand=True)
 
     # =========================================================================
@@ -949,7 +1841,7 @@ class SMDHubApp:
 
 
 # =============================================================================
-# Точка входа
+# Точка входа программы
 # =============================================================================
 def main():
     root = tk.Tk()

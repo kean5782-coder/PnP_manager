@@ -17,7 +17,7 @@ local.properties
 .idea/
 .vscode/
 *.iml
-.agents/
+/.agents/
 .venv/
 
 # Allow release binaries in dist

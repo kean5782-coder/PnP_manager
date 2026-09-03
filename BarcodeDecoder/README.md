@@ -109,7 +109,7 @@ py -3.13 -m PyInstaller --noconfirm --onefile --windowed --name "SMD_Hub" --icon
 
 ### Сборка Android `.apk`:
 ```powershell
-cd BarcodeDecoderAndroid
+cd AndroidApp
 .\gradlew.bat assembleRelease
 ```
-Файл APK будет создан в каталоге `BarcodeDecoderAndroid/app/build/outputs/apk/release/`.
+Файл APK будет создан в каталоге `AndroidApp/app/build/outputs/apk/release/`.
