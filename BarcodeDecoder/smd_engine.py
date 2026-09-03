@@ -282,10 +282,8 @@ class VendorParser:
                          (raw_value.upper() in ('0000', '000', '00', '0', '0R', '0R00', '0R0')) or
                          (raw_value != '' and all(c == '0' for c in raw_value)))
             if is_jumper:
-                if tolerance and tolerance != '0%':
-                    return f"R_{size}_0R_{tolerance}"
-                else:
-                    return f"R_{size}_0R"
+                tol_to_use = tolerance if (tolerance and tolerance.strip()) else '0%'
+                return f"R_{size}_0R_{tol_to_use}"
             elif tolerance:
                 return f"R_{size}_{value_str}_{tolerance}"
             else:
@@ -747,7 +745,7 @@ THEMES = {
     "dark": {
         # Deep Dark Navy SaaS Palette (matching modern fintech/SaaS dashboard)
         "bg_app": "#0f172a",          # Основной фон рабочей зоны (глубокий тёмно-синий slate)
-        "bg_sidebar": "#090d1a",      # Ультра-тёмный фон сайдбара
+        "bg_sidebar": "#0f172a",      # Фон сайдбара сливается с рабочей зоной
         "bg_header": "#090d1a",       # Верхний хедер
         "bg_card": "#131e36",         # Контейнеры, карточки, панели
         "bg_card_inner": "#182644",   # Внутренние плашки и блоки

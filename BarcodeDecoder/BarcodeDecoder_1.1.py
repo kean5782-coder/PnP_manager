@@ -322,10 +322,8 @@ class VendorParser:
                          (raw_value.upper() in ('0000', '000', '00', '0', '0R', '0R00', '0R0')) or
                          (raw_value != '' and all(c == '0' for c in raw_value)))
             if is_jumper:
-                if tolerance and tolerance != '0%':
-                    return f"R_{size}_0R_{tolerance}"
-                else:
-                    return f"R_{size}_0R"
+                tol_to_use = tolerance if (tolerance and tolerance.strip()) else '0%'
+                return f"R_{size}_0R_{tol_to_use}"
             elif tolerance:
                 return f"R_{size}_{value_str}_{tolerance}"
             else:
@@ -1034,7 +1032,7 @@ class BarcodeDecoderApp:
         candidates = [
             os.path.join(base_dir, "icon.ico"),
             os.path.join(getattr(sys, "_MEIPASS", base_dir), "icon.ico"),
-            os.path.join(base_dir, "BarcodeDecoderAndroid", "app", "src", "main", "res", "mipmap-xxxhdpi", "ic_launcher.png")
+            os.path.join(base_dir, "AndroidApp", "app", "src", "main", "res", "mipmap-xxxhdpi", "ic_launcher.png")
         ]
         for path in candidates:
             if os.path.exists(path):

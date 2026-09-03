@@ -62,12 +62,17 @@ echo [3/4] Компиляция Главного Лаунчера SMD_Hub.exe (�
     %ICON_ARG% ^
     %DB_ARG% ^
     --add-data "smd_engine.py;." ^
+    --add-data "smd_icons.py;." ^
+    --add-data "smd_auth.py;." ^
+    --add-data "smd_db.py;." ^
+    --add-data "assets;assets" ^
     --add-data "Unification/Unification.py;Unification" ^
     --add-data "PnP_Manager/PnP_Manager.py;PnP_Manager" ^
     --hidden-import openpyxl ^
     --hidden-import pandas ^
     --hidden-import numpy ^
     --hidden-import et_xmlfile ^
+    --hidden-import sqlite3 ^
     --distpath "%DIST_DIR%" ^
     --workpath "%WORK_DIR%" ^
     "smd_hub.py"

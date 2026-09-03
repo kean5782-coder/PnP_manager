@@ -58,7 +58,7 @@ PnP_manager/
 │   ├── PnP_Manager/                      # ⚙️ Модуль Pick and Place
 │   │   └── PnP_Manager.py                # Объединение координат, сверка BOM и версий P&P
 │   │
-│   ├── BarcodeDecoderAndroid/            # 📱 Нативное Android-приложение
+│   ├── AndroidApp/                       # 📱 Нативное Android-приложение
 │   │   ├── app/                          # Исходный код (Kotlin, CameraX, Google ML Kit)
 │   │   └── release-key.jks               # Ключ подписи релизных сборок
 │   │
@@ -135,11 +135,11 @@ cd BarcodeDecoder
 
 ### Сборка Android APK:
 ```powershell
-cd BarcodeDecoder/BarcodeDecoderAndroid
+cd BarcodeDecoder/AndroidApp
 set JAVA_HOME=C:\Program Files\Android\Android Studio\jbr
 .\gradlew.bat assembleRelease
 ```
-Готовый подписанный APK будет создан в папке `BarcodeDecoder/BarcodeDecoderAndroid/app/build/outputs/apk/release/`.
+Готовый подписанный APK будет создан в папке `BarcodeDecoder/AndroidApp/app/build/outputs/apk/release/`.
 
 ---
 
