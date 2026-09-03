@@ -1260,22 +1260,22 @@ class MergeTab(ttk.Frame):
         files_card.columnconfigure(1, weight=1)
 
         tk.Label(files_card, text="📁 Исходные файлы (P&P координаты и BOM спецификация)",
-                 font=("Segoe UI", 10, "bold"), bg=t["bg_card"], fg=t["accent"]).grid(row=0, column=0, columnspan=5, sticky="w", pady=(0, 6))
+                 font=("Segoe UI", 10, "bold"), bg=t["bg_card"], fg=t["accent"]).grid(row=0, column=0, columnspan=4, sticky="w", pady=(0, 6))
 
         # Строка P&P
         tk.Label(files_card, text="Файл P&P:", font=("Segoe UI", 9), bg=t["bg_card"], fg=t["text_primary"]).grid(row=1, column=0, sticky="w", pady=4)
         pnp_entry = ttk.Entry(files_card, textvariable=self.pnp_file)
         pnp_entry.grid(row=1, column=1, sticky="ew", padx=6, pady=4)
+        pnp_entry.bind("<Return>", lambda e: self.load_pnp())
         btn_pnp_browse = ttk.Button(files_card, text="Обзор...", command=self.browse_pnp)
         btn_pnp_browse.grid(row=1, column=2, padx=2, pady=4)
         btn_pnp_view = ttk.Button(files_card, text="👁️", width=3, command=lambda: self.show_preview(self.pnp_df, "P&P"))
         btn_pnp_view.grid(row=1, column=3, padx=2, pady=4)
         ToolTip(btn_pnp_view, "Предпросмотр файла P&P")
-        ttk.Button(files_card, text="Загрузить P&P", command=self.load_pnp).grid(row=1, column=4, padx=4, pady=4)
 
         # Разделители P&P
         sep_box = tk.Frame(files_card, bg=t["bg_card"])
-        sep_box.grid(row=2, column=1, sticky="w", padx=6, pady=(0, 6), columnspan=4)
+        sep_box.grid(row=2, column=1, sticky="w", padx=6, pady=(0, 6), columnspan=3)
         tk.Label(sep_box, text="Разделитель:", font=("Segoe UI", 9), bg=t["bg_card"], fg=t["text_secondary"]).pack(side=tk.LEFT, padx=(0, 4))
         for sep in [" ", "\t", ",", ";"]:
             ttk.Radiobutton(sep_box, text=repr(sep), variable=self.pnp_sep_mode,
@@ -1285,18 +1285,19 @@ class MergeTab(ttk.Frame):
         self.pnp_custom_entry = ttk.Entry(sep_box, textvariable=self.pnp_custom_sep, width=5, state='disabled')
         self.pnp_custom_entry.pack(side=tk.LEFT, padx=3)
         self.pnp_custom_sep.trace_add('write', self.on_custom_sep_changed)
-        ttk.Checkbutton(sep_box, text="Есть заголовок", variable=self.pnp_header).pack(side=tk.LEFT, padx=(12, 0))
+        ttk.Checkbutton(sep_box, text="Есть заголовок", variable=self.pnp_header,
+                        command=lambda: self.load_pnp() if self.pnp_file.get() and os.path.exists(self.pnp_file.get()) else None).pack(side=tk.LEFT, padx=(12, 0))
 
         # Строка BOM
         tk.Label(files_card, text="Файл BOM:", font=("Segoe UI", 9), bg=t["bg_card"], fg=t["text_primary"]).grid(row=3, column=0, sticky="w", pady=4)
         bom_entry = ttk.Entry(files_card, textvariable=self.bom_file)
         bom_entry.grid(row=3, column=1, sticky="ew", padx=6, pady=4)
+        bom_entry.bind("<Return>", lambda e: self.load_bom())
         btn_bom_browse = ttk.Button(files_card, text="Обзор...", command=self.browse_bom)
         btn_bom_browse.grid(row=3, column=2, padx=2, pady=4)
         btn_bom_view = ttk.Button(files_card, text="👁️", width=3, command=lambda: self.show_preview(self.bom_df, "BOM"))
         btn_bom_view.grid(row=3, column=3, padx=2, pady=4)
         ToolTip(btn_bom_view, "Предпросмотр файла BOM")
-        ttk.Button(files_card, text="Загрузить BOM", command=self.load_bom).grid(row=3, column=4, padx=4, pady=4)
 
         # =====================================================================
         # 2. КАРТОЧКА: Настройка соответствия столбцов (2 колонки: P&P и BOM)
@@ -1980,11 +1981,15 @@ class MergeTab(ttk.Frame):
     # ---------- Методы загрузки и навигации ----------
     def browse_pnp(self):
         f = filedialog.askopenfilename(filetypes=[("All supported", "*.txt *.csv *.xlsx *.xls"), ("Text files", "*.txt *.csv"), ("Excel files", "*.xlsx *.xls")], parent=self.parent)
-        if f: self.pnp_file.set(f)
+        if f:
+            self.pnp_file.set(f)
+            self.load_pnp()
 
     def browse_bom(self):
         f = filedialog.askopenfilename(filetypes=[("Excel files", "*.xlsx *.xls")], parent=self.parent)
-        if f: self.bom_file.set(f)
+        if f:
+            self.bom_file.set(f)
+            self.load_bom()
 
     def on_sep_changed(self):
         mode = self.pnp_sep_mode.get()
@@ -2000,6 +2005,8 @@ class MergeTab(ttk.Frame):
             self.pnp_custom_entry.config(state='disabled')
             self.pnp_sep.set(mode)
         self.on_setting_changed('pnp_sep')
+        if self.pnp_file.get() and os.path.exists(self.pnp_file.get()):
+            self.load_pnp()
 
     def on_custom_sep_changed(self, *args):
         if self.pnp_sep_mode.get() == "custom":
@@ -2008,7 +2015,9 @@ class MergeTab(ttk.Frame):
                 self.pnp_sep.set(custom_val)
             else:
                 self.pnp_sep.set(" ")
-        self.on_setting_changed('pnp_custom_sep')
+            self.on_setting_changed('pnp_custom_sep')
+            if self.pnp_file.get() and os.path.exists(self.pnp_file.get()):
+                self.load_pnp()
 
     def on_one_side_changed(self):
         state = 'disabled' if self.one_side.get() else 'normal'
