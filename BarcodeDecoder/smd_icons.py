@@ -53,7 +53,12 @@ def get_icon(name: str, size: int = 22) -> Optional[tk.PhotoImage]:
     cache_key = f"{canonical_name}_{size}"
 
     if cache_key in _ICON_CACHE:
-        return _ICON_CACHE[cache_key]
+        cached = _ICON_CACHE[cache_key]
+        try:
+            cached.tk.call('image', 'type', str(cached))
+            return cached
+        except Exception:
+            _ICON_CACHE.pop(cache_key, None)
 
     # Поиск файла в assets/icons
     # Пробуем запрошенный размер, либо ближайший доступный
@@ -74,6 +79,10 @@ def get_icon(name: str, size: int = 22) -> Optional[tk.PhotoImage]:
         return img
 
     return None
+
+def clear_icon_cache():
+    """Очищает кэш иконок при перезапуске интерпретатора Tk."""
+    _ICON_CACHE.clear()
 
 def apply_label_icon(label: tk.Label, icon_name: str, text: str, size: int = 18, padx: int = 6):
     """

@@ -23,23 +23,23 @@ jobs:
         cache: gradle
 
     - name: Grant Execute Permission for Gradlew
-      working-directory: BarcodeDecoder/BarcodeDecoderAndroid
+      working-directory: BarcodeDecoder/AndroidApp
       run: chmod +x gradlew
 
     - name: Build Release & Debug APK
-      working-directory: BarcodeDecoder/BarcodeDecoderAndroid
+      working-directory: BarcodeDecoder/AndroidApp
       run: ./gradlew assembleRelease assembleDebug --stacktrace
 
     - name: Upload Release APK Artifact
       uses: actions/upload-artifact@v4
       with:
         name: BarcodeDecoder-Release-APK
-        path: BarcodeDecoder/BarcodeDecoderAndroid/app/build/outputs/apk/release/*.apk
+        path: BarcodeDecoder/AndroidApp/app/build/outputs/apk/release/*.apk
         retention-days: 90
 
     - name: Upload Debug APK Artifact
       uses: actions/upload-artifact@v4
       with:
         name: BarcodeDecoder-Debug-APK
-        path: BarcodeDecoder/BarcodeDecoderAndroid/app/build/outputs/apk/debug/*.apk
+        path: BarcodeDecoder/AndroidApp/app/build/outputs/apk/debug/*.apk
         retention-days: 30
