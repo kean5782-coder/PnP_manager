@@ -1303,30 +1303,32 @@ class CodeTab(ttk.Frame):
         canvas.bind('<Configure>', lambda e: canvas.itemconfig(canvas_window, width=e.width))
 
         # ---------- Загрузка файла ----------
-        load_frame = ttk.LabelFrame(main_frame, text="1. Загрузка файла", padding="5")
-        load_frame.pack(fill=tk.X, pady=5)
+        load_frame = ttk.LabelFrame(main_frame, text="1. Загрузка файла", padding="8")
+        load_frame.pack(fill=tk.X, pady=(0, 6))
 
         ttk.Button(load_frame, text="Открыть файл", command=self.load_file).pack(side=tk.LEFT, padx=5)
         ttk.Entry(load_frame, textvariable=self.file_path_var, width=50).pack(side=tk.LEFT, padx=5)
-        ttk.Button(load_frame, text="📋 Просмотр документа", command=self.show_full_preview).pack(side=tk.LEFT, padx=5)
+        btn_doc_view = ttk.Button(load_frame, text="📋 Просмотр документа", command=self.show_full_preview)
+        btn_doc_view.pack(side=tk.LEFT, padx=5)
+        ToolTip(btn_doc_view, "Просмотр всех строк и колонок исходного файла BOM")
 
         # ---------- Выбор листа и столбцов ----------
-        select_frame = ttk.LabelFrame(main_frame, text="2. Выбор листа и столбца", padding="5")
-        select_frame.pack(fill=tk.X, pady=5)
+        select_frame = ttk.LabelFrame(main_frame, text="2. Выбор листа и столбца", padding="8")
+        select_frame.pack(fill=tk.X, pady=(0, 6))
 
-        ttk.Label(select_frame, text="Лист:").grid(row=0, column=0, sticky=tk.W, padx=5, pady=2)
+        ttk.Label(select_frame, text="Лист:").grid(row=0, column=0, sticky=tk.W, padx=5, pady=3)
         self.sheet_combobox = ttk.Combobox(select_frame, state="readonly", width=30, textvariable=self.sheet_var)
-        self.sheet_combobox.grid(row=0, column=1, padx=5, pady=2)
+        self.sheet_combobox.grid(row=0, column=1, padx=5, pady=3)
         self.sheet_combobox.bind("<<ComboboxSelected>>", self.on_sheet_selected)
 
-        ttk.Label(select_frame, text="Столбец с кодом детали:").grid(row=1, column=0, sticky=tk.W, padx=5, pady=2)
+        ttk.Label(select_frame, text="Столбец с кодом детали:").grid(row=1, column=0, sticky=tk.W, padx=5, pady=3)
         self.code_combobox = ttk.Combobox(select_frame, state="readonly", width=30, textvariable=self.code_column_var)
-        self.code_combobox.grid(row=1, column=1, padx=5, pady=2)
+        self.code_combobox.grid(row=1, column=1, padx=5, pady=3)
         self.code_combobox.bind("<<ComboboxSelected>>", self.on_code_column_selected)
 
         # ---------- Правила ----------
-        rules_frame = ttk.LabelFrame(main_frame, text="3. Правила парсинга", padding="5")
-        rules_frame.pack(fill=tk.BOTH, expand=True, pady=5)
+        rules_frame = ttk.LabelFrame(main_frame, text="3. Правила парсинга", padding="8")
+        rules_frame.pack(fill=tk.BOTH, expand=True, pady=(0, 6))
 
         columns = ("Производитель", "Тип", "Шаблон", "Активен")
         self.rules_tree = ttk.Treeview(rules_frame, columns=columns, show="headings", height=6)
@@ -1335,37 +1337,55 @@ class CodeTab(ttk.Frame):
         self.rules_tree.heading("Шаблон", text="Шаблон (рег. выражение)")
         self.rules_tree.heading("Активен", text="Активен")
         self.rules_tree.column("Производитель", width=120)
-        self.rules_tree.column("Тип", width=80)
-        self.rules_tree.column("Шаблон", width=300)
-        self.rules_tree.column("Активен", width=60)
+        self.rules_tree.column("Тип", width=90)
+        self.rules_tree.column("Шаблон", width=480, minwidth=220)
+        self.rules_tree.column("Активен", width=70, anchor=tk.CENTER)
 
-        scroll_rules = ttk.Scrollbar(rules_frame, orient=tk.VERTICAL, command=self.rules_tree.yview)
-        self.rules_tree.configure(yscrollcommand=scroll_rules.set)
+        scroll_rules_v = ttk.Scrollbar(rules_frame, orient=tk.VERTICAL, command=self.rules_tree.yview)
+        scroll_rules_h = ttk.Scrollbar(rules_frame, orient=tk.HORIZONTAL, command=self.rules_tree.xview)
+        self.rules_tree.configure(yscrollcommand=scroll_rules_v.set, xscrollcommand=scroll_rules_h.set)
         self.rules_tree.grid(row=0, column=0, sticky="nsew")
-        scroll_rules.grid(row=0, column=1, sticky="ns")
+        scroll_rules_v.grid(row=0, column=1, sticky="ns")
+        scroll_rules_h.grid(row=1, column=0, sticky="ew")
         rules_frame.grid_rowconfigure(0, weight=1)
         rules_frame.grid_columnconfigure(0, weight=1)
 
         # ---------- Кнопки действий ----------
-        action_frame = ttk.Frame(main_frame)
-        action_frame.pack(fill=tk.X, pady=5)
+        t = THEMES["dark"]
+        action_frame = tk.Frame(main_frame, bg=t["bg_app"])
+        action_frame.pack(fill=tk.X, pady=8)
 
-        ttk.Button(action_frame, text="🔄 Сбросить преобразования (код)", command=self.reset_conversion).pack(side=tk.LEFT, padx=5)
-        ttk.Button(action_frame, text="▶ Применить правила (код)", command=self.apply_rules).pack(side=tk.LEFT, padx=5)
-        self.result_preview_btn = ttk.Button(action_frame, text="📊 Полный предпросмотр (код)",
-                                             command=self.show_result_preview, state=tk.DISABLED)
-        self.result_preview_btn.pack(side=tk.LEFT, padx=5)
-        ttk.Button(action_frame, text="💾 Сохранить результат (код)", command=self.save_file).pack(side=tk.LEFT, padx=5)
+        tk.Button(action_frame, text="🔄 Сбросить преобразования (код)", command=self.reset_conversion,
+                  bg=t["btn_sec_bg"], fg=t["text_muted"], activebackground=t["btn_sec_hover"],
+                  font=("Segoe UI", 9), relief="flat", padx=12, pady=6, cursor="hand2").pack(side=tk.LEFT, padx=(0, 6))
+
+        tk.Button(action_frame, text="▶ Применить правила (код)", command=self.apply_rules,
+                  bg=t["accent"], fg=t["accent_text"], activebackground=t["accent_hover"],
+                  font=("Segoe UI", 10, "bold"), relief="flat", padx=16, pady=7, cursor="hand2").pack(side=tk.LEFT, padx=6)
+
+        self.result_preview_btn = tk.Button(action_frame, text="📊 Полный предпросмотр (код)",
+                                            command=self.show_result_preview, state=tk.DISABLED,
+                                            bg=t["btn_sec_bg"], fg=t["btn_sec_fg"], activebackground=t["btn_sec_hover"],
+                                            font=("Segoe UI", 9), relief="flat", padx=12, pady=6, cursor="hand2")
+        self.result_preview_btn.pack(side=tk.LEFT, padx=6)
+
+        tk.Button(action_frame, text="💾 Сохранить результат (код)", command=self.save_file,
+                  bg="#059669", fg="#ffffff", activebackground="#10b981",
+                  font=("Segoe UI", 9, "bold"), relief="flat", padx=14, pady=6, cursor="hand2").pack(side=tk.LEFT, padx=6)
 
         # ---------- Предпросмотр (первые 20 строк) ----------
-        preview_frame = ttk.LabelFrame(main_frame, text="4. Предпросмотр (первые 20 строк)", padding="5")
-        preview_frame.pack(fill=tk.BOTH, expand=True, pady=5)
+        preview_frame = ttk.LabelFrame(main_frame, text="4. Предпросмотр (первые 20 строк)", padding="8")
+        preview_frame.pack(fill=tk.BOTH, expand=True, pady=(0, 6))
 
         self.preview_tree = ttk.Treeview(preview_frame, columns=("original", "converted"), show="headings", height=10)
         self.preview_tree.heading("original", text="Исходный код")
         self.preview_tree.heading("converted", text="Преобразованное имя")
         self.preview_tree.column("original", width=350)
         self.preview_tree.column("converted", width=350)
+
+        # Теги для чередования строк
+        self.preview_tree.tag_configure("evenrow", background=t["row_even"])
+        self.preview_tree.tag_configure("oddrow", background=t["row_odd"])
 
         scroll_preview = ttk.Scrollbar(preview_frame, orient=tk.VERTICAL, command=self.preview_tree.yview)
         self.preview_tree.configure(yscrollcommand=scroll_preview.set)
@@ -1774,10 +1794,11 @@ class CodeTab(ttk.Frame):
         preview_df = self.df[[self.selected_code_column, self.parsed_column]].copy()
         mask = preview_df[self.selected_code_column].notna() & (preview_df[self.selected_code_column].astype(str).str.strip() != '')
         preview_df = preview_df[mask].head(20)
-        for _, row in preview_df.iterrows():
+        for idx, (_, row) in enumerate(preview_df.iterrows()):
             orig = str(row[self.selected_code_column]) if pd.notna(row[self.selected_code_column]) else ""
             conv = str(row[self.parsed_column]) if pd.notna(row[self.parsed_column]) else ""
-            self.preview_tree.insert("", tk.END, values=(orig, conv))
+            tag = "evenrow" if idx % 2 == 0 else "oddrow"
+            self.preview_tree.insert("", tk.END, values=(orig, conv), tags=(tag,))
 
     def _validate_resistor_name(self, name):
         # 0-ohm jumpers: R_<size>_0R или R_<size>_0R_<tol>
@@ -2149,17 +2170,20 @@ class DescriptionTab(ttk.Frame):
         canvas.bind('<Configure>', lambda e: canvas.itemconfig(canvas_window, width=e.width))
 
         # ---------- Загрузка файла ----------
-        load_frame = ttk.LabelFrame(main_frame, text="1. Загрузка файла", padding="5")
-        load_frame.pack(fill=tk.X, pady=5)
+        t = THEMES["dark"]
+        load_frame = ttk.LabelFrame(main_frame, text="1. Загрузка файла", padding="8")
+        load_frame.pack(fill=tk.X, pady=(0, 6))
 
         ttk.Button(load_frame, text="Открыть файл", command=self.load_file).pack(side=tk.LEFT, padx=5)
         self.file_path_var = tk.StringVar()
         ttk.Entry(load_frame, textvariable=self.file_path_var, width=50).pack(side=tk.LEFT, padx=5)
-        ttk.Button(load_frame, text="📋 Просмотр документа", command=self.show_full_preview).pack(side=tk.LEFT, padx=5)
+        btn_doc_view = ttk.Button(load_frame, text="📋 Просмотр документа", command=self.show_full_preview)
+        btn_doc_view.pack(side=tk.LEFT, padx=5)
+        ToolTip(btn_doc_view, "Просмотр всех строк и колонок исходного файла BOM")
 
         # ---------- Выбор листа и столбца ----------
-        select_frame = ttk.LabelFrame(main_frame, text="2. Выбор листа и столбца", padding="5")
-        select_frame.pack(fill=tk.X, pady=5)
+        select_frame = ttk.LabelFrame(main_frame, text="2. Выбор листа и столбца", padding="8")
+        select_frame.pack(fill=tk.X, pady=(0, 6))
 
         ttk.Label(select_frame, text="Лист:").pack(side=tk.LEFT, padx=5)
         self.sheet_cb = ttk.Combobox(select_frame, state="readonly", width=20)
@@ -2172,46 +2196,48 @@ class DescriptionTab(ttk.Frame):
         self.column_cb.bind("<<ComboboxSelected>>", self.on_column_selected)
 
         # ---------- Разделитель ----------
-        sep_frame = ttk.LabelFrame(main_frame, text="3. Разделитель", padding="5")
-        sep_frame.pack(fill=tk.X, pady=5)
+        sep_frame = ttk.LabelFrame(main_frame, text="3. Разделитель", padding="8")
+        sep_frame.pack(fill=tk.X, pady=(0, 6))
 
         self.sep_var = tk.StringVar(value="comma")
-        radio_frame = ttk.Frame(sep_frame)
-        radio_frame.pack(fill=tk.X, pady=5)
 
-        ttk.Radiobutton(radio_frame, text="Запятая (,)", variable=self.sep_var, value="comma",
-                        command=self.on_separator_changed).pack(side=tk.LEFT, padx=5)
-        ttk.Radiobutton(radio_frame, text="Пробел ( )", variable=self.sep_var, value="space",
-                        command=self.on_separator_changed).pack(side=tk.LEFT, padx=5)
-        ttk.Radiobutton(radio_frame, text="Табуляция (\\t)", variable=self.sep_var, value="tab",
-                        command=self.on_separator_changed).pack(side=tk.LEFT, padx=5)
-        ttk.Radiobutton(radio_frame, text="Точка с запятой (;)", variable=self.sep_var, value="semicolon",
-                        command=self.on_separator_changed).pack(side=tk.LEFT, padx=5)
-        ttk.Radiobutton(radio_frame, text="Свой", variable=self.sep_var, value="custom",
-                        command=self.on_separator_changed).pack(side=tk.LEFT, padx=5)
+        # Строка 1: основные радиокнопки и опция "Номинал в виде кода"
+        row1 = ttk.Frame(sep_frame)
+        row1.pack(fill=tk.X, pady=(0, 5))
 
-        # NEW: галочка "Номинал в виде кода" – справа от "Свой"
-        ttk.Checkbutton(sep_frame, text="Номинал в виде кода", variable=self.nominal_code_var).pack(side=tk.LEFT, padx=5)
+        for text_val, val in [("Запятая (,)", "comma"), ("Пробел ( )", "space"),
+                               ("Табуляция (\\t)", "tab"), ("Точка с запятой (;)", "semicolon"),
+                               ("Свой", "custom")]:
+            ttk.Radiobutton(row1, text=text_val, variable=self.sep_var, value=val,
+                            command=self.on_separator_changed).pack(side=tk.LEFT, padx=4)
 
-        # Поля для пользовательских разделителей (4 штуки)
+        ttk.Checkbutton(row1, text="Номинал в виде кода", variable=self.nominal_code_var).pack(side=tk.LEFT, padx=(16, 0))
+
+        # Строка 2: поля для пользовательских разделителей (4 штуки)
+        row2 = ttk.Frame(sep_frame)
+        row2.pack(fill=tk.X, pady=(0, 5))
+
         self.custom_sep_entries = []
         for i in range(4):
-            entry = ttk.Entry(sep_frame, width=8, state=tk.DISABLED)
+            entry = ttk.Entry(row2, width=8, state=tk.DISABLED)
             entry.pack(side=tk.LEFT, padx=2)
             self.custom_sep_entries.append(entry)
 
-        ttk.Label(sep_frame, text="(\\p - пробел, \\t - табуляция)").pack(side=tk.LEFT, padx=5)
+        ttk.Label(row2, text="(\\p - пробел, \\t - табуляция)", font=("Segoe UI", 8), foreground=t["text_muted"]).pack(side=tk.LEFT, padx=6)
+        ttk.Button(row2, text="Применить и обновить примеры", command=self.update_separators).pack(side=tk.LEFT, padx=8)
 
-        ttk.Button(sep_frame, text="Применить и обновить примеры", command=self.update_separators).pack(side=tk.LEFT, padx=5)
+        # Строка 3: примеры распознавания
+        row3 = ttk.Frame(sep_frame)
+        row3.pack(fill=tk.X, pady=(2, 0))
 
-        self.example_label_resistor = ttk.Label(sep_frame, text="Пример резистора: не найден", foreground="gray")
-        self.example_label_resistor.pack(side=tk.LEFT, padx=10, fill=tk.X, expand=True)
-        self.example_label_capacitor = ttk.Label(sep_frame, text="Пример конденсатора: не найден", foreground="gray")
-        self.example_label_capacitor.pack(side=tk.LEFT, padx=10, fill=tk.X, expand=True)
+        self.example_label_resistor = ttk.Label(row3, text="Пример резистора: не найден", font=("Segoe UI", 9, "italic"), foreground=t["text_secondary"])
+        self.example_label_resistor.pack(side=tk.LEFT, padx=(0, 24))
+        self.example_label_capacitor = ttk.Label(row3, text="Пример конденсатора: не найден", font=("Segoe UI", 9, "italic"), foreground=t["text_secondary"])
+        self.example_label_capacitor.pack(side=tk.LEFT)
 
         # ---------- Настройки для резисторов и конденсаторов ----------
         self.desc_notebook = ttk.Notebook(main_frame)
-        self.desc_notebook.pack(fill=tk.BOTH, expand=True, pady=5)
+        self.desc_notebook.pack(fill=tk.BOTH, expand=True, pady=(0, 6))
         self.desc_notebook.bind("<<NotebookTabChanged>>", self.on_tab_changed)
 
         # Вкладка резисторов
@@ -2225,8 +2251,8 @@ class DescriptionTab(ttk.Frame):
         self.create_capacitor_tab(capacitor_frame)
 
         # ---------- Неопределённые ----------
-        unknown_frame = ttk.LabelFrame(main_frame, text="Для строк, не определённых как резистор или конденсатор", padding="5")
-        unknown_frame.pack(fill=tk.X, pady=5)
+        unknown_frame = ttk.LabelFrame(main_frame, text="Для строк, не определённых как резистор или конденсатор", padding="8")
+        unknown_frame.pack(fill=tk.X, pady=(0, 6))
 
         ttk.Label(unknown_frame, text="Взять значение из столбца:").pack(side=tk.LEFT, padx=5)
         self.unknown_column_cb = ttk.Combobox(unknown_frame, state="readonly", width=30)
@@ -2235,27 +2261,44 @@ class DescriptionTab(ttk.Frame):
         self.unknown_column_cb.bind("<<ComboboxSelected>>", self.on_unknown_column_selected)
 
         # ---------- Кнопки действий ----------
-        action_frame = ttk.Frame(main_frame)
-        action_frame.pack(fill=tk.X, pady=5)
+        action_frame = tk.Frame(main_frame, bg=t["bg_app"])
+        action_frame.pack(fill=tk.X, pady=8)
 
-        ttk.Button(action_frame, text="🔄 Сбросить преобразования (описание)", command=self.reset_conversion).pack(side=tk.LEFT, padx=5)
-        ttk.Button(action_frame, text="▶ Применить правила (описание)", command=self.apply_rules).pack(side=tk.LEFT, padx=5)
-        self.result_preview_btn = ttk.Button(action_frame, text="📊 Полный предпросмотр (описание)",
-                                             command=self.show_result_preview, state=tk.DISABLED)
-        self.result_preview_btn.pack(side=tk.LEFT, padx=5)
-        ttk.Button(action_frame, text="💾 Сохранить результат (описание)", command=self.save_file).pack(side=tk.LEFT, padx=5)
-        # Новая кнопка проверки по базе
-        ttk.Button(action_frame, text="🔍 Проверка по базе", command=self.check_database).pack(side=tk.LEFT, padx=5)
+        tk.Button(action_frame, text="🔄 Сбросить преобразования (описание)", command=self.reset_conversion,
+                  bg=t["btn_sec_bg"], fg=t["text_muted"], activebackground=t["btn_sec_hover"],
+                  font=("Segoe UI", 9), relief="flat", padx=12, pady=6, cursor="hand2").pack(side=tk.LEFT, padx=(0, 6))
+
+        tk.Button(action_frame, text="▶ Применить правила (описание)", command=self.apply_rules,
+                  bg=t["accent"], fg=t["accent_text"], activebackground=t["accent_hover"],
+                  font=("Segoe UI", 10, "bold"), relief="flat", padx=16, pady=7, cursor="hand2").pack(side=tk.LEFT, padx=6)
+
+        self.result_preview_btn = tk.Button(action_frame, text="📊 Полный предпросмотр (описание)",
+                                            command=self.show_result_preview, state=tk.DISABLED,
+                                            bg=t["btn_sec_bg"], fg=t["btn_sec_fg"], activebackground=t["btn_sec_hover"],
+                                            font=("Segoe UI", 9), relief="flat", padx=12, pady=6, cursor="hand2")
+        self.result_preview_btn.pack(side=tk.LEFT, padx=6)
+
+        tk.Button(action_frame, text="💾 Сохранить результат (описание)", command=self.save_file,
+                  bg="#059669", fg="#ffffff", activebackground="#10b981",
+                  font=("Segoe UI", 9, "bold"), relief="flat", padx=14, pady=6, cursor="hand2").pack(side=tk.LEFT, padx=6)
+
+        tk.Button(action_frame, text="🔍 Проверка по базе", command=self.check_database,
+                  bg=t["btn_sec_bg"], fg=t["btn_sec_fg"], activebackground=t["btn_sec_hover"],
+                  font=("Segoe UI", 9), relief="flat", padx=12, pady=6, cursor="hand2").pack(side=tk.LEFT, padx=6)
 
         # ---------- Предпросмотр (первые 20 строк) ----------
-        preview_frame = ttk.LabelFrame(main_frame, text="4. Предпросмотр (первые 20 строк)", padding="5")
-        preview_frame.pack(fill=tk.BOTH, expand=True, pady=5)
+        preview_frame = ttk.LabelFrame(main_frame, text="4. Предпросмотр (первые 20 строк)", padding="8")
+        preview_frame.pack(fill=tk.BOTH, expand=True, pady=(0, 6))
 
         self.tree = ttk.Treeview(preview_frame, columns=("original", "converted"), show="headings", height=10)
         self.tree.heading("original", text="Исходное описание")
         self.tree.heading("converted", text="Преобразованное")
         self.tree.column("original", width=400)
         self.tree.column("converted", width=400)
+
+        # Теги для чередования строк
+        self.tree.tag_configure("evenrow", background=t["row_even"])
+        self.tree.tag_configure("oddrow", background=t["row_odd"])
 
         scrollbar = ttk.Scrollbar(preview_frame, orient=tk.VERTICAL, command=self.tree.yview)
         self.tree.configure(yscrollcommand=scrollbar.set)
@@ -3808,10 +3851,11 @@ class DescriptionTab(ttk.Frame):
         preview_df = self.df[[self.selected_column, new_col_name]].copy()
         mask = preview_df[self.selected_column].notna() & (preview_df[self.selected_column].astype(str).str.strip() != '')
         preview_df = preview_df[mask].head(20)
-        for _, row in preview_df.iterrows():
+        for idx, (_, row) in enumerate(preview_df.iterrows()):
             orig = str(row[self.selected_column]) if pd.notna(row[self.selected_column]) else ""
             conv = str(row[new_col_name]) if pd.notna(row[new_col_name]) else ""
-            self.tree.insert("", tk.END, values=(orig, conv))
+            tag = "evenrow" if idx % 2 == 0 else "oddrow"
+            self.tree.insert("", tk.END, values=(orig, conv), tags=(tag,))
 
     # ========== Полный предпросмотр ==========
     def show_full_preview(self):

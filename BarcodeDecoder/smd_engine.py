@@ -1114,18 +1114,22 @@ def style_widget_tree(widget, theme_name: str, parent_bg=None):
             widget.configure(bg=bg, highlightthickness=0)
 
         elif w_type == "Label":
-            # Не перетираем специальные бейджи
+            # Не перетираем специальные бейджи и акцентные заголовки
             cur_fg = widget.cget("fg")
-            if cur_fg not in (t["accent"], t["text_muted"], t["success_fg"], t["error_fg"]):
+            if cur_fg not in (t["accent"], t["text_header"], t["text_muted"], t["success_fg"], t["error_fg"], t["warning_fg"], "#7dd3fc", "#93c5fd", "#38bdf8"):
                 widget.configure(fg=t["text_primary"])
             widget.configure(bg=parent_bg or t["bg_app"])
 
         elif w_type == "Labelframe":
-            widget.configure(bg=parent_bg or t["bg_app"], fg=t["text_secondary"], highlightbackground=t["border"], relief="groove")
+            widget.configure(bg=parent_bg or t["bg_app"], fg=t["accent"], highlightbackground=t["border"], relief="groove")
 
         elif w_type == "Button":
             btn_text = widget.cget("text")
-            if any(k in btn_text for k in ("✅", "🚀", "Загрузить новый", "Сформировать")):
+            cur_bg = str(widget.cget("bg")).lower()
+            # Сохраняем кастомные акцентные/зеленые/красные кнопки
+            if cur_bg in (t["accent"].lower(), "#059669", "#047857", "#10b981", "#23a55a", "#4caf50", "#7f1d1d", "#991b1b", "#dc2626", "#2563eb", "#0284c7"):
+                pass
+            elif any(k in btn_text for k in ("✅", "🚀", "Загрузить новый", "Сформировать", "Запустить", "Применить правила", "Объединить и сохранить")):
                 widget.configure(bg=t["accent"], fg=t["accent_text"], activebackground=t["accent_hover"],
                                  activeforeground=t["accent_text"], relief="flat", bd=0)
             elif "Очистка" in btn_text or "Сбросить" in btn_text:

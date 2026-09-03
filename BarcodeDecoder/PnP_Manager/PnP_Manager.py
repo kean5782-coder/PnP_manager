@@ -223,147 +223,220 @@ class CheckTab(ttk.Frame):
         self.create_widgets()
 
     def create_widgets(self):
-        main_container = ttk.Frame(self.scrollable_frame)
-        main_container.pack(fill=tk.BOTH, expand=True, padx=6, pady=4)
+        t = THEMES["dark"]
+        main_container = tk.Frame(self.scrollable_frame, bg=t["bg_app"])
+        main_container.pack(fill=tk.BOTH, expand=True, padx=8, pady=6)
 
-        top_frame = ttk.Frame(main_container)
+        top_frame = tk.Frame(main_container, bg=t["bg_app"])
         top_frame.pack(fill=tk.BOTH, expand=True)
 
-        # ------ Загрузка файлов ------
-        load_frame = tk.LabelFrame(top_frame, text="📁 Исходные файлы для сверки", padx=10, pady=8)
-        load_frame.pack(fill="x", padx=5, pady=3)
-        load_frame.columnconfigure(1, weight=1)
+        # ------ 1. Карточка: Исходные файлы для сверки ------
+        load_card = tk.Frame(top_frame, bg=t["bg_card"], highlightbackground=t["border"], highlightthickness=1, padx=14, pady=10)
+        load_card.pack(fill=tk.X, padx=5, pady=(4, 6))
+        load_card.columnconfigure(1, weight=1)
 
-        tk.Label(load_frame, text="PNP файл (Excel):").grid(row=0, column=0, sticky="w", pady=3)
-        pnp_entry = ttk.Entry(load_frame, textvariable=self.pnp_path)
-        pnp_entry.grid(row=0, column=1, sticky="ew", padx=6, pady=3)
-        ttk.Button(load_frame, text="Обзор...", command=lambda: self.load_file('pnp')).grid(row=0, column=2, padx=2, pady=3)
-        ttk.Button(load_frame, text="👁️", width=3, command=lambda: self.show_preview(self.df_pnp, "PNP")).grid(row=0, column=3, padx=2, pady=3)
+        tk.Label(load_card, text="📁 Исходные файлы для сверки", font=("Segoe UI", 10, "bold"),
+                 bg=t["bg_card"], fg=t["accent"]).grid(row=0, column=0, columnspan=4, sticky="w", pady=(0, 6))
 
-        tk.Label(load_frame, text="BOM файл (Excel):").grid(row=1, column=0, sticky="w", pady=3)
-        bom_entry = ttk.Entry(load_frame, textvariable=self.bom_path)
-        bom_entry.grid(row=1, column=1, sticky="ew", padx=6, pady=3)
-        ttk.Button(load_frame, text="Обзор...", command=lambda: self.load_file('bom')).grid(row=1, column=2, padx=2, pady=3)
-        ttk.Button(load_frame, text="👁️", width=3, command=lambda: self.show_preview(self.df_bom, "BOM")).grid(row=1, column=3, padx=2, pady=3)
+        tk.Label(load_card, text="PNP файл (Excel):", font=("Segoe UI", 9), bg=t["bg_card"], fg=t["text_primary"]).grid(row=1, column=0, sticky="w", pady=4)
+        pnp_entry = ttk.Entry(load_card, textvariable=self.pnp_path)
+        pnp_entry.grid(row=1, column=1, sticky="ew", padx=6, pady=4)
+        btn_pnp_browse = ttk.Button(load_card, text="Обзор...", command=lambda: self.load_file('pnp'))
+        btn_pnp_browse.grid(row=1, column=2, padx=2, pady=4)
+        btn_pnp_view = ttk.Button(load_card, text="👁️", width=3, command=lambda: self.show_preview(self.df_pnp, "PNP"))
+        btn_pnp_view.grid(row=1, column=3, padx=2, pady=4)
+        ToolTip(btn_pnp_view, "Предпросмотр данных PNP файла")
 
-        # ------ Выбор колонок ------
-        col_frame = tk.LabelFrame(top_frame, text="⚙️ Настройка сопоставления колонок", padx=10, pady=8)
-        col_frame.pack(fill="x", padx=5, pady=3)
-        col_frame.columnconfigure(1, weight=1)
-        col_frame.columnconfigure(3, weight=1)
+        tk.Label(load_card, text="BOM файл (Excel):", font=("Segoe UI", 9), bg=t["bg_card"], fg=t["text_primary"]).grid(row=2, column=0, sticky="w", pady=4)
+        bom_entry = ttk.Entry(load_card, textvariable=self.bom_path)
+        bom_entry.grid(row=2, column=1, sticky="ew", padx=6, pady=4)
+        btn_bom_browse = ttk.Button(load_card, text="Обзор...", command=lambda: self.load_file('bom'))
+        btn_bom_browse.grid(row=2, column=2, padx=2, pady=4)
+        btn_bom_view = ttk.Button(load_card, text="👁️", width=3, command=lambda: self.show_preview(self.df_bom, "BOM"))
+        btn_bom_view.grid(row=2, column=3, padx=2, pady=4)
+        ToolTip(btn_bom_view, "Предпросмотр данных BOM файла")
+
+        # ------ 2. Карточка: Настройка сопоставления колонок ------
+        col_card = tk.Frame(top_frame, bg=t["bg_card"], highlightbackground=t["border"], highlightthickness=1, padx=14, pady=10)
+        col_card.pack(fill=tk.X, padx=5, pady=(4, 6))
+        col_card.columnconfigure(1, weight=1)
+        col_card.columnconfigure(3, weight=1)
+
+        tk.Label(col_card, text="⚙️ Настройка сопоставления колонок", font=("Segoe UI", 10, "bold"),
+                 bg=t["bg_card"], fg=t["accent"]).grid(row=0, column=0, columnspan=4, sticky="w", pady=(0, 6))
 
         # PNP REF
-        tk.Label(col_frame, text="PNP: столбец с референсами").grid(row=0, column=0, sticky="w", pady=3)
-        self.pnp_ref_cb = ttk.Combobox(col_frame, textvariable=self.pnp_ref_col, state="readonly", width=20)
-        self.pnp_ref_cb.grid(row=0, column=1, sticky="ew", padx=6, pady=3)
+        tk.Label(col_card, text="PNP: столбец с референсами", font=("Segoe UI", 9), bg=t["bg_card"], fg=t["text_primary"]).grid(row=1, column=0, sticky="w", pady=3)
+        self.pnp_ref_cb = ttk.Combobox(col_card, textvariable=self.pnp_ref_col, state="readonly", width=20)
+        self.pnp_ref_cb.grid(row=1, column=1, sticky="ew", padx=6, pady=3)
         self.pnp_ref_cb.bind("<<ComboboxSelected>>", self.on_pnp_ref_selected)
 
         # PNP Value
-        tk.Label(col_frame, text="PNP: столбец Parts Name").grid(row=0, column=2, sticky="w", padx=(10, 0), pady=3)
-        self.pnp_val_cb = ttk.Combobox(col_frame, textvariable=self.pnp_val_col, state="readonly", width=20)
-        self.pnp_val_cb.grid(row=0, column=3, sticky="ew", padx=6, pady=3)
+        tk.Label(col_card, text="PNP: столбец Parts Name", font=("Segoe UI", 9), bg=t["bg_card"], fg=t["text_primary"]).grid(row=1, column=2, sticky="w", padx=(12, 0), pady=3)
+        self.pnp_val_cb = ttk.Combobox(col_card, textvariable=self.pnp_val_col, state="readonly", width=20)
+        self.pnp_val_cb.grid(row=1, column=3, sticky="ew", padx=6, pady=3)
         self.pnp_val_cb.bind("<<ComboboxSelected>>", lambda e: self.update_preview('pnp', 'val', self.pnp_val_col.get()))
 
         # PNP Side
-        tk.Label(col_frame, text="PNP: столбец стороны (Side)").grid(row=1, column=0, sticky="w", pady=3)
-        self.pnp_side_cb = ttk.Combobox(col_frame, textvariable=self.pnp_side_col, state="readonly", width=20)
-        self.pnp_side_cb.grid(row=1, column=1, sticky="ew", padx=6, pady=3)
+        tk.Label(col_card, text="PNP: столбец стороны (Side)", font=("Segoe UI", 9), bg=t["bg_card"], fg=t["text_primary"]).grid(row=2, column=0, sticky="w", pady=3)
+        self.pnp_side_cb = ttk.Combobox(col_card, textvariable=self.pnp_side_col, state="readonly", width=20)
+        self.pnp_side_cb.grid(row=2, column=1, sticky="ew", padx=6, pady=3)
         self.pnp_side_cb.bind("<<ComboboxSelected>>", lambda e: self.update_preview('pnp', 'side', self.pnp_side_col.get()))
 
         # PNP X
-        tk.Label(col_frame, text="PNP: столбец X").grid(row=1, column=2, sticky="w", padx=(10, 0), pady=3)
-        self.pnp_x_cb = ttk.Combobox(col_frame, textvariable=self.pnp_x_col, state="readonly", width=20)
-        self.pnp_x_cb.grid(row=1, column=3, sticky="ew", padx=6, pady=3)
+        tk.Label(col_card, text="PNP: столбец X", font=("Segoe UI", 9), bg=t["bg_card"], fg=t["text_primary"]).grid(row=2, column=2, sticky="w", padx=(12, 0), pady=3)
+        self.pnp_x_cb = ttk.Combobox(col_card, textvariable=self.pnp_x_col, state="readonly", width=20)
+        self.pnp_x_cb.grid(row=2, column=3, sticky="ew", padx=6, pady=3)
         self.pnp_x_cb.bind("<<ComboboxSelected>>", lambda e: self.update_preview('pnp', 'x', self.pnp_x_col.get()))
 
         # PNP Y
-        tk.Label(col_frame, text="PNP: столбец Y").grid(row=2, column=0, sticky="w", pady=3)
-        self.pnp_y_cb = ttk.Combobox(col_frame, textvariable=self.pnp_y_col, state="readonly", width=20)
-        self.pnp_y_cb.grid(row=2, column=1, sticky="ew", padx=6, pady=3)
+        tk.Label(col_card, text="PNP: столбец Y", font=("Segoe UI", 9), bg=t["bg_card"], fg=t["text_primary"]).grid(row=3, column=0, sticky="w", pady=3)
+        self.pnp_y_cb = ttk.Combobox(col_card, textvariable=self.pnp_y_col, state="readonly", width=20)
+        self.pnp_y_cb.grid(row=3, column=1, sticky="ew", padx=6, pady=3)
         self.pnp_y_cb.bind("<<ComboboxSelected>>", lambda e: self.update_preview('pnp', 'y', self.pnp_y_col.get()))
 
         # PNP R
-        tk.Label(col_frame, text="PNP: столбец R (угол)").grid(row=2, column=2, sticky="w", padx=(10, 0), pady=3)
-        self.pnp_r_cb = ttk.Combobox(col_frame, textvariable=self.pnp_r_col, state="readonly", width=20)
-        self.pnp_r_cb.grid(row=2, column=3, sticky="ew", padx=6, pady=3)
+        tk.Label(col_card, text="PNP: столбец R (угол)", font=("Segoe UI", 9), bg=t["bg_card"], fg=t["text_primary"]).grid(row=3, column=2, sticky="w", padx=(12, 0), pady=3)
+        self.pnp_r_cb = ttk.Combobox(col_card, textvariable=self.pnp_r_col, state="readonly", width=20)
+        self.pnp_r_cb.grid(row=3, column=3, sticky="ew", padx=6, pady=3)
         self.pnp_r_cb.bind("<<ComboboxSelected>>", lambda e: self.update_preview('pnp', 'r', self.pnp_r_col.get()))
 
         # BOM REF
-        tk.Label(col_frame, text="BOM: столбец с референсами").grid(row=3, column=0, sticky="w", pady=3)
-        self.bom_ref_cb = ttk.Combobox(col_frame, textvariable=self.bom_ref_col, state="readonly", width=20)
-        self.bom_ref_cb.grid(row=3, column=1, sticky="ew", padx=6, pady=3)
+        tk.Label(col_card, text="BOM: столбец с референсами", font=("Segoe UI", 9), bg=t["bg_card"], fg=t["text_primary"]).grid(row=4, column=0, sticky="w", pady=3)
+        self.bom_ref_cb = ttk.Combobox(col_card, textvariable=self.bom_ref_col, state="readonly", width=20)
+        self.bom_ref_cb.grid(row=4, column=1, sticky="ew", padx=6, pady=3)
         self.bom_ref_cb.bind("<<ComboboxSelected>>", lambda e: self.update_preview('bom', 'ref', self.bom_ref_col.get()))
 
         # BOM Value
-        tk.Label(col_frame, text="BOM: столбец со значением").grid(row=3, column=2, sticky="w", padx=(10, 0), pady=3)
-        self.bom_val_cb = ttk.Combobox(col_frame, textvariable=self.bom_val_col, state="readonly", width=20)
-        self.bom_val_cb.grid(row=3, column=3, sticky="ew", padx=6, pady=3)
+        tk.Label(col_card, text="BOM: столбец со значением", font=("Segoe UI", 9), bg=t["bg_card"], fg=t["text_primary"]).grid(row=4, column=2, sticky="w", padx=(12, 0), pady=3)
+        self.bom_val_cb = ttk.Combobox(col_card, textvariable=self.bom_val_col, state="readonly", width=20)
+        self.bom_val_cb.grid(row=4, column=3, sticky="ew", padx=6, pady=3)
         self.bom_val_cb.bind("<<ComboboxSelected>>", lambda e: self.update_preview('bom', 'val', self.bom_val_col.get()))
 
         # BOM Разделитель
-        sep_box = ttk.Frame(col_frame)
-        sep_box.grid(row=4, column=0, columnspan=4, sticky="w", pady=(4, 0))
-        tk.Label(sep_box, text="Разделитель RefDes в BOM:").pack(side=tk.LEFT)
+        sep_box = tk.Frame(col_card, bg=t["bg_card"])
+        sep_box.grid(row=5, column=0, columnspan=4, sticky="w", pady=(6, 0))
+        tk.Label(sep_box, text="Разделитель RefDes в BOM:", font=("Segoe UI", 9), bg=t["bg_card"], fg=t["text_primary"]).pack(side=tk.LEFT)
         bom_sep_e = ttk.Entry(sep_box, textvariable=self.bom_sep, width=6)
         bom_sep_e.pack(side=tk.LEFT, padx=6)
         ToolTip(bom_sep_e, "Разделитель нескольких позиций в одной строке BOM")
 
-        # Предпросмотр
-        preview_frame = tk.LabelFrame(top_frame, text="Предпросмотр значений", padx=5, pady=3)
-        preview_frame.pack(fill="x", padx=5, pady=3)
-        self.preview_label = tk.Label(preview_frame, text="Выберите колонку", anchor="w", justify="left")
-        self.preview_label.pack(fill="x")
+        # ------ 3. Карточка: Предпросмотр значений ------
+        preview_card = tk.Frame(top_frame, bg=t["bg_card"], highlightbackground=t["border"], highlightthickness=1, padx=14, pady=8)
+        preview_card.pack(fill=tk.X, padx=5, pady=(4, 6))
 
-        # Фильтр результатов
-        filter_frame = tk.LabelFrame(top_frame, text="Фильтр результатов", padx=5, pady=3)
-        filter_frame.pack(fill="x", padx=5, pady=3)
+        tk.Label(preview_card, text="📋 Предпросмотр значений", font=("Segoe UI", 10, "bold"),
+                 bg=t["bg_card"], fg=t["text_header"]).pack(anchor="w", pady=(0, 4))
 
-        tk.Label(filter_frame, text="Поиск (RefDes или значение):").pack(side="left", padx=3)
-        tk.Entry(filter_frame, textvariable=self.search_var, width=20).pack(side="left", padx=3)
-        tk.Button(filter_frame, text="🔍 Применить фильтр", command=self.apply_filter).pack(side="left", padx=3)
+        preview_inner = tk.Frame(preview_card, bg=t["bg_card_inner"], highlightbackground=t["border"], highlightthickness=1, padx=10, pady=6)
+        preview_inner.pack(fill=tk.X)
 
-        tk.Label(filter_frame, text="Статус:").pack(side="left", padx=(10,3))
-        self.status_filter_cb = ttk.Combobox(filter_frame, textvariable=self.status_filter_var,
+        self.preview_label = tk.Label(preview_inner, text="Выберите колонку выше для быстрого просмотра первых 20 значений",
+                                      font=("Consolas", 9), bg=t["bg_card_inner"], fg=t["text_secondary"], anchor="w", justify="left", wraplength=1100)
+        self.preview_label.pack(fill=tk.X)
+
+        # ------ 4. Карточка: Фильтр результатов ------
+        filter_card = tk.Frame(top_frame, bg=t["bg_card"], highlightbackground=t["border"], highlightthickness=1, padx=14, pady=8)
+        filter_card.pack(fill=tk.X, padx=5, pady=(4, 6))
+
+        tk.Label(filter_card, text="🔍 Поиск (RefDes или значение):", font=("Segoe UI", 9), bg=t["bg_card"], fg=t["text_primary"]).pack(side="left", padx=(0, 6))
+        search_ent = ttk.Entry(filter_card, textvariable=self.search_var, width=22)
+        search_ent.pack(side="left", padx=4)
+
+        btn_apply_filter = tk.Button(filter_card, text="Применить фильтр", command=self.apply_filter,
+                                     bg=t["btn_sec_bg"], fg=t["btn_sec_fg"], activebackground=t["btn_sec_hover"],
+                                     font=("Segoe UI", 9), relief="flat", padx=10, pady=4, cursor="hand2")
+        btn_apply_filter.pack(side="left", padx=4)
+
+        tk.Label(filter_card, text="Статус:", font=("Segoe UI", 9), bg=t["bg_card"], fg=t["text_primary"]).pack(side="left", padx=(14, 4))
+        self.status_filter_cb = ttk.Combobox(filter_card, textvariable=self.status_filter_var,
                                              values=["Все","OK","Только в PNP","Только в BOM","Несовпадение значений"],
-                                             state="readonly", width=16)
-        self.status_filter_cb.pack(side="left", padx=3)
+                                             state="readonly", width=18)
+        self.status_filter_cb.pack(side="left", padx=4)
         self.status_filter_cb.bind("<<ComboboxSelected>>", lambda e: self.apply_filter())
 
-        tk.Button(filter_frame, text="Сбросить фильтр", command=self.reset_filter).pack(side="left", padx=3)
+        btn_reset_filter = tk.Button(filter_card, text="Сбросить фильтр", command=self.reset_filter,
+                                     bg=t["btn_sec_bg"], fg=t["text_muted"], activebackground=t["btn_sec_hover"],
+                                     font=("Segoe UI", 9), relief="flat", padx=10, pady=4, cursor="hand2")
+        btn_reset_filter.pack(side="left", padx=4)
 
-        tk.Button(top_frame, text="🔍 Запустить проверку", command=self.run_check, bg="#4CAF50", fg="white", font=("Arial", 10)).pack(pady=5)
+        # Кнопка «Запустить проверку» — выделенная акцентная плашка
+        run_frame = tk.Frame(top_frame, bg=t["bg_app"], pady=6)
+        run_frame.pack(fill=tk.X)
+        btn_run = tk.Button(run_frame, text="🔍 Запустить проверку", command=self.run_check,
+                            bg=t["accent"], fg=t["accent_text"], activebackground=t["accent_hover"],
+                            activeforeground=t["accent_text"], font=("Segoe UI", 11, "bold"),
+                            relief="flat", padx=26, pady=8, cursor="hand2")
+        btn_run.pack(anchor="center")
 
-        # Результаты
-        result_frame = tk.LabelFrame(top_frame, text="Результаты проверки (клик по заголовку для сортировки)", padx=5, pady=5)
-        result_frame.pack(fill="both", expand=True, padx=5, pady=3)
+        # ------ 5. Карточка: Результаты проверки ------
+        result_card = tk.Frame(top_frame, bg=t["bg_card"], highlightbackground=t["border"], highlightthickness=1, padx=12, pady=10)
+        result_card.pack(fill=tk.BOTH, expand=True, padx=5, pady=(4, 6))
 
-        columns = ("RefDes","Статус","Значение в PNP","Значение в BOM")
-        self.tree = ttk.Treeview(result_frame, columns=columns, show="headings", height=5)
+        tk.Label(result_card, text="📊 Результаты проверки (клик по заголовку для сортировки)",
+                 font=("Segoe UI", 10, "bold"), bg=t["bg_card"], fg=t["text_header"]).pack(anchor="w", pady=(0, 6))
+
+        tree_box = tk.Frame(result_card, bg=t["bg_card"])
+        tree_box.pack(fill=tk.BOTH, expand=True)
+
+        columns = ("RefDes", "Статус", "Значение в PNP", "Значение в BOM")
+        self.tree = ttk.Treeview(tree_box, columns=columns, show="headings", height=12)
         for col in columns:
             self.tree.heading(col, text=col, command=lambda c=col: self.sort_treeview(c, False))
             self.tree.column(col, width=150)
+
+        # Теги для чередования строк (zebra stripes)
+        self.tree.tag_configure("evenrow", background=t["row_even"])
+        self.tree.tag_configure("oddrow", background=t["row_odd"])
+
         self.tree.pack(side="left", fill="both", expand=True)
 
-        scroll = ttk.Scrollbar(result_frame, orient="vertical", command=self.tree.yview)
+        scroll = ttk.Scrollbar(tree_box, orient="vertical", command=self.tree.yview)
         scroll.pack(side="right", fill="y")
         self.tree.configure(yscrollcommand=scroll.set)
 
-        self.stats_label = tk.Label(top_frame, text="", font=("Arial", 9))
-        self.stats_label.pack(pady=3)
+        self.tree_placeholder = tk.Label(self.tree, text="Нажмите «🔍 Запустить проверку» для анализа соответствий P&P и BOM",
+                                         font=("Segoe UI", 10), bg=t["tree_bg"], fg=t["text_muted"])
+        self.tree_placeholder.place(relx=0.5, rely=0.4, anchor="center")
 
-        # Панель экспорта (закреплена внизу)
-        btn_frame = tk.Frame(main_container)
-        btn_frame.pack(side=tk.BOTTOM, fill=tk.X, pady=3)
+        # Информационная плашка со статистикой
+        stats_card = tk.Frame(top_frame, bg=t["bg_card_inner"], highlightbackground=t["border"], highlightthickness=1, padx=12, pady=6)
+        stats_card.pack(fill=tk.X, padx=5, pady=(2, 6))
 
-        tk.Button(btn_frame, text="📥 Экспортировать отчёт по проверке", command=self.export_report, font=("Arial", 9)).pack(side="left", padx=3)
+        self.stats_label = tk.Label(stats_card, text="Готов к проверке. Задайте файлы и запустите аудит.",
+                                    font=("Segoe UI", 9, "bold"), bg=t["bg_card_inner"], fg=t["text_secondary"], anchor=tk.W)
+        self.stats_label.pack(fill=tk.X)
 
-        export_frame = tk.Frame(btn_frame)
-        export_frame.pack(side="left", padx=10)
+        # ------ Панель экспорта (закреплена снизу) ------
+        btn_frame = tk.Frame(main_container, bg=t["bg_app"])
+        btn_frame.pack(side=tk.BOTTOM, fill=tk.X, pady=(6, 2))
 
-        tk.Button(export_frame, text="📤 PnP только OK (Excel)", command=self.export_pnp_ok_excel, bg="#4CAF50", fg="white", font=("Arial", 9)).pack(side="left", padx=2)
-        tk.Button(export_frame, text="📤 PnP только OK (TXT)", command=self.export_pnp_ok_txt, bg="#4CAF50", fg="white", font=("Arial", 9)).pack(side="left", padx=2)
-        tk.Button(export_frame, text="📤 Весь PnP (Excel)", command=self.export_pnp_all_excel, bg="#2196F3", fg="white", font=("Arial", 9)).pack(side="left", padx=2)
-        tk.Button(export_frame, text="📤 Весь PnP (TXT)", command=self.export_pnp_all_txt, bg="#2196F3", fg="white", font=("Arial", 9)).pack(side="left", padx=2)
+        # Группа 1: Отчёт
+        tk.Button(btn_frame, text="📥 Экспортировать отчёт по проверке", command=self.export_report,
+                  bg=t["btn_sec_bg"], fg=t["btn_sec_fg"], activebackground=t["btn_sec_hover"],
+                  font=("Segoe UI", 9), relief="flat", padx=12, pady=6, cursor="hand2").pack(side="left", padx=(0, 6))
+
+        # Разделитель
+        tk.Frame(btn_frame, width=1, bg=t["border"]).pack(side="left", fill="y", padx=6, pady=2)
+
+        # Группа 2: PnP только OK
+        tk.Button(btn_frame, text="📤 PnP только OK (Excel)", command=self.export_pnp_ok_excel,
+                  bg="#059669", fg="#ffffff", activebackground="#10b981",
+                  font=("Segoe UI", 9, "bold"), relief="flat", padx=12, pady=6, cursor="hand2").pack(side="left", padx=3)
+        tk.Button(btn_frame, text="📤 PnP только OK (TXT)", command=self.export_pnp_ok_txt,
+                  bg="#059669", fg="#ffffff", activebackground="#10b981",
+                  font=("Segoe UI", 9, "bold"), relief="flat", padx=12, pady=6, cursor="hand2").pack(side="left", padx=3)
+
+        # Разделитель
+        tk.Frame(btn_frame, width=1, bg=t["border"]).pack(side="left", fill="y", padx=6, pady=2)
+
+        # Группа 3: Весь PnP
+        tk.Button(btn_frame, text="📤 Весь PnP (Excel)", command=self.export_pnp_all_excel,
+                  bg=t["accent"], fg=t["accent_text"], activebackground=t["accent_hover"],
+                  font=("Segoe UI", 9, "bold"), relief="flat", padx=12, pady=6, cursor="hand2").pack(side="left", padx=3)
+        tk.Button(btn_frame, text="📤 Весь PnP (TXT)", command=self.export_pnp_all_txt,
+                  bg=t["accent"], fg=t["accent_text"], activebackground=t["accent_hover"],
+                  font=("Segoe UI", 9, "bold"), relief="flat", padx=12, pady=6, cursor="hand2").pack(side="left", padx=3)
 
     # ---------- Вспомогательные методы ----------
     def _is_empty_ref(self, value):
@@ -824,8 +897,14 @@ class CheckTab(ttk.Frame):
     def update_table(self, results):
         for item in self.tree.get_children():
             self.tree.delete(item)
-        for row in results:
-            self.tree.insert("", "end", values=row)
+        if hasattr(self, 'tree_placeholder'):
+            if results:
+                self.tree_placeholder.place_forget()
+            else:
+                self.tree_placeholder.place(relx=0.5, rely=0.4, anchor="center")
+        for idx, row in enumerate(results):
+            tag = "evenrow" if idx % 2 == 0 else "oddrow"
+            self.tree.insert("", "end", values=row, tags=(tag,))
 
     def update_stats(self):
         total = len(self.filtered_results)
@@ -833,7 +912,11 @@ class CheckTab(ttk.Frame):
         only_bom = sum(1 for r in self.filtered_results if r[1] == "Только в BOM")
         mismatch = sum(1 for r in self.filtered_results if r[1] == "Несовпадение значений")
         ok = sum(1 for r in self.filtered_results if r[1] == "OK")
-        self.stats_label.config(text=f"Отфильтровано: {total} | OK: {ok} | Только в PNP: {only_pnp} | Только в BOM: {only_bom} | Несовпадений: {mismatch}")
+        t = THEMES["dark"]
+        self.stats_label.config(
+            text=f"Отфильтровано: {total}  |  OK: {ok}  |  Только в PNP: {only_pnp}  |  Только в BOM: {only_bom}  |  Несовпадений: {mismatch}",
+            fg=t["accent"] if total > 0 else t["text_secondary"]
+        )
 
     def sort_treeview(self, col, reverse):
         data = [(self.tree.set(child, col), child) for child in self.tree.get_children('')]
@@ -1165,28 +1248,35 @@ class MergeTab(ttk.Frame):
         self.on_one_side_changed()
 
     def create_widgets(self):
-        main_frame = ttk.Frame(self.scrollable_frame, padding="10")
+        t = THEMES["dark"]
+        main_frame = tk.Frame(self.scrollable_frame, bg=t["bg_app"], padx=8, pady=6)
         main_frame.pack(fill=tk.BOTH, expand=True)
 
         # =====================================================================
         # 1. КАРТОЧКА: Загрузка файлов (P&P и BOM)
         # =====================================================================
-        files_card = tk.LabelFrame(main_frame, text="📁 Исходные файлы (P&P координаты и BOM спецификация)", padx=12, pady=10)
+        files_card = tk.Frame(main_frame, bg=t["bg_card"], highlightbackground=t["border"], highlightthickness=1, padx=14, pady=12)
         files_card.pack(fill=tk.X, pady=(0, 8))
         files_card.columnconfigure(1, weight=1)
 
+        tk.Label(files_card, text="📁 Исходные файлы (P&P координаты и BOM спецификация)",
+                 font=("Segoe UI", 10, "bold"), bg=t["bg_card"], fg=t["accent"]).grid(row=0, column=0, columnspan=5, sticky="w", pady=(0, 6))
+
         # Строка P&P
-        tk.Label(files_card, text="Файл P&P:").grid(row=0, column=0, sticky="w", pady=4)
+        tk.Label(files_card, text="Файл P&P:", font=("Segoe UI", 9), bg=t["bg_card"], fg=t["text_primary"]).grid(row=1, column=0, sticky="w", pady=4)
         pnp_entry = ttk.Entry(files_card, textvariable=self.pnp_file)
-        pnp_entry.grid(row=0, column=1, sticky="ew", padx=6, pady=4)
-        ttk.Button(files_card, text="Обзор...", command=self.browse_pnp).grid(row=0, column=2, padx=2, pady=4)
-        ttk.Button(files_card, text="👁️", width=3, command=lambda: self.show_preview(self.pnp_df, "P&P")).grid(row=0, column=3, padx=2, pady=4)
-        ttk.Button(files_card, text="Загрузить P&P", command=self.load_pnp).grid(row=0, column=4, padx=4, pady=4)
+        pnp_entry.grid(row=1, column=1, sticky="ew", padx=6, pady=4)
+        btn_pnp_browse = ttk.Button(files_card, text="Обзор...", command=self.browse_pnp)
+        btn_pnp_browse.grid(row=1, column=2, padx=2, pady=4)
+        btn_pnp_view = ttk.Button(files_card, text="👁️", width=3, command=lambda: self.show_preview(self.pnp_df, "P&P"))
+        btn_pnp_view.grid(row=1, column=3, padx=2, pady=4)
+        ToolTip(btn_pnp_view, "Предпросмотр файла P&P")
+        ttk.Button(files_card, text="Загрузить P&P", command=self.load_pnp).grid(row=1, column=4, padx=4, pady=4)
 
         # Разделители P&P
-        sep_box = ttk.Frame(files_card)
-        sep_box.grid(row=1, column=1, sticky="w", padx=6, pady=(0, 6), columnspan=4)
-        tk.Label(sep_box, text="Разделитель:").pack(side=tk.LEFT, padx=(0, 4))
+        sep_box = tk.Frame(files_card, bg=t["bg_card"])
+        sep_box.grid(row=2, column=1, sticky="w", padx=6, pady=(0, 6), columnspan=4)
+        tk.Label(sep_box, text="Разделитель:", font=("Segoe UI", 9), bg=t["bg_card"], fg=t["text_secondary"]).pack(side=tk.LEFT, padx=(0, 4))
         for sep in [" ", "\t", ",", ";"]:
             ttk.Radiobutton(sep_box, text=repr(sep), variable=self.pnp_sep_mode,
                             value=sep, command=self.on_sep_changed).pack(side=tk.LEFT, padx=3)
@@ -1198,25 +1288,32 @@ class MergeTab(ttk.Frame):
         ttk.Checkbutton(sep_box, text="Есть заголовок", variable=self.pnp_header).pack(side=tk.LEFT, padx=(12, 0))
 
         # Строка BOM
-        tk.Label(files_card, text="Файл BOM:").grid(row=2, column=0, sticky="w", pady=4)
+        tk.Label(files_card, text="Файл BOM:", font=("Segoe UI", 9), bg=t["bg_card"], fg=t["text_primary"]).grid(row=3, column=0, sticky="w", pady=4)
         bom_entry = ttk.Entry(files_card, textvariable=self.bom_file)
-        bom_entry.grid(row=2, column=1, sticky="ew", padx=6, pady=4)
-        ttk.Button(files_card, text="Обзор...", command=self.browse_bom).grid(row=2, column=2, padx=2, pady=4)
-        ttk.Button(files_card, text="👁️", width=3, command=lambda: self.show_preview(self.bom_df, "BOM")).grid(row=2, column=3, padx=2, pady=4)
-        ttk.Button(files_card, text="Загрузить BOM", command=self.load_bom).grid(row=2, column=4, padx=4, pady=4)
+        bom_entry.grid(row=3, column=1, sticky="ew", padx=6, pady=4)
+        btn_bom_browse = ttk.Button(files_card, text="Обзор...", command=self.browse_bom)
+        btn_bom_browse.grid(row=3, column=2, padx=2, pady=4)
+        btn_bom_view = ttk.Button(files_card, text="👁️", width=3, command=lambda: self.show_preview(self.bom_df, "BOM"))
+        btn_bom_view.grid(row=3, column=3, padx=2, pady=4)
+        ToolTip(btn_bom_view, "Предпросмотр файла BOM")
+        ttk.Button(files_card, text="Загрузить BOM", command=self.load_bom).grid(row=3, column=4, padx=4, pady=4)
 
         # =====================================================================
         # 2. КАРТОЧКА: Настройка соответствия столбцов (2 колонки: P&P и BOM)
         # =====================================================================
-        cols_container = ttk.Frame(main_frame)
+        cols_container = tk.Frame(main_frame, bg=t["bg_app"])
         cols_container.pack(fill=tk.X, pady=(0, 8))
         cols_container.columnconfigure(0, weight=1)
         cols_container.columnconfigure(1, weight=1)
+        cols_container.rowconfigure(0, weight=1)
 
         # Левая колонка: Параметры P&P
-        pnp_card = tk.LabelFrame(cols_container, text="⚙️ Столбцы и координаты P&P", padx=10, pady=8)
+        pnp_card = tk.Frame(cols_container, bg=t["bg_card"], highlightbackground=t["border"], highlightthickness=1, padx=14, pady=12)
         pnp_card.grid(row=0, column=0, sticky="nsew", padx=(0, 5))
         pnp_card.columnconfigure(1, weight=1)
+
+        tk.Label(pnp_card, text="⚙️ Столбцы и координаты P&P", font=("Segoe UI", 10, "bold"),
+                 bg=t["bg_card"], fg=t["accent"]).grid(row=0, column=0, columnspan=2, sticky="w", pady=(0, 6))
 
         pnp_fields = [
             ("P&P столбец REF:", self.on_setting_changed, 'REF'),
@@ -1227,15 +1324,15 @@ class MergeTab(ttk.Frame):
         ]
 
         self.pnp_cbs = {}
-        for idx, (label_text, handler, arg) in enumerate(pnp_fields):
-            tk.Label(pnp_card, text=label_text).grid(row=idx, column=0, sticky="w", pady=3)
+        for idx, (label_text, handler, arg) in enumerate(pnp_fields, start=1):
+            tk.Label(pnp_card, text=label_text, font=("Segoe UI", 9), bg=t["bg_card"], fg=t["text_primary"]).grid(row=idx, column=0, sticky="w", pady=3)
             cb = ttk.Combobox(pnp_card, state="readonly", width=22)
             cb.grid(row=idx, column=1, sticky="ew", padx=6, pady=3)
             if arg:
                 cb.bind("<<ComboboxSelected>>", lambda e, a=arg: handler(a))
             else:
                 cb.bind("<<ComboboxSelected>>", handler)
-            self.pnp_cbs[idx] = cb
+            self.pnp_cbs[idx - 1] = cb
 
         self.pnp_ref_cb = self.pnp_cbs[0]
         self.pnp_x_cb = self.pnp_cbs[1]
@@ -1244,78 +1341,106 @@ class MergeTab(ttk.Frame):
         self.pnp_mirror_cb = self.pnp_cbs[4]
 
         # Стороны TOP/BOTTOM
-        tk.Label(pnp_card, text="Значение для TOP:").grid(row=5, column=0, sticky="w", pady=3)
+        tk.Label(pnp_card, text="Значение для TOP:", font=("Segoe UI", 9), bg=t["bg_card"], fg=t["text_primary"]).grid(row=6, column=0, sticky="w", pady=3)
         self.top_cb = ttk.Combobox(pnp_card, state="readonly", width=22)
-        self.top_cb.grid(row=5, column=1, sticky="ew", padx=6, pady=3)
+        self.top_cb.grid(row=6, column=1, sticky="ew", padx=6, pady=3)
         self.top_cb.bind("<<ComboboxSelected>>", lambda e: self.on_setting_changed('TOP'))
 
-        tk.Label(pnp_card, text="Значение для BOTTOM:").grid(row=6, column=0, sticky="w", pady=3)
+        tk.Label(pnp_card, text="Значение для BOTTOM:", font=("Segoe UI", 9), bg=t["bg_card"], fg=t["text_primary"]).grid(row=7, column=0, sticky="w", pady=3)
         self.bottom_cb = ttk.Combobox(pnp_card, state="readonly", width=22)
-        self.bottom_cb.grid(row=6, column=1, sticky="ew", padx=6, pady=3)
+        self.bottom_cb.grid(row=7, column=1, sticky="ew", padx=6, pady=3)
         self.bottom_cb.bind("<<ComboboxSelected>>", lambda e: self.on_setting_changed('BOTTOM'))
 
-        pnp_opts = ttk.Frame(pnp_card)
-        pnp_opts.grid(row=7, column=0, columnspan=2, sticky="w", pady=(6, 0))
+        pnp_opts = tk.Frame(pnp_card, bg=t["bg_card"])
+        pnp_opts.grid(row=8, column=0, columnspan=2, sticky="w", pady=(6, 0))
         ttk.Checkbutton(pnp_opts, text="Одна сторона (игнорировать сторону)", variable=self.one_side,
-                        command=self.on_one_side_changed).pack(anchor="w", pady=1)
+                        command=self.on_one_side_changed).pack(anchor="w", pady=2)
         ttk.Checkbutton(pnp_opts, text="Конвертировать координаты из mil в мм", variable=self.convert_mil,
-                        command=lambda: self.on_setting_changed('convert_mil')).pack(anchor="w", pady=1)
+                        command=lambda: self.on_setting_changed('convert_mil')).pack(anchor="w", pady=2)
 
         # Правая колонка: Параметры BOM
-        bom_card = tk.LabelFrame(cols_container, text="🗂️ Столбцы спецификации BOM", padx=10, pady=8)
+        bom_card = tk.Frame(cols_container, bg=t["bg_card"], highlightbackground=t["border"], highlightthickness=1, padx=14, pady=12)
         bom_card.grid(row=0, column=1, sticky="nsew", padx=(5, 0))
         bom_card.columnconfigure(1, weight=1)
 
-        tk.Label(bom_card, text="BOM столбец с RefDes:").grid(row=0, column=0, sticky="w", pady=3)
+        tk.Label(bom_card, text="🗂️ Столбцы спецификации BOM", font=("Segoe UI", 10, "bold"),
+                 bg=t["bg_card"], fg=t["accent"]).grid(row=0, column=0, columnspan=2, sticky="w", pady=(0, 6))
+
+        tk.Label(bom_card, text="BOM столбец с RefDes:", font=("Segoe UI", 9), bg=t["bg_card"], fg=t["text_primary"]).grid(row=1, column=0, sticky="w", pady=4)
         self.bom_ref_cb = ttk.Combobox(bom_card, state="readonly", width=22)
-        self.bom_ref_cb.grid(row=0, column=1, sticky="ew", padx=6, pady=3)
+        self.bom_ref_cb.grid(row=1, column=1, sticky="ew", padx=6, pady=4)
         self.bom_ref_cb.bind("<<ComboboxSelected>>", lambda e: self.on_setting_changed('bom_ref'))
 
-        # Разделитель RefDes размещён компактно прямо под столбцом RefDes!
-        sep_ref_frame = ttk.Frame(bom_card)
-        sep_ref_frame.grid(row=1, column=0, columnspan=2, sticky="w", pady=3)
-        tk.Label(sep_ref_frame, text="Разделитель RefDes в ячейке BOM:").pack(side=tk.LEFT)
+        # Разделитель RefDes размещён прямо под столбцом RefDes
+        sep_ref_frame = tk.Frame(bom_card, bg=t["bg_card"])
+        sep_ref_frame.grid(row=2, column=0, columnspan=2, sticky="w", pady=3)
+        tk.Label(sep_ref_frame, text="Разделитель RefDes в ячейке BOM:", font=("Segoe UI", 9), bg=t["bg_card"], fg=t["text_primary"]).pack(side=tk.LEFT)
         bom_sep_entry = ttk.Entry(sep_ref_frame, textvariable=self.bom_sep, width=6)
         bom_sep_entry.pack(side=tk.LEFT, padx=6)
         self.bom_sep.trace_add('write', lambda *args: self.save_bom_settings())
         ToolTip(bom_sep_entry, "Символ-разделитель позиционных обозначений в BOM (обычно запятая или пробел)")
 
-        tk.Label(bom_card, text="BOM столбец данных (Унифицированное / Parts_Name):").grid(row=2, column=0, sticky="w", pady=(8, 3))
+        tk.Label(bom_card, text="BOM столбец данных (Унифицированное):", font=("Segoe UI", 9), bg=t["bg_card"], fg=t["text_primary"]).grid(row=3, column=0, sticky="w", pady=(10, 4))
         self.bom_data_cb = ttk.Combobox(bom_card, state="readonly", width=22)
-        self.bom_data_cb.grid(row=2, column=1, sticky="ew", padx=6, pady=(8, 3))
+        self.bom_data_cb.grid(row=3, column=1, sticky="ew", padx=6, pady=(10, 4))
         self.bom_data_cb.bind("<<ComboboxSelected>>", lambda e: self.on_setting_changed('bom_data'))
         self.bom_data_cb.bind("<<ComboboxSelected>>", lambda e: self.save_bom_settings())
 
-        info_lbl = tk.Label(bom_card, text="💡 Совет: Выберите столбец 'Унифицированное наименование', сформированный на Шаге 1.",
-                            font=("Segoe UI", 8), fg="#949ba4", wraplength=280, justify="left")
-        info_lbl.grid(row=3, column=0, columnspan=2, sticky="w", pady=(10, 0))
+        # Информационная плашка с подсказкой
+        info_box = tk.Frame(bom_card, bg=t["bg_card_inner"], highlightbackground=t["border"], highlightthickness=1, padx=12, pady=10)
+        info_box.grid(row=4, column=0, columnspan=2, sticky="nsew", pady=(14, 0))
+
+        tk.Label(info_box, text="💡 Совет по выбору столбца", font=("Segoe UI", 9, "bold"),
+                 bg=t["bg_card_inner"], fg=t["warning_fg"]).pack(anchor="w")
+        tk.Label(info_box, text="Выберите столбец 'Унифицированное наименование',\nсформированный на Шаге 1 для объединения с координатами P&P.",
+                 font=("Segoe UI", 8), bg=t["bg_card_inner"], fg=t["text_secondary"], justify="left").pack(anchor="w", pady=(3, 0))
 
         # =====================================================================
         # 3. КАРТОЧКА: Предпросмотр результата
         # =====================================================================
-        preview_card = tk.LabelFrame(main_frame, text="📊 Предпросмотр объединенных данных", padx=10, pady=8)
+        preview_card = tk.Frame(main_frame, bg=t["bg_card"], highlightbackground=t["border"], highlightthickness=1, padx=14, pady=12)
         preview_card.pack(fill=tk.BOTH, expand=True, pady=(0, 6))
 
-        tree_frame = ttk.Frame(preview_card)
+        tk.Label(preview_card, text="📊 Предпросмотр объединенных данных", font=("Segoe UI", 10, "bold"),
+                 bg=t["bg_card"], fg=t["text_header"]).pack(anchor="w", pady=(0, 6))
+
+        tree_frame = tk.Frame(preview_card, bg=t["bg_card"])
         tree_frame.pack(fill=tk.BOTH, expand=True)
 
         self.result_tree = ttk.Treeview(tree_frame, columns=(), show="headings", height=10)
         self.result_tree.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
 
+        # Теги для чередования строк (zebra stripes)
+        self.result_tree.tag_configure("evenrow", background=t["row_even"])
+        self.result_tree.tag_configure("oddrow", background=t["row_odd"])
+
         scroll_y = ttk.Scrollbar(tree_frame, orient=tk.VERTICAL, command=self.result_tree.yview)
         scroll_y.pack(side=tk.RIGHT, fill=tk.Y)
         self.result_tree.configure(yscrollcommand=scroll_y.set)
 
+        self.result_placeholder = tk.Label(self.result_tree,
+            text="📊 Здесь появится предпросмотр объединенных данных.\nЗагрузите P&P и BOM, укажите столбцы и нажмите «Обновить предпросмотр».",
+            font=("Segoe UI", 10), bg=t["tree_bg"], fg=t["text_muted"])
+        self.result_placeholder.place(relx=0.5, rely=0.45, anchor="center")
+
         # Панель кнопок действий
-        btn_frame = ttk.Frame(preview_card)
-        btn_frame.pack(fill=tk.X, pady=(8, 0))
+        btn_frame = tk.Frame(preview_card, bg=t["bg_card"])
+        btn_frame.pack(fill=tk.X, pady=(10, 0))
 
-        ttk.Button(btn_frame, text="👁️ Обновить предпросмотр", command=lambda: self.on_setting_changed('manual')).pack(side=tk.LEFT, padx=4)
-        ttk.Button(btn_frame, text="💾 Объединить и сохранить", command=self.run_merge).pack(side=tk.LEFT, padx=4)
-        tk.Button(btn_frame, text="📤 Выгрузить PnP в Сверку", command=self.export_to_check, bg="#23a55a", fg="white",
-                  relief="flat", padx=8, pady=4).pack(side=tk.LEFT, padx=4)
+        tk.Button(btn_frame, text="👁️ Обновить предпросмотр", command=lambda: self.on_setting_changed('manual'),
+                  bg=t["btn_sec_bg"], fg=t["btn_sec_fg"], activebackground=t["btn_sec_hover"],
+                  font=("Segoe UI", 9), relief="flat", padx=12, pady=6, cursor="hand2").pack(side=tk.LEFT, padx=(0, 6))
 
-        self.status_label = ttk.Label(main_frame, text="Готов к объединению", relief=tk.SUNKEN, anchor=tk.W)
+        tk.Button(btn_frame, text="💾 Объединить и сохранить", command=self.run_merge,
+                  bg=t["accent"], fg=t["accent_text"], activebackground=t["accent_hover"],
+                  font=("Segoe UI", 10, "bold"), relief="flat", padx=16, pady=6, cursor="hand2").pack(side=tk.LEFT, padx=6)
+
+        tk.Button(btn_frame, text="📤 Выгрузить PnP в Сверку", command=self.export_to_check,
+                  bg="#059669", fg="#ffffff", activebackground="#10b981",
+                  font=("Segoe UI", 9, "bold"), relief="flat", padx=14, pady=6, cursor="hand2").pack(side=tk.LEFT, padx=6)
+
+        self.status_label = tk.Label(main_frame, text="Готов к объединению", font=("Segoe UI", 8),
+                                     bg=t["bg_app"], fg=t["text_muted"], anchor=tk.W, padx=6, pady=4)
         self.status_label.pack(fill=tk.X, pady=(2, 0))
 
     # ---------- Сохранение BOM настроек ----------
@@ -2290,13 +2415,20 @@ class MergeTab(ttk.Frame):
             if changed_col and col == changed_col:
                 display_col = col + " ★"
             self.result_tree.heading(col, text=display_col)
-            self.result_tree.column(col, width=100, anchor=tk.CENTER)
+            self.result_tree.column(col, width=110, anchor=tk.CENTER)
 
         for item in self.result_tree.get_children():
             self.result_tree.delete(item)
 
+        if hasattr(self, 'result_placeholder'):
+            if df is not None and not df.empty:
+                self.result_placeholder.place_forget()
+            else:
+                self.result_placeholder.place(relx=0.5, rely=0.45, anchor="center")
+
         for idx, row in df.head(100).iterrows():
-            self.result_tree.insert("", tk.END, values=list(row))
+            tag = "evenrow" if idx % 2 == 0 else "oddrow"
+            self.result_tree.insert("", tk.END, values=list(row), tags=(tag,))
 
         self.status_label.config(text=f"Отображено {len(df.head(100))} из {len(df)} строк. Последнее изменение: {changed_col if changed_col else '—'}")
 
@@ -3503,7 +3635,7 @@ class CompareBOMTab(ttk.Frame):
         main_frame.pack(fill=tk.BOTH, expand=True)
 
         # Заголовок
-        ttk.Label(main_frame, text="Сверка двух столбцов BOM (в одном или разных файлах)", font=('Arial', 12, 'bold')).pack(anchor=tk.W, pady=5)
+        ttk.Label(main_frame, text="Сверка двух столбцов BOM (в одном или разных файлах)", font=('Segoe UI', 12, 'bold')).pack(anchor=tk.W, pady=5)
 
         # Блок выбора файлов
         file_frame = ttk.LabelFrame(main_frame, text="Файлы BOM", padding=5)
