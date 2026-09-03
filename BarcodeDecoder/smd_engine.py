@@ -1347,6 +1347,217 @@ def enable_smooth_mousewheel(root_or_window):
         pass
 
 
+def show_faq_dialog(parent, current_theme="dark"):
+    t = THEMES[current_theme]
+    dialog = tk.Toplevel(parent)
+    dialog.title("📖 Руководство оператора и FAQ — SMD Hub")
+    dialog.geometry("1140x820")
+    dialog.minsize(920, 600)
+    dialog.resizable(True, True)
+    dialog.transient(parent)
+    dialog.grab_set()
+    dialog.configure(bg=t["bg_app"])
+    set_window_titlebar_theme(dialog, t["is_dark"])
+
+    # Центрирование окна
+    dialog.update_idletasks()
+    try:
+        pw = parent.winfo_width()
+        ph = parent.winfo_height()
+        px = parent.winfo_rootx()
+        py = parent.winfo_rooty()
+        w = 1140
+        h = 820
+        x = max(10, px + (pw - w) // 2)
+        y = max(10, py + (ph - h) // 2)
+        dialog.geometry(f"{w}x{h}+{x}+{y}")
+    except Exception:
+        pass
+
+    # Хедер диалога с поиском и кнопками
+    header = tk.Frame(dialog, bg=t["bg_card"], padx=15, pady=10)
+    header.pack(fill=tk.X)
+
+    title_frame = tk.Frame(header, bg=t["bg_card"])
+    title_frame.pack(side=tk.LEFT, fill=tk.Y)
+
+    lbl_title = tk.Label(
+        title_frame,
+        text="📖 Руководство оператора и FAQ — SMD Hub",
+        font=("Segoe UI", 12, "bold"),
+        bg=t["bg_card"],
+        foreground=t["text_primary"]
+    )
+    lbl_title.pack(side=tk.LEFT)
+
+    # Панель быстрого поиска по тексту справки
+    search_frame = tk.Frame(header, bg=t["bg_card"])
+    search_frame.pack(side=tk.RIGHT, padx=(10, 0))
+
+    btn_close = ttk.Button(search_frame, text="Закрыть", command=dialog.destroy)
+    btn_close.pack(side=tk.RIGHT, padx=(10, 0))
+
+    match_lbl = tk.Label(search_frame, text="", font=("Segoe UI", 9), bg=t["bg_card"], fg="#94a3b8")
+    match_lbl.pack(side=tk.RIGHT, padx=5)
+
+    btn_clear_search = ttk.Button(search_frame, text="✕", width=3)
+    btn_clear_search.pack(side=tk.RIGHT, padx=2)
+
+    search_entry = ttk.Entry(search_frame, width=24)
+    search_entry.pack(side=tk.RIGHT, padx=5)
+
+    tk.Label(search_frame, text="🔍 Поиск:", font=("Segoe UI", 9, "bold"), bg=t["bg_card"], fg="#93c5fd").pack(side=tk.RIGHT)
+
+    # Текстовое поле с прокруткой для отображения руководства
+    text_container = tk.Frame(dialog, bg=t["bg_app"], padx=10, pady=10)
+    text_container.pack(fill=tk.BOTH, expand=True)
+
+    txt = tk.Text(
+        text_container,
+        wrap=tk.WORD,
+        font=("Segoe UI", 10),
+        bg="#0b1329" if t["is_dark"] else "#ffffff",
+        fg="#f1f5f9" if t["is_dark"] else "#0f172a",
+        insertbackground="#38bdf8",
+        selectbackground="#0284c7",
+        selectforeground="#ffffff",
+        padx=25,
+        pady=20,
+        relief="flat",
+        highlightthickness=1,
+        highlightbackground=t["border"]
+    )
+    scrollbar = ttk.Scrollbar(text_container, orient=tk.VERTICAL, command=txt.yview, style="Vertical.TScrollbar")
+    txt.configure(yscrollcommand=scrollbar.set)
+
+    txt.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+    scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+    enable_smooth_mousewheel(txt)
+
+    # Настройка типографики
+    txt.tag_configure("h1", font=("Segoe UI", 16, "bold"), foreground="#38bdf8", spacing1=16, spacing3=8)
+    txt.tag_configure("h2", font=("Segoe UI", 13, "bold"), foreground="#60a5fa", spacing1=14, spacing3=6)
+    txt.tag_configure("h3", font=("Segoe UI", 11, "bold"), foreground="#93c5fd", spacing1=10, spacing3=4)
+    txt.tag_configure("body", font=("Segoe UI", 10), foreground="#f1f5f9" if t["is_dark"] else "#1e293b", spacing1=2, spacing3=2)
+    txt.tag_configure("bold", font=("Segoe UI", 10, "bold"), foreground="#ffffff" if t["is_dark"] else "#000000")
+    txt.tag_configure("code", font=("Consolas", 10), foreground="#38bdf8", background="#070d1e" if t["is_dark"] else "#f1f5f9")
+    txt.tag_configure("table", font=("Consolas", 9), foreground="#7dd3fc" if t["is_dark"] else "#0369a1", background="#070d1e" if t["is_dark"] else "#f8fafc")
+    txt.tag_configure("quote", font=("Segoe UI", 9, "italic"), foreground="#fbbf24", background="#1e293b" if t["is_dark"] else "#fef3c7")
+    txt.tag_configure("bullet", font=("Segoe UI", 10), foreground="#e2e8f0" if t["is_dark"] else "#334155", lmargin1=20, lmargin2=35)
+    txt.tag_configure("search_hit", background="#eab308", foreground="#000000")
+
+    # Поиск и чтение FAQ.md
+    base_dir = os.path.dirname(os.path.abspath(__file__))
+    meipass = getattr(sys, "_MEIPASS", base_dir)
+    candidates = [
+        os.path.join(base_dir, "FAQ.md"),
+        os.path.join(meipass, "FAQ.md"),
+        os.path.join(os.getcwd(), "FAQ.md"),
+        os.path.join(base_dir, "..", "FAQ.md"),
+        os.path.join(os.path.dirname(base_dir), "FAQ.md"),
+    ]
+    faq_content = None
+    for p in candidates:
+        if os.path.exists(p):
+            try:
+                with open(p, "r", encoding="utf-8") as f:
+                    faq_content = f.read()
+                break
+            except Exception:
+                pass
+
+    if faq_content:
+        in_code = False
+        for raw_line in faq_content.splitlines():
+            line = raw_line.strip()
+            if line.startswith("```"):
+                in_code = not in_code
+                continue
+            if in_code:
+                txt.insert(tk.END, raw_line + "\n", "code")
+                continue
+            if line.startswith("# "):
+                txt.insert(tk.END, line[2:] + "\n", "h1")
+            elif line.startswith("## "):
+                txt.insert(tk.END, "\n" + line[3:] + "\n", "h2")
+            elif line.startswith("### "):
+                txt.insert(tk.END, "\n" + line[4:] + "\n", "h3")
+            elif line.startswith(">"):
+                txt.insert(tk.END, "   " + line[1:].strip() + "\n", "quote")
+            elif line.startswith("|"):
+                txt.insert(tk.END, raw_line + "\n", "table")
+            elif line.startswith("- ") or line.startswith("• "):
+                txt.insert(tk.END, "  • ", "bold")
+                parts = re.split(r"(\*\*.*?\*\*)", line[2:])
+                for p in parts:
+                    if p.startswith("**") and p.endswith("**"):
+                        txt.insert(tk.END, p[2:-2], ("bullet", "bold"))
+                    elif p:
+                        txt.insert(tk.END, p, "bullet")
+                txt.insert(tk.END, "\n")
+            else:
+                parts = re.split(r"(\*\*.*?\*\*)", raw_line)
+                for p in parts:
+                    if p.startswith("**") and p.endswith("**"):
+                        txt.insert(tk.END, p[2:-2], ("body", "bold"))
+                    elif p:
+                        txt.insert(tk.END, p, "body")
+                txt.insert(tk.END, "\n")
+    else:
+        txt.insert(tk.END, "Руководство оператора и FAQ\n\nФайл FAQ.md не найден в каталоге программы.", "h1")
+
+    txt.configure(state=tk.DISABLED)
+
+    # Интерактивный поиск по тексту
+    search_indices = []
+    current_match_idx = [-1]
+
+    def perform_search(event=None):
+        txt.tag_remove("search_hit", "1.0", tk.END)
+        query = search_entry.get().strip()
+        search_indices.clear()
+        current_match_idx[0] = -1
+
+        if not query:
+            match_lbl.configure(text="")
+            return
+
+        start_pos = "1.0"
+        while True:
+            pos = txt.search(query, start_pos, stopindex=tk.END, nocase=True)
+            if not pos:
+                break
+            end_pos = f"{pos}+{len(query)}c"
+            txt.tag_add("search_hit", pos, end_pos)
+            search_indices.append(pos)
+            start_pos = end_pos
+
+        count = len(search_indices)
+        if count > 0:
+            match_lbl.configure(text=f"Найдено: {count}")
+            next_match()
+        else:
+            match_lbl.configure(text="Не найдено")
+
+    def next_match(event=None):
+        if not search_indices:
+            return
+        current_match_idx[0] = (current_match_idx[0] + 1) % len(search_indices)
+        pos = search_indices[current_match_idx[0]]
+        txt.see(pos)
+
+    def clear_search():
+        search_entry.delete(0, tk.END)
+        txt.tag_remove("search_hit", "1.0", tk.END)
+        search_indices.clear()
+        current_match_idx[0] = -1
+        match_lbl.configure(text="")
+
+    search_entry.bind("<KeyRelease>", perform_search)
+    search_entry.bind("<Return>", next_match)
+    btn_clear_search.configure(command=clear_search)
+
+
 # =============================================================================
 # Диалог обратной связи
 # =============================================================================
@@ -1405,73 +1616,3 @@ def show_feedback_dialog(parent, current_theme="dark"):
               bg=t["btn_sec_bg"], fg=t["btn_sec_fg"], font=("Segoe UI", 9),
               relief="flat", padx=15, pady=5, cursor="hand2").pack(anchor="e", pady=(15, 0))
 
-
-# =============================================================================
-# Диалог подробного руководства и FAQ
-# =============================================================================
-def show_faq_dialog(parent, current_theme="dark"):
-    t = THEMES[current_theme]
-    dialog = tk.Toplevel(parent)
-    dialog.title("📖 Руководство оператора и FAQ — SMD Hub")
-    dialog.geometry("780x620")
-    dialog.transient(parent)
-    dialog.grab_set()
-    dialog.configure(bg=t["bg_app"])
-    set_window_titlebar_theme(dialog, t["is_dark"])
-
-    header = tk.Frame(dialog, bg=t["bg_card"], padx=15, pady=12)
-    header.pack(fill=tk.X)
-    tk.Label(header, text="📖 Руководство по сквозному заказу монтажа SMD", font=("Segoe UI", 12, "bold"),
-             bg=t["bg_card"], foreground=t["text_primary"]).pack(side=tk.LEFT)
-
-    canvas = tk.Canvas(dialog, bg=t["bg_app"], highlightthickness=0)
-    scrollbar = ttk.Scrollbar(dialog, orient=tk.VERTICAL, command=canvas.yview)
-    canvas.configure(yscrollcommand=scrollbar.set)
-
-    canvas.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=10, pady=10)
-    scrollbar.pack(side=tk.RIGHT, fill=tk.Y, pady=10)
-
-    content_frame = tk.Frame(canvas, bg=t["bg_app"])
-    canvas.create_window((0, 0), window=content_frame, anchor="nw")
-    content_frame.bind("<Configure>", lambda e: canvas.configure(scrollregion=canvas.bbox("all")))
-
-    sections = [
-        ("🎯 Общий порядок работы с новым заказом",
-         "На производство поступает 2 файла: BOM (спецификация Excel) и P&P (координаты расстановки .txt / .xlsx).\n"
-         "1. Шаг 1 (Унификация): приводим все сырые наименования BOM к стандартам склада (R_0603_10K_1% и т.д.).\n"
-         "2. Шаг 2 (Объединение): сшиваем координаты P&P с унифицированным BOM в единый рабочий файл монтажа.\n"
-         "3. Шаг 3 (Сверка): проверяем нестыковки, DNP, расхождения по количеству и формируем финальный отчет."),
-
-        ("🗂️ Шаг 1: Унификация BOM",
-         "• Откройте файл BOM (.xlsx / .xls).\n"
-         "• Вкладка «По коду»: для зарубежных обозначений производителей (Samsung, Yageo, Murata, TDK...).\n"
-         "• Вкладка «По описанию»: для русскоязычных параметров (Резистор 0603 10кОм 1%...). Автоматически подбирает номиналы.\n"
-         "• После применения нажимаем «Сохранить унифицированный BOM» и «Далее: Перейти к объединению P&P ➔»."),
-
-        ("⚙️ Шаг 2: Настройка столбцов объединения P&P + BOM",
-         "• Файл унифицированного BOM подставляется автоматически из Шага 1.\n"
-         "• Выберите файл P&P (.txt или .xlsx). Для текстовых файлов разделитель определяется автоматически.\n"
-         "• Укажите столбцы: RefDes (позиция), X (мм/mil), Y, Угол поворота R, Зеркало / Сторона (TOP / BOTTOM).\n"
-         "• Если плата односторонняя — включите галочку «Одна сторона».\n"
-         "• Нажмите «Сформировать файл монтажа» и перейдите к Шагу 3."),
-
-        ("🔍 Шаг 3: Сверка P&P с BOM и проверка DNP",
-         "• Объединенный файл и BOM подставляются автоматически, столбцы предвыбираются сами.\n"
-         "• Сверка находит:\n"
-         "   - Компоненты в BOM, которых нет в PnP (DNP / не монтируемые)\n"
-         "   - Компоненты в PnP, которых нет в BOM (ошибки расстановки)\n"
-         "   - Расхождения номиналов и дубликаты RefDes.\n"
-         "• Экспортируйте финальный проверенный отчет в Excel."),
-
-        ("🛠️ Дополнительные функции",
-         "• Сравнение версий P&P: если разработчик прислал новую ревизию платы — сравнивает смещения и изменения.\n"
-         "• Сверка BOM: выявляет изменения в перечне компонентов между версиями спецификаций.\n"
-         "• База соответствий: постоянный справочник синонимов и кастомных замен компонентов.\n"
-         "• Barcode Decoder: сканирование этикеток катушек камерой/сканером перед зарядкой в питатели.")
-    ]
-
-    for title, desc in sections:
-        card = tk.Frame(content_frame, bg=t["bg_card"], highlightbackground=t["border"], highlightthickness=1, padx=14, pady=10)
-        card.pack(fill=tk.X, expand=True, pady=6, padx=5)
-        tk.Label(card, text=title, font=("Segoe UI", 10, "bold"), bg=t["bg_card"], foreground=t["accent"]).pack(anchor="w")
-        tk.Label(card, text=desc, justify=tk.LEFT, wraplength=700, font=("Segoe UI", 9), bg=t["bg_card"], foreground=t["text_primary"]).pack(anchor="w", pady=(5, 0))
