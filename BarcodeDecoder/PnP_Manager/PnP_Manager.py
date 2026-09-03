@@ -3908,12 +3908,35 @@ class CompareTab(ttk.Frame):
         style_widget_tree(preview_window, "dark")
 
 
-# ==================== НОВАЯ ВКЛАДКА: СВЕРКА BOM ====================
+# ==================== ВКЛАДКА: СВЕРКА BOM ====================
 class CompareBOMTab(ttk.Frame):
     def __init__(self, parent, main_app):
         self.parent = parent
         self.main_app = main_app
         super().__init__(parent)
+
+        # --- Прокручиваемая область ---
+        self.canvas = tk.Canvas(self, borderwidth=0, highlightthickness=0)
+        self.scrollbar = ttk.Scrollbar(self, orient=tk.VERTICAL, command=self.canvas.yview)
+        self.canvas.configure(yscrollcommand=self.scrollbar.set)
+
+        self.scrollable_frame = ttk.Frame(self.canvas)
+        self.scrollable_frame.bind(
+            "<Configure>",
+            lambda e: self.canvas.configure(scrollregion=self.canvas.bbox("all"))
+        )
+        self.canvas_window = self.canvas.create_window((0, 0), window=self.scrollable_frame, anchor="nw")
+        self.canvas.bind("<Configure>", lambda e: self.canvas.itemconfig(self.canvas_window, width=e.width))
+
+        self.canvas.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        self.scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+
+        def _on_mousewheel(event):
+            try:
+                self.canvas.yview_scroll(int(-1 * (event.delta / 120)), "units")
+            except Exception:
+                pass
+        self.canvas.bind_all("<MouseWheel>", _on_mousewheel)
 
         # Переменные
         self.file1 = tk.StringVar()
@@ -3930,196 +3953,574 @@ class CompareBOMTab(ttk.Frame):
         self.col1_var = tk.StringVar()
         self.col2_var = tk.StringVar()
 
-        # Для сравнения в одном файле (если выбран один файл)
+        # Для сравнения в одном файле
         self.one_file_mode = tk.BooleanVar(value=False)
+
+        # Данные для сравнения и фильтрации
+        self.comparison_data = []
+        self.result_df = None
+        self.filter_status = tk.StringVar(value="Все")
 
         self.create_widgets()
 
+    def get_separator_dialog(self):
+        t = THEMES["dark"]
+        dialog = create_styled_toplevel(self.parent, "Выбор разделителя", "460x260", min_size=(420, 240))
+        dialog.transient(self.parent)
+        dialog.grab_set()
+
+        content = tk.Frame(dialog, bg=t["bg_app"], padx=20, pady=16)
+        content.pack(fill=tk.BOTH, expand=True)
+
+        tk.Label(content, text="Выберите разделитель для формирования .TXT:",
+                 font=("Segoe UI", 10, "bold"), bg=t["bg_app"], fg=t["text_header"]).pack(anchor="w", pady=(0, 8))
+
+        card = tk.Frame(content, bg=t["bg_card"], highlightbackground=t["border"], highlightthickness=1, padx=16, pady=12)
+        card.pack(fill=tk.X, pady=(0, 12))
+
+        sep_map = {
+            "Табуляция (\\t)": "\t",
+            "Пробел (␣)": " ",
+            "Точка с запятой (;)": ";",
+            "Запятая (,)": ",",
+            "Вертикальная черта (|)": "|",
+        }
+        display_options = list(sep_map.keys()) + ["Свой символ..."]
+
+        combo_var = tk.StringVar(value="Табуляция (\\t)")
+        custom_var = tk.StringVar(value="")
+
+        tk.Label(card, text="Стандартный разделитель:", font=("Segoe UI", 9), bg=t["bg_card"], fg=t["text_primary"]).pack(anchor="w", pady=(0, 4))
+        combo = ttk.Combobox(card, textvariable=combo_var, values=display_options, state="readonly", width=28, font=("Segoe UI", 9))
+        combo.pack(fill=tk.X, pady=(0, 8))
+
+        custom_box = tk.Frame(card, bg=t["bg_card"])
+        custom_box.pack(fill=tk.X)
+
+        tk.Label(custom_box, text="Свой разделитель:", font=("Segoe UI", 9), bg=t["bg_card"], fg=t["text_secondary"]).pack(side=tk.LEFT)
+        custom_entry = ttk.Entry(custom_box, textvariable=custom_var, width=8, justify="center", state="disabled")
+        custom_entry.pack(side=tk.LEFT, padx=8)
+
+        hint_lbl = tk.Label(custom_box, text="(\\t - табуляция, \\s - пробел)", font=("Segoe UI", 8), bg=t["bg_card"], fg=t["text_muted"])
+        hint_lbl.pack(side=tk.LEFT)
+
+        def on_combo_change(event=None):
+            if combo_var.get() == "Свой символ...":
+                custom_entry.configure(state="normal")
+                custom_entry.focus()
+            else:
+                custom_entry.configure(state="disabled")
+
+        combo.bind("<<ComboboxSelected>>", on_combo_change)
+
+        result = {"sep": None}
+
+        def on_ok():
+            choice = combo_var.get()
+            if choice == "Свой символ...":
+                c = custom_var.get()
+                if c == r"\t":
+                    result["sep"] = "\t"
+                elif c in (r"\s", r"\p", "␣"):
+                    result["sep"] = " "
+                elif c:
+                    result["sep"] = c
+                else:
+                    result["sep"] = "\t"
+            else:
+                result["sep"] = sep_map.get(choice, "\t")
+            dialog.destroy()
+
+        def on_cancel():
+            result["sep"] = None
+            dialog.destroy()
+
+        dialog.bind("<Return>", lambda e: on_ok())
+        dialog.bind("<Escape>", lambda e: on_cancel())
+
+        btn_frame = tk.Frame(content, bg=t["bg_app"])
+        btn_frame.pack(fill=tk.X)
+
+        btn_ok = tk.Button(btn_frame, text="OK", command=on_ok,
+                           bg=t["accent"], fg=t["accent_text"], activebackground=t["accent_hover"],
+                           font=("Segoe UI", 9, "bold"), relief="flat", padx=20, pady=5, cursor="hand2")
+        btn_ok.pack(side=tk.LEFT, padx=(0, 8))
+
+        btn_cancel = tk.Button(btn_frame, text="Отмена", command=on_cancel,
+                               bg=t["btn_sec_bg"], fg=t["btn_sec_fg"], activebackground=t["btn_sec_hover"],
+                               font=("Segoe UI", 9), relief="flat", padx=16, pady=5, cursor="hand2")
+        btn_cancel.pack(side=tk.LEFT)
+
+        style_widget_tree(dialog, "dark")
+        self.parent.wait_window(dialog)
+        return result["sep"]
+
     def create_widgets(self):
-        main_frame = ttk.Frame(self, padding="10")
+        t = THEMES["dark"]
+        main_frame = tk.Frame(self.scrollable_frame, bg=t["bg_app"], padx=8, pady=6)
         main_frame.pack(fill=tk.BOTH, expand=True)
 
-        # Заголовок
-        ttk.Label(main_frame, text="Сверка двух столбцов BOM (в одном или разных файлах)", font=('Segoe UI', 12, 'bold')).pack(anchor=tk.W, pady=5)
+        # -------------------------------------------------------------
+        # Верхняя панель: выбор файлов BOM 1 и BOM 2
+        # -------------------------------------------------------------
+        top_frame = tk.Frame(main_frame, bg=t["bg_app"])
+        top_frame.pack(fill=tk.X, pady=(0, 8))
+        top_frame.columnconfigure(0, weight=1)
+        top_frame.columnconfigure(1, weight=1)
+        top_frame.rowconfigure(0, weight=1)
 
-        # Блок выбора файлов
-        file_frame = ttk.LabelFrame(main_frame, text="Файлы BOM", padding=5)
-        file_frame.pack(fill=tk.X, pady=5)
+        # Карточка BOM 1
+        card1 = tk.Frame(top_frame, bg=t["bg_card"], highlightbackground=t["border"], highlightthickness=1, padx=12, pady=10)
+        card1.grid(row=0, column=0, sticky="nsew", padx=(0, 4), pady=2)
+        card1.columnconfigure(1, weight=1)
 
-        # Файл 1
-        row1 = ttk.Frame(file_frame)
-        row1.pack(fill=tk.X, pady=2)
-        ttk.Label(row1, text="BOM 1:").pack(side=tk.LEFT, padx=5)
-        ttk.Entry(row1, textvariable=self.file1, width=50).pack(side=tk.LEFT, padx=5)
-        ttk.Button(row1, text="Обзор...", command=lambda: self.load_file(1)).pack(side=tk.LEFT, padx=5)
-        ttk.Button(row1, text="👁️", width=3, command=lambda: self.show_preview(self.df1, "BOM 1")).pack(side=tk.LEFT, padx=2)
-        ttk.Label(row1, text="Лист:").pack(side=tk.LEFT, padx=5)
-        self.sheet1_cb = ttk.Combobox(row1, textvariable=self.file1_sheet, state="readonly", width=15)
-        self.sheet1_cb.pack(side=tk.LEFT, padx=5)
+        tk.Label(card1, text="📁 Файл BOM 1", font=("Segoe UI", 10, "bold"),
+                 bg=t["bg_card"], fg=t["accent"]).grid(row=0, column=0, columnspan=4, sticky="w", pady=(0, 6))
+
+        tk.Label(card1, text="Файл:", font=("Segoe UI", 9), bg=t["bg_card"], fg=t["text_primary"]).grid(row=1, column=0, sticky="w", pady=4)
+        entry1 = ttk.Entry(card1, textvariable=self.file1)
+        entry1.grid(row=1, column=1, sticky="ew", padx=6, pady=4)
+        entry1.bind("<Return>", lambda e: self.load_file(1, self.file1.get()))
+        btn_browse1 = ttk.Button(card1, text="Обзор...", command=lambda: self.browse_file(1))
+        btn_browse1.grid(row=1, column=2, padx=2, pady=4)
+        btn_view1 = ttk.Button(card1, text="👁️", width=3, command=lambda: self.show_preview(self.df1, "BOM 1"))
+        btn_view1.grid(row=1, column=3, padx=2, pady=4)
+        ToolTip(btn_view1, "Предпросмотр файла BOM 1")
+
+        sheet_box1 = tk.Frame(card1, bg=t["bg_card"])
+        sheet_box1.grid(row=2, column=0, columnspan=4, sticky="w", pady=(2, 2))
+        tk.Label(sheet_box1, text="Лист:", font=("Segoe UI", 9), bg=t["bg_card"], fg=t["text_secondary"]).pack(side=tk.LEFT, padx=(0, 6))
+        self.sheet1_cb = ttk.Combobox(sheet_box1, textvariable=self.file1_sheet, state="readonly", width=22, font=("Segoe UI", 9))
+        self.sheet1_cb.pack(side=tk.LEFT)
         self.sheet1_cb.bind("<<ComboboxSelected>>", self.on_sheet1_selected)
 
-        # Файл 2
-        row2 = ttk.Frame(file_frame)
-        row2.pack(fill=tk.X, pady=2)
-        ttk.Label(row2, text="BOM 2:").pack(side=tk.LEFT, padx=5)
-        ttk.Entry(row2, textvariable=self.file2, width=50).pack(side=tk.LEFT, padx=5)
-        ttk.Button(row2, text="Обзор...", command=lambda: self.load_file(2)).pack(side=tk.LEFT, padx=5)
-        ttk.Button(row2, text="👁️", width=3, command=lambda: self.show_preview(self.df2, "BOM 2")).pack(side=tk.LEFT, padx=2)
-        ttk.Label(row2, text="Лист:").pack(side=tk.LEFT, padx=5)
-        self.sheet2_cb = ttk.Combobox(row2, textvariable=self.file2_sheet, state="readonly", width=15)
-        self.sheet2_cb.pack(side=tk.LEFT, padx=5)
+        # Карточка BOM 2
+        card2 = tk.Frame(top_frame, bg=t["bg_card"], highlightbackground=t["border"], highlightthickness=1, padx=12, pady=10)
+        card2.grid(row=0, column=1, sticky="nsew", padx=(4, 0), pady=2)
+        card2.columnconfigure(1, weight=1)
+
+        tk.Label(card2, text="📁 Файл BOM 2", font=("Segoe UI", 10, "bold"),
+                 bg=t["bg_card"], fg=t["accent"]).grid(row=0, column=0, columnspan=4, sticky="w", pady=(0, 6))
+
+        tk.Label(card2, text="Файл:", font=("Segoe UI", 9), bg=t["bg_card"], fg=t["text_primary"]).grid(row=1, column=0, sticky="w", pady=4)
+        self.entry2 = ttk.Entry(card2, textvariable=self.file2)
+        self.entry2.grid(row=1, column=1, sticky="ew", padx=6, pady=4)
+        self.entry2.bind("<Return>", lambda e: self.load_file(2, self.file2.get()))
+        self.btn_browse2 = ttk.Button(card2, text="Обзор...", command=lambda: self.browse_file(2))
+        self.btn_browse2.grid(row=1, column=2, padx=2, pady=4)
+        btn_view2 = ttk.Button(card2, text="👁️", width=3, command=lambda: self.show_preview(self.df2, "BOM 2"))
+        btn_view2.grid(row=1, column=3, padx=2, pady=4)
+        ToolTip(btn_view2, "Предпросмотр файла BOM 2")
+
+        sheet_box2 = tk.Frame(card2, bg=t["bg_card"])
+        sheet_box2.grid(row=2, column=0, columnspan=4, sticky="w", pady=(2, 2))
+        tk.Label(sheet_box2, text="Лист:", font=("Segoe UI", 9), bg=t["bg_card"], fg=t["text_secondary"]).pack(side=tk.LEFT, padx=(0, 6))
+        self.sheet2_cb = ttk.Combobox(sheet_box2, textvariable=self.file2_sheet, state="readonly", width=22, font=("Segoe UI", 9))
+        self.sheet2_cb.pack(side=tk.LEFT)
         self.sheet2_cb.bind("<<ComboboxSelected>>", self.on_sheet2_selected)
 
-        ttk.Checkbutton(file_frame, text="Сравнивать в одном файле (использовать BOM 2 как второй лист того же файла)",
-                        variable=self.one_file_mode, command=self.on_one_file_mode).pack(anchor=tk.W, padx=5, pady=5)
+        chk_one = ttk.Checkbutton(card2, text="Сравнивать в одном файле (BOM 2 как второй лист того же файла)",
+                                  variable=self.one_file_mode, command=self.on_one_file_mode)
+        chk_one.grid(row=3, column=0, columnspan=4, sticky="w", pady=(6, 2))
 
-        # Выбор столбцов
-        col_frame = ttk.LabelFrame(main_frame, text="Выбор столбцов для сравнения", padding=5)
-        col_frame.pack(fill=tk.X, pady=5)
+        # -------------------------------------------------------------
+        # Настройка столбцов для сверки
+        # -------------------------------------------------------------
+        col_frame = tk.Frame(main_frame, bg=t["bg_card"], highlightbackground=t["border"], highlightthickness=1, padx=14, pady=12)
+        col_frame.pack(fill=tk.X, pady=(0, 8))
 
-        ttk.Label(col_frame, text="Столбец из BOM 1:").grid(row=0, column=0, padx=5, pady=2, sticky=tk.W)
-        self.col1_cb = ttk.Combobox(col_frame, textvariable=self.col1_var, state="readonly", width=30)
-        self.col1_cb.grid(row=0, column=1, padx=5, pady=2)
+        tk.Label(col_frame, text="⚙️ Выбор столбцов для сверки",
+                 font=("Segoe UI", 10, "bold"), bg=t["bg_card"], fg=t["accent"]).pack(anchor="w", pady=(0, 8))
+
+        cols_inner = tk.Frame(col_frame, bg=t["bg_card"])
+        cols_inner.pack(fill=tk.X)
+
+        tk.Label(cols_inner, text="Столбец из BOM 1:", font=("Segoe UI", 9), bg=t["bg_card"], fg=t["text_primary"]).grid(row=0, column=0, padx=(0, 6), pady=2, sticky=tk.W)
+        self.col1_cb = ttk.Combobox(cols_inner, textvariable=self.col1_var, state="readonly", width=28, font=("Segoe UI", 9))
+        self.col1_cb.grid(row=0, column=1, padx=(0, 24), pady=2, sticky=tk.W)
         self.col1_cb.bind("<<ComboboxSelected>>", self.on_col1_selected)
 
-        ttk.Label(col_frame, text="Столбец из BOM 2:").grid(row=0, column=2, padx=5, pady=2, sticky=tk.W)
-        self.col2_cb = ttk.Combobox(col_frame, textvariable=self.col2_var, state="readonly", width=30)
-        self.col2_cb.grid(row=0, column=3, padx=5, pady=2)
+        tk.Label(cols_inner, text="Столбец из BOM 2:", font=("Segoe UI", 9), bg=t["bg_card"], fg=t["text_primary"]).grid(row=0, column=2, padx=(0, 6), pady=2, sticky=tk.W)
+        self.col2_cb = ttk.Combobox(cols_inner, textvariable=self.col2_var, state="readonly", width=28, font=("Segoe UI", 9))
+        self.col2_cb.grid(row=0, column=3, padx=(0, 10), pady=2, sticky=tk.W)
         self.col2_cb.bind("<<ComboboxSelected>>", self.on_col2_selected)
 
-        # Кнопки действий
-        action_frame = ttk.Frame(main_frame)
-        action_frame.pack(fill=tk.X, pady=10)
+        # -------------------------------------------------------------
+        # Кнопка запуска сверки
+        # -------------------------------------------------------------
+        action_bar = tk.Frame(main_frame, bg=t["bg_app"])
+        action_bar.pack(fill=tk.X, pady=6)
 
-        self.preview_btn = ttk.Button(action_frame, text="👁️ Предпросмотр сравнения", command=self.show_preview_comparison, state=tk.DISABLED)
-        self.preview_btn.pack(side=tk.LEFT, padx=5)
+        self.compare_btn = tk.Button(action_bar, text="🔍 Сверить столбцы BOM", command=self.run_compare,
+                                     bg=t["accent"], fg="#ffffff", activebackground=t["accent_hover"], activeforeground="#ffffff",
+                                     font=("Segoe UI", 11, "bold"), relief="flat", padx=28, pady=7, cursor="hand2")
+        self.compare_btn.pack(anchor="center")
 
-        self.compare_btn = ttk.Button(action_frame, text="🔄 Сравнить и экспортировать", command=self.run_compare, state=tk.DISABLED)
-        self.compare_btn.pack(side=tk.LEFT, padx=5)
+        # -------------------------------------------------------------
+        # Карточка результатов сверки
+        # -------------------------------------------------------------
+        result_card = tk.Frame(main_frame, bg=t["bg_card"], highlightbackground=t["border"], highlightthickness=1, padx=14, pady=12)
+        result_card.pack(fill=tk.BOTH, expand=True, pady=(0, 8))
 
-        self.status_label = ttk.Label(main_frame, text="Готов", relief=tk.SUNKEN, anchor=tk.W)
-        self.status_label.pack(fill=tk.X, pady=5)
+        filter_bar = tk.Frame(result_card, bg=t["bg_card"])
+        filter_bar.pack(fill=tk.X, pady=(0, 8))
+
+        tk.Label(filter_bar, text="📋 Результаты сверки", font=("Segoe UI", 10, "bold"),
+                 bg=t["bg_card"], fg=t["accent"]).pack(side=tk.LEFT)
+
+        tk.Label(filter_bar, text="Фильтр по статусу:", font=("Segoe UI", 9),
+                 bg=t["bg_card"], fg=t["text_secondary"]).pack(side=tk.LEFT, padx=(20, 6))
+        self.filter_cb = ttk.Combobox(filter_bar, textvariable=self.filter_status,
+                                      values=["Все", "Только изменённые", "Без изменений"],
+                                      state="readonly", width=18, font=("Segoe UI", 9))
+        self.filter_cb.pack(side=tk.LEFT, padx=(0, 6))
+        self.filter_cb.bind("<<ComboboxSelected>>", self.apply_filter)
+
+        btn_reset_filter = ttk.Button(filter_bar, text="Сбросить фильтр", command=self.reset_filter)
+        btn_reset_filter.pack(side=tk.LEFT, padx=(0, 16))
+
+        self.stats_label = tk.Label(filter_bar, text="Всего: 0 | Изменено: 0 | Без изменений: 0",
+                                    font=("Segoe UI", 9, "bold"), bg=t["bg_card"], fg=t["text_muted"])
+        self.stats_label.pack(side=tk.RIGHT)
+
+        tree_container = tk.Frame(result_card, bg=t["bg_card"])
+        tree_container.pack(fill=tk.BOTH, expand=True)
+
+        columns = ("idx", "val1", "val2", "status", "diff")
+        self.tree = ttk.Treeview(tree_container, columns=columns, show="headings", height=13)
+        self.tree.grid(row=0, column=0, sticky="nsew")
+
+        vsb = ttk.Scrollbar(tree_container, orient=tk.VERTICAL, command=self.tree.yview)
+        vsb.grid(row=0, column=1, sticky="ns")
+        hsb = ttk.Scrollbar(tree_container, orient=tk.HORIZONTAL, command=self.tree.xview)
+        hsb.grid(row=1, column=0, sticky="ew")
+
+        self.tree.configure(yscrollcommand=vsb.set, xscrollcommand=hsb.set)
+        tree_container.grid_rowconfigure(0, weight=1)
+        tree_container.grid_columnconfigure(0, weight=1)
+
+        self.tree.heading("idx", text="№", command=lambda: self.sort_treeview("idx", False))
+        self.tree.heading("val1", text="Значение в BOM 1", command=lambda: self.sort_treeview("val1", False))
+        self.tree.heading("val2", text="Значение в BOM 2", command=lambda: self.sort_treeview("val2", False))
+        self.tree.heading("status", text="Статус", command=lambda: self.sort_treeview("status", False))
+        self.tree.heading("diff", text="Различие", command=lambda: self.sort_treeview("diff", False))
+
+        self.tree.column("idx", width=55, anchor=tk.CENTER)
+        self.tree.column("val1", width=200, anchor=tk.W)
+        self.tree.column("val2", width=200, anchor=tk.W)
+        self.tree.column("status", width=120, anchor=tk.CENTER)
+        self.tree.column("diff", width=250, anchor=tk.W)
+
+        self.tree.tag_configure('evenrow', background=t["row_even"])
+        self.tree.tag_configure('oddrow', background=t["row_odd"])
+        self.tree.tag_configure('changed', background="#451a03", foreground="#fde047")
+        self.tree.tag_configure('unchanged', foreground="#6ee7b7")
+
+        self.tree_placeholder = tk.Label(self.tree, text="Здесь появятся результаты сверки столбцов BOM.\nВыберите файлы и столбцы для сравнения, затем нажмите «Сверить столбцы BOM».",
+                                         font=("Segoe UI", 10), bg=t["bg_card"], fg=t["text_muted"], justify="center")
+        self.tree_placeholder.place(relx=0.5, rely=0.5, anchor="center")
+
+        export_bar = tk.Frame(result_card, bg=t["bg_card"])
+        export_bar.pack(fill=tk.X, pady=(10, 0))
+
+        btn_exp_xls = tk.Button(export_bar, text="📥 Экспорт в Excel (.xlsx)", command=self.export_excel,
+                                bg="#059669", fg="#ffffff", activebackground="#10b981", activeforeground="#ffffff",
+                                font=("Segoe UI", 9, "bold"), relief="flat", padx=14, pady=5, cursor="hand2")
+        btn_exp_xls.pack(side=tk.LEFT, padx=(0, 8))
+
+        btn_exp_txt = tk.Button(export_bar, text="📥 Экспорт в TXT (.txt)", command=self.export_txt,
+                                bg=t["accent"], fg="#ffffff", activebackground=t["accent_hover"], activeforeground="#ffffff",
+                                font=("Segoe UI", 9, "bold"), relief="flat", padx=14, pady=5, cursor="hand2")
+        btn_exp_txt.pack(side=tk.LEFT, padx=(0, 8))
+
+        btn_modal_preview = tk.Button(export_bar, text="👁️ В отдельном окне", command=self.show_preview_comparison,
+                                      bg=t["btn_sec_bg"], fg=t["btn_sec_fg"], activebackground=t["btn_sec_hover"],
+                                      font=("Segoe UI", 9), relief="flat", padx=12, pady=5, cursor="hand2")
+        btn_modal_preview.pack(side=tk.LEFT)
+        ToolTip(btn_modal_preview, "Развернуть предпросмотр сравнения в отдельном окне")
+
+        self.status_label = tk.Label(main_frame, text="Готов к работе", font=("Segoe UI", 9),
+                                     bg=t["bg_app"], fg=t["text_muted"], anchor="w")
+        self.status_label.pack(fill=tk.X, pady=(6, 2))
 
     # ---------- Методы загрузки ----------
-    def load_file(self, num):
-        file_types = [("Excel files", "*.xlsx *.xls"), ("All files", "*.*")]
+    def browse_file(self, num):
+        file_types = [
+            ("All supported", "*.xlsx *.xls *.csv *.txt"),
+            ("Excel files", "*.xlsx *.xls"),
+            ("CSV & Text files", "*.csv *.txt"),
+            ("All files", "*.*")
+        ]
         f = filedialog.askopenfilename(filetypes=file_types, parent=self.parent)
-        if not f:
-            return
-        if num == 1:
-            self.file1.set(f)
-            self.load_sheets(1, f)
-        else:
-            if self.one_file_mode.get():
-                self.file2.set(self.file1.get())
-                self.load_sheets(2, self.file1.get())
+        if f:
+            if num == 1:
+                self.file1.set(f)
+                self.load_file(1, f)
             else:
                 self.file2.set(f)
-                self.load_sheets(2, f)
+                self.load_file(2, f)
 
-    def load_sheets(self, num, filepath):
+    def load_file(self, num, filepath=None):
+        f = filepath or (self.file1.get() if num == 1 else self.file2.get())
+        if not f or not os.path.exists(f):
+            return
+        ext = os.path.splitext(f)[1].lower()
         try:
-            sheets_dict = pd.read_excel(filepath, sheet_name=None, dtype=str)
-            sheets = list(sheets_dict.keys())
+            if ext in ['.xlsx', '.xls']:
+                sheets_dict = pd.read_excel(f, sheet_name=None, dtype=str)
+                sheets = list(sheets_dict.keys())
+            else:
+                sheets = ["Основной лист"]
+
             if num == 1:
                 self.sheets1 = sheets
                 self.sheet1_cb['values'] = sheets
                 if sheets:
                     self.sheet1_cb.set(sheets[0])
                     self.on_sheet1_selected()
+                if self.one_file_mode.get():
+                    self.on_one_file_mode()
             else:
                 self.sheets2 = sheets
                 self.sheet2_cb['values'] = sheets
                 if sheets:
                     self.sheet2_cb.set(sheets[0])
                     self.on_sheet2_selected()
-            self.status_label.config(text=f"Загружен файл {num}: {os.path.basename(filepath)}")
-            self.update_buttons_state()
+
+            self.status_label.config(text=f"Загружен файл {num}: {os.path.basename(f)}")
         except Exception as e:
             messagebox.showerror("Ошибка", f"Не удалось прочитать файл:\n{str(e)}", parent=self.parent)
 
     def on_sheet1_selected(self, event=None):
-        if self.file1.get() and self.file1_sheet.get():
+        f = self.file1.get()
+        sheet = self.file1_sheet.get()
+        if f and os.path.exists(f):
             try:
-                self.df1 = pd.read_excel(self.file1.get(), sheet_name=self.file1_sheet.get(), dtype=str)
+                ext = os.path.splitext(f)[1].lower()
+                if ext in ['.xlsx', '.xls']:
+                    self.df1 = pd.read_excel(f, sheet_name=sheet, dtype=str)
+                else:
+                    self.df1 = pd.read_csv(f, sep=None, engine='python', dtype=str)
                 self.cols1 = list(self.df1.columns)
                 self.col1_cb['values'] = self.cols1
-                if self.cols1:
+                if self.cols1 and (not self.col1_var.get() or self.col1_var.get() not in self.cols1):
                     self.col1_cb.set(self.cols1[0])
-                self.status_label.config(text=f"Загружен лист '{self.file1_sheet.get()}' из BOM 1")
-                self.update_buttons_state()
+                self.status_label.config(text=f"BOM 1: загружен лист '{sheet}' ({len(self.df1)} строк, {len(self.cols1)} столбцов)")
             except Exception as e:
-                messagebox.showerror("Ошибка", f"Не удалось загрузить лист:\n{str(e)}", parent=self.parent)
+                messagebox.showerror("Ошибка", f"Не удалось загрузить лист BOM 1:\n{str(e)}", parent=self.parent)
 
     def on_sheet2_selected(self, event=None):
-        if self.one_file_mode.get():
-            # Если режим одного файла, используем тот же файл, что и для BOM 1
-            if self.file1.get() and self.file2_sheet.get():
-                try:
-                    self.df2 = pd.read_excel(self.file1.get(), sheet_name=self.file2_sheet.get(), dtype=str)
-                    self.cols2 = list(self.df2.columns)
-                    self.col2_cb['values'] = self.cols2
-                    if self.cols2:
-                        self.col2_cb.set(self.cols2[0])
-                    self.status_label.config(text=f"Загружен лист '{self.file2_sheet.get()}' из BOM 1 (режим одного файла)")
-                    self.update_buttons_state()
-                except Exception as e:
-                    messagebox.showerror("Ошибка", f"Не удалось загрузить лист:\n{str(e)}", parent=self.parent)
-        else:
-            if self.file2.get() and self.file2_sheet.get():
-                try:
-                    self.df2 = pd.read_excel(self.file2.get(), sheet_name=self.file2_sheet.get(), dtype=str)
-                    self.cols2 = list(self.df2.columns)
-                    self.col2_cb['values'] = self.cols2
-                    if self.cols2:
-                        self.col2_cb.set(self.cols2[0])
-                    self.status_label.config(text=f"Загружен лист '{self.file2_sheet.get()}' из BOM 2")
-                    self.update_buttons_state()
-                except Exception as e:
-                    messagebox.showerror("Ошибка", f"Не удалось загрузить лист:\n{str(e)}", parent=self.parent)
+        f = self.file1.get() if self.one_file_mode.get() else self.file2.get()
+        sheet = self.file2_sheet.get()
+        if f and os.path.exists(f):
+            try:
+                ext = os.path.splitext(f)[1].lower()
+                if ext in ['.xlsx', '.xls']:
+                    self.df2 = pd.read_excel(f, sheet_name=sheet, dtype=str)
+                else:
+                    self.df2 = pd.read_csv(f, sep=None, engine='python', dtype=str)
+                self.cols2 = list(self.df2.columns)
+                self.col2_cb['values'] = self.cols2
+                if self.cols2 and (not self.col2_var.get() or self.col2_var.get() not in self.cols2):
+                    self.col2_cb.set(self.cols2[0])
+                self.status_label.config(text=f"BOM 2: загружен лист '{sheet}' ({len(self.df2)} строк, {len(self.cols2)} столбцов)")
+            except Exception as e:
+                messagebox.showerror("Ошибка", f"Не удалось загрузить лист BOM 2:\n{str(e)}", parent=self.parent)
 
     def on_one_file_mode(self):
         if self.one_file_mode.get():
             self.file2.set(self.file1.get())
-            self.file2_sheet.set('')
-            self.df2 = None
-            self.col2_cb['values'] = []
-            self.col2_cb.set('')
-            # Загружаем листы из файла 1 как листы для BOM 2
-            self.sheet2_cb['values'] = self.sheets1
-            if self.sheets1:
-                self.sheet2_cb.set(self.sheets1[0])
-                self.on_sheet2_selected()
+            self.entry2.config(state='disabled')
+            self.btn_browse2.config(state='disabled')
+            self.sheets2 = list(self.sheets1)
+            self.sheet2_cb['values'] = self.sheets2
+            if len(self.sheets2) > 1:
+                self.sheet2_cb.set(self.sheets2[1])
+            elif self.sheets2:
+                self.sheet2_cb.set(self.sheets2[0])
+            self.on_sheet2_selected()
             self.status_label.config(text="Режим одного файла: выберите лист для BOM 2")
         else:
+            self.entry2.config(state='normal')
+            self.btn_browse2.config(state='normal')
             self.file2.set('')
             self.sheet2_cb['values'] = []
             self.sheet2_cb.set('')
             self.df2 = None
+            self.cols2 = []
             self.col2_cb['values'] = []
             self.col2_cb.set('')
             self.status_label.config(text="Режим двух файлов: выберите файл BOM 2")
-        self.update_buttons_state()
 
     def on_col1_selected(self, event=None):
-        self.update_buttons_state()
+        pass
 
     def on_col2_selected(self, event=None):
-        self.update_buttons_state()
+        pass
 
-    def update_buttons_state(self):
-        # Проверяем, что оба DataFrame загружены и выбраны столбцы
-        if (self.df1 is not None and self.df2 is not None and
-            self.col1_var.get() and self.col2_var.get() and
-            self.col1_var.get() in self.df1.columns and
-            self.col2_var.get() in self.df2.columns):
-            self.preview_btn.config(state=tk.NORMAL)
-            self.compare_btn.config(state=tk.NORMAL)
+    def _validate_inputs(self):
+        if self.df1 is None:
+            messagebox.showerror("Ошибка", "Файл BOM 1 не загружен.", parent=self.parent)
+            return False
+        if self.df2 is None:
+            messagebox.showerror("Ошибка", "Файл BOM 2 не загружен.", parent=self.parent)
+            return False
+        col1 = self.col1_var.get()
+        col2 = self.col2_var.get()
+        if not col1 or col1 not in self.df1.columns:
+            messagebox.showerror("Ошибка", "Не выбран столбец для BOM 1.", parent=self.parent)
+            return False
+        if not col2 or col2 not in self.df2.columns:
+            messagebox.showerror("Ошибка", "Не выбран столбец для BOM 2.", parent=self.parent)
+            return False
+        return True
+
+    def run_compare(self):
+        if not self._validate_inputs():
+            return
+        col1 = self.col1_var.get()
+        col2 = self.col2_var.get()
+        df1 = self.df1.copy()
+        df2 = self.df2.copy()
+
+        df1[col1] = df1[col1].astype(str).str.strip().replace("nan", "")
+        df2[col2] = df2[col2].astype(str).str.strip().replace("nan", "")
+
+        n1 = len(df1)
+        n2 = len(df2)
+        max_len = max(n1, n2)
+
+        self.comparison_data = []
+        changed_count = 0
+        unchanged_count = 0
+
+        for i in range(max_len):
+            v1 = df1[col1].iloc[i] if i < n1 else ""
+            v2 = df2[col2].iloc[i] if i < n2 else ""
+            if v1 == v2:
+                status = "Без изменений"
+                diff = "Совпадает"
+                unchanged_count += 1
+            else:
+                status = "Изменено"
+                diff = f"{v1} ➔ {v2}"
+                changed_count += 1
+
+            self.comparison_data.append({
+                "idx": i + 1,
+                "val1": v1,
+                "val2": v2,
+                "status": status,
+                "diff": diff
+            })
+
+        # Формируем result_df для экспорта
+        result_df = df1.copy()
+        changes_full = []
+        for i in range(len(result_df)):
+            if i < len(self.comparison_data):
+                changes_full.append(self.comparison_data[i]["diff"])
+            else:
+                changes_full.append("")
+        result_df["Изменение_BOM"] = changes_full
+
+        if n2 > n1:
+            extra = df2.iloc[n1:].copy()
+            for col in df2.columns:
+                if col not in result_df.columns:
+                    result_df[col] = None
+            result_df = pd.concat([result_df, extra], ignore_index=True)
+            for i in range(n1, n2):
+                if i < len(self.comparison_data):
+                    result_df.at[i, "Изменение_BOM"] = self.comparison_data[i]["diff"]
+
+        self.result_df = result_df
+
+        self.tree.heading("val1", text=f"BOM 1 ({col1})")
+        self.tree.heading("val2", text=f"BOM 2 ({col2})")
+
+        self.apply_filter()
+        self.stats_label.config(text=f"Всего: {max_len} | Изменено: {changed_count} | Без изменений: {unchanged_count}")
+        self.status_label.config(text=f"Сверка завершена: {max_len} строк. Изменено: {changed_count}, без изменений: {unchanged_count}.")
+
+    def apply_filter(self, event=None):
+        filter_text = self.filter_status.get()
+        for item in self.tree.get_children():
+            self.tree.delete(item)
+
+        if not self.comparison_data:
+            self.tree_placeholder.place(relx=0.5, rely=0.5, anchor="center")
+            return
+
+        if filter_text == "Все":
+            filtered = self.comparison_data
+        elif filter_text == "Только изменённые":
+            filtered = [r for r in self.comparison_data if r["status"] == "Изменено"]
+        elif filter_text == "Без изменений":
+            filtered = [r for r in self.comparison_data if r["status"] == "Без изменений"]
         else:
-            self.preview_btn.config(state=tk.DISABLED)
-            self.compare_btn.config(state=tk.DISABLED)
+            filtered = self.comparison_data
 
-    # ---------- Предпросмотр ----------
+        if filtered:
+            self.tree_placeholder.place_forget()
+        else:
+            self.tree_placeholder.place(relx=0.5, rely=0.5, anchor="center")
+
+        for row_idx, r in enumerate(filtered):
+            base_zebra = 'evenrow' if row_idx % 2 == 0 else 'oddrow'
+            if r["status"] == "Изменено":
+                tags = ('changed', base_zebra)
+            else:
+                tags = ('unchanged', base_zebra)
+
+            self.tree.insert("", tk.END, values=(r["idx"], r["val1"], r["val2"], r["status"], r["diff"]), tags=tags)
+
+    def reset_filter(self):
+        self.filter_status.set("Все")
+        self.apply_filter()
+
+    def sort_treeview(self, col, reverse):
+        items = self.tree.get_children('')
+        if not items:
+            return
+        data = [(self.tree.set(child, col), child) for child in items]
+        try:
+            data.sort(key=lambda x: float(x[0]), reverse=reverse)
+        except ValueError:
+            data.sort(key=lambda x: x[0].lower(), reverse=reverse)
+        for index, (_, child) in enumerate(data):
+            self.tree.move(child, '', index)
+        self.tree.heading(col, command=lambda: self.sort_treeview(col, not reverse))
+
+    def export_excel(self):
+        if self.result_df is None:
+            messagebox.showwarning("Предупреждение", "Сначала выполните сверку.", parent=self.parent)
+            return
+        file_path = filedialog.asksaveasfilename(defaultextension=".xlsx", filetypes=[("Excel files", "*.xlsx")],
+                                                 initialfile="BOM_Compare_Result.xlsx", parent=self.parent)
+        if file_path:
+            try:
+                self.result_df.to_excel(file_path, index=False)
+                messagebox.showinfo("Успех", f"Результат сохранён в {file_path}", parent=self.parent)
+            except Exception as e:
+                messagebox.showerror("Ошибка", str(e), parent=self.parent)
+
+    def export_txt(self):
+        if self.result_df is None:
+            messagebox.showwarning("Предупреждение", "Сначала выполните сверку.", parent=self.parent)
+            return
+        sep = self.get_separator_dialog()
+        if sep is None:
+            return
+        file_path = filedialog.asksaveasfilename(defaultextension=".txt", filetypes=[("Text files", "*.txt")],
+                                                 initialfile="BOM_Compare_Result.txt", parent=self.parent)
+        if file_path:
+            try:
+                self.result_df.to_csv(file_path, sep=sep, index=False, encoding='utf-8')
+                messagebox.showinfo("Успех", f"Результат сохранён в {file_path}", parent=self.parent)
+            except Exception as e:
+                messagebox.showerror("Ошибка", str(e), parent=self.parent)
+
     def show_preview(self, df, title):
         if df is None or df.empty:
             messagebox.showinfo("Информация", f"{title} не загружен.", parent=self.parent)
@@ -4160,47 +4561,39 @@ class CompareBOMTab(ttk.Frame):
 
         style_widget_tree(parent, "dark")
 
-    # ---------- Предпросмотр сравнения ----------
     def show_preview_comparison(self):
-        if not self._validate_inputs():
-            return
-        # Собираем данные для сравнения
+        if not self.comparison_data:
+            if not self._validate_inputs():
+                return
+            self.run_compare()
+            if not self.comparison_data:
+                return
+
         col1 = self.col1_var.get()
         col2 = self.col2_var.get()
-        df1 = self.df1.copy()
-        df2 = self.df2.copy()
 
-        df1[col1] = df1[col1].astype(str).str.strip()
-        df2[col2] = df2[col2].astype(str).str.strip()
-
-        n1 = len(df1)
-        n2 = len(df2)
-        max_len = max(n1, n2)
-
-        data = []
-        for i in range(max_len):
-            val1 = df1[col1].iloc[i] if i < n1 else ""
-            val2 = df2[col2].iloc[i] if i < n2 else ""
-            if val1 == val2:
-                change = "Без изменений"
-            else:
-                change = f"Изменено: {val1} → {val2}"
-            data.append((val1, val2, change))
-
-        # Создаём окно предпросмотра
-        preview_window = create_styled_toplevel(self.parent, "Предпросмотр сравнения BOM", "1250x750", min_size=(980, 580))
+        preview_window = create_styled_toplevel(self.parent, "Предпросмотр сверки BOM", "1250x750", min_size=(980, 580))
 
         frame = ttk.Frame(preview_window, padding="5")
         frame.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
 
-        columns = (f"BOM 1 ({col1})", f"BOM 2 ({col2})", "Изменение")
+        columns = ("№", f"BOM 1 ({col1})", f"BOM 2 ({col2})", "Статус", "Различие")
         tree = ttk.Treeview(frame, columns=columns, show="headings")
         tree.tag_configure('odd', background="#0e182e")
         tree.tag_configure('even', background="#131e36")
+        tree.tag_configure('changed', background="#451a03", foreground="#fde047")
+        tree.tag_configure('unchanged', foreground="#6ee7b7")
 
-        for col in columns:
-            tree.heading(col, text=col)
-            tree.column(col, width=220, anchor=tk.W)
+        tree.heading("№", text="№")
+        tree.column("№", width=55, anchor=tk.CENTER)
+        tree.heading(f"BOM 1 ({col1})", text=f"BOM 1 ({col1})")
+        tree.column(f"BOM 1 ({col1})", width=220, anchor=tk.W)
+        tree.heading(f"BOM 2 ({col2})", text=f"BOM 2 ({col2})")
+        tree.column(f"BOM 2 ({col2})", width=220, anchor=tk.W)
+        tree.heading("Статус", text="Статус")
+        tree.column("Статус", width=120, anchor=tk.CENTER)
+        tree.heading("Различие", text="Различие")
+        tree.column("Различие", width=280, anchor=tk.W)
 
         vsb = ttk.Scrollbar(frame, orient="vertical", command=tree.yview, style="Vertical.TScrollbar")
         hsb = ttk.Scrollbar(frame, orient="horizontal", command=tree.xview, style="Horizontal.TScrollbar")
@@ -4211,108 +4604,16 @@ class CompareBOMTab(ttk.Frame):
         frame.grid_rowconfigure(0, weight=1)
         frame.grid_columnconfigure(0, weight=1)
 
-        for idx, row in enumerate(data):
-            tag = 'even' if idx % 2 == 0 else 'odd'
-            tree.insert("", tk.END, values=row, tags=(tag,))
+        for r in self.comparison_data:
+            tag = 'changed' if r["status"] == "Изменено" else 'unchanged'
+            tree.insert("", tk.END, values=(r["idx"], r["val1"], r["val2"], r["status"], r["diff"]), tags=(tag,))
 
         btn_bar = ttk.Frame(preview_window, padding="5")
         btn_bar.pack(fill=tk.X, pady=5)
-        ttk.Label(btn_bar, text=f"Всего строк: {len(data)}", foreground="gray").pack(side=tk.TOP, pady=2)
+        ttk.Label(btn_bar, text=f"Всего строк: {len(self.comparison_data)}", foreground="gray").pack(side=tk.TOP, pady=2)
         ttk.Button(btn_bar, text="Закрыть", command=preview_window.destroy).pack(side=tk.BOTTOM, pady=4)
 
         style_widget_tree(preview_window, "dark")
-
-    # ---------- Основное сравнение и экспорт ----------
-    def run_compare(self):
-        if not self._validate_inputs():
-            return
-        col1 = self.col1_var.get()
-        col2 = self.col2_var.get()
-        df1 = self.df1.copy()
-        df2 = self.df2.copy()
-
-        # Приводим к строке и обрезаем
-        df1[col1] = df1[col1].astype(str).str.strip()
-        df2[col2] = df2[col2].astype(str).str.strip()
-
-        n1 = len(df1)
-        n2 = len(df2)
-        max_len = max(n1, n2)
-
-        # Создаём результат: добавляем столбец "Изменено" в копию первого DataFrame (или объединяем?)
-        # Поскольку нам нужен единый файл, мы можем создать новый DataFrame с колонками из обоих источников.
-        # Лучше взять первый DataFrame и добавить столбец "Изменено".
-        result_df = df1.copy()
-        # Добавляем столбец "Изменено"
-        changes = []
-        for i in range(max_len):
-            val1 = df1[col1].iloc[i] if i < n1 else ""
-            val2 = df2[col2].iloc[i] if i < n2 else ""
-            if val1 == val2:
-                changes.append("Без изменений")
-            else:
-                changes.append(f"{val1} → {val2}")
-        # Если строк больше в df2, то дополняем result_df
-        if n2 > n1:
-            extra_rows = df2.iloc[n1:].copy()
-            # Добавляем колонки из df2, которых нет в result_df
-            for col in df2.columns:
-                if col not in result_df.columns:
-                    result_df[col] = None
-            # Добавляем строки
-            result_df = pd.concat([result_df, extra_rows], ignore_index=True)
-            # Заполняем значения для новых строк в col1, col2, если их нет
-            for i in range(n1, n2):
-                if i >= len(result_df):
-                    break
-                # для новых строк берём из df2
-                pass  # уже добавлены
-
-        # Добавляем столбец "Изменено" (по строкам)
-        # Создаём список изменений такой же длины как result_df
-        changes_full = []
-        for i in range(len(result_df)):
-            if i < n1:
-                val1 = df1[col1].iloc[i] if i < len(df1) else ""
-            else:
-                val1 = ""
-            if i < n2:
-                val2 = df2[col2].iloc[i] if i < len(df2) else ""
-            else:
-                val2 = ""
-            if val1 == val2:
-                changes_full.append("Без изменений")
-            else:
-                changes_full.append(f"{val1} → {val2}")
-        result_df["Изменено"] = changes_full
-
-        # Сохраняем
-        file_path = filedialog.asksaveasfilename(defaultextension=".xlsx", filetypes=[("Excel files", "*.xlsx")], parent=self.parent)
-        if file_path:
-            try:
-                result_df.to_excel(file_path, index=False)
-                messagebox.showinfo("Успех", f"Файл сохранён: {file_path}", parent=self.parent)
-                self.status_label.config(text=f"Сравнение сохранено в {os.path.basename(file_path)}")
-            except Exception as e:
-                messagebox.showerror("Ошибка", str(e), parent=self.parent)
-                self.status_label.config(text=f"Ошибка сохранения: {str(e)}")
-
-    def _validate_inputs(self):
-        if self.df1 is None:
-            messagebox.showerror("Ошибка", "BOM 1 не загружен.", parent=self.parent)
-            return False
-        if self.df2 is None:
-            messagebox.showerror("Ошибка", "BOM 2 не загружен.", parent=self.parent)
-            return False
-        col1 = self.col1_var.get()
-        col2 = self.col2_var.get()
-        if not col1 or col1 not in self.df1.columns:
-            messagebox.showerror("Ошибка", "Не выбран столбец для BOM 1.", parent=self.parent)
-            return False
-        if not col2 or col2 not in self.df2.columns:
-            messagebox.showerror("Ошибка", "Не выбран столбец для BOM 2.", parent=self.parent)
-            return False
-        return True
 
 
 # ==================== ЗАПУСК ====================
