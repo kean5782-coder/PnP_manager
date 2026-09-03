@@ -17,7 +17,8 @@ from smd_engine import (
     THEMES, ToolTip, get_system_theme, set_window_titlebar_theme,
     apply_ttk_theme, show_feedback_dialog, show_faq_dialog,
     style_widget_tree, create_styled_toplevel, enable_smooth_mousewheel,
-    VendorRule, VendorParser, format_g
+    VendorRule, VendorParser, format_g, get_saved_theme, set_saved_theme,
+    restart_application
 )
 
 # =============================================================================
@@ -269,8 +270,9 @@ class DatabaseTab(ttk.Frame):
 
         columns = ("key", "value", "category", "comment", "author", "created_at")
         self.tree = ttk.Treeview(tree_frame, columns=columns, show="headings", height=12, selectmode='extended')
-        self.tree.tag_configure('odd', background="#232428")
-        self.tree.tag_configure('even', background="#2b2d31")
+        t = THEMES[get_saved_theme()]
+        self.tree.tag_configure('odd', background=t["row_odd"], foreground=t["tree_fg"])
+        self.tree.tag_configure('even', background=t["row_even"], foreground=t["tree_fg"])
 
         self.tree.heading("key", text="Название в BOM (Ключ)")
         self.tree.heading("value", text="Унифицированное наименование")
@@ -343,6 +345,9 @@ class DatabaseTab(ttk.Frame):
         self.info_label.pack(pady=4)
 
     def refresh_tree(self):
+        t = THEMES[get_saved_theme()]
+        self.tree.tag_configure('odd', background=t["row_odd"], foreground=t["tree_fg"])
+        self.tree.tag_configure('even', background=t["row_even"], foreground=t["tree_fg"])
         for item in self.tree.get_children():
             self.tree.delete(item)
         if hasattr(self.db_manager, 'get_all_full'):
@@ -417,7 +422,7 @@ class DatabaseTab(ttk.Frame):
         ttk.Button(btn_row, text="💾 Сохранить", style="Accent.TButton", command=on_save).pack(side=tk.LEFT, padx=6)
         ttk.Button(btn_row, text="Отмена", command=dialog.destroy).pack(side=tk.LEFT, padx=6)
 
-        style_widget_tree(dialog, "dark")
+        style_widget_tree(dialog, get_saved_theme())
 
     def edit_selected(self):
         selection = self.tree.selection()
@@ -485,7 +490,7 @@ class DatabaseTab(ttk.Frame):
         ttk.Button(btn_row, text="💾 Сохранить", style="Accent.TButton", command=on_save).pack(side=tk.LEFT, padx=6)
         ttk.Button(btn_row, text="Отмена", command=dialog.destroy).pack(side=tk.LEFT, padx=6)
 
-        style_widget_tree(dialog, "dark")
+        style_widget_tree(dialog, get_saved_theme())
 
     def delete_selected(self):
         selection = self.tree.selection()
@@ -563,7 +568,7 @@ class DatabaseTab(ttk.Frame):
             ttk.Button(btn_box, text="Оставить текущее для всех", command=lambda: choose("keep_all")).pack(side=tk.RIGHT, padx=3)
             ttk.Button(btn_box, text="Заменить все конфликты", command=lambda: choose("replace_all")).pack(side=tk.RIGHT, padx=3)
 
-            style_widget_tree(conf_win, "dark")
+            style_widget_tree(conf_win, get_saved_theme())
             conf_win.wait_window()
             return decision["choice"]
 
@@ -717,9 +722,10 @@ class DatabaseTab(ttk.Frame):
         table_frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=4)
 
         tree = ttk.Treeview(table_frame, columns=columns, show="headings", selectmode='extended')
-        tree.tag_configure('odd', background="#232428")
-        tree.tag_configure('even', background="#2b2d31")
-        tree.tag_configure('selected', background="#3b4261")
+        t = THEMES[get_saved_theme()]
+        tree.tag_configure('odd', background=t["row_odd"], foreground=t["tree_fg"])
+        tree.tag_configure('even', background=t["row_even"], foreground=t["tree_fg"])
+        tree.tag_configure('selected', background=t["tree_sel_bg"], foreground=t["tree_sel_fg"])
 
         def update_column_headers():
             k_col = key_col_var.get()
@@ -812,7 +818,7 @@ class DatabaseTab(ttk.Frame):
         update_column_headers()
         update_tree()
 
-        style_widget_tree(preview_window, "dark")
+        style_widget_tree(preview_window, get_saved_theme())
 
     def load_from_bom(self):
         if self.edited_df is None:
@@ -928,8 +934,9 @@ class DatabaseTab(ttk.Frame):
         frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=5)
 
         tree = ttk.Treeview(frame, columns=("original", "generated", "user"), show="headings", height=10)
-        tree.tag_configure('odd', background="#0e182e")
-        tree.tag_configure('even', background="#131e36")
+        t = THEMES[get_saved_theme()]
+        tree.tag_configure('odd', background=t["row_odd"], foreground=t["tree_fg"])
+        tree.tag_configure('even', background=t["row_even"], foreground=t["tree_fg"])
         tree.heading("original", text="Исходное значение")
         tree.heading("generated", text="Сгенерированное")
         tree.heading("user", text="Пользовательское")
@@ -958,7 +965,7 @@ class DatabaseTab(ttk.Frame):
         ttk.Button(btn_frame, text="✅ Применить замены", style="Accent.TButton", command=on_apply).pack(side=tk.LEFT, padx=6)
         ttk.Button(btn_frame, text="Отмена", command=dialog.destroy).pack(side=tk.LEFT, padx=6)
 
-        style_widget_tree(dialog, "dark")
+        style_widget_tree(dialog, get_saved_theme())
         self.wait_window(dialog)
         return result[0]
 
@@ -1351,7 +1358,7 @@ class CodeTab(ttk.Frame):
         rules_frame.grid_columnconfigure(0, weight=1)
 
         # ---------- Кнопки действий ----------
-        t = THEMES["dark"]
+        t = THEMES[get_saved_theme()]
         action_frame = tk.Frame(main_frame, bg=t["bg_app"])
         action_frame.pack(fill=tk.X, pady=8)
 
@@ -1738,8 +1745,9 @@ class CodeTab(ttk.Frame):
         frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=5)
 
         tree = ttk.Treeview(frame, columns=("original", "generated", "user"), show="headings", height=10)
-        tree.tag_configure('odd', background="#0e182e")
-        tree.tag_configure('even', background="#131e36")
+        t = THEMES[get_saved_theme()]
+        tree.tag_configure('odd', background=t["row_odd"], foreground=t["tree_fg"])
+        tree.tag_configure('even', background=t["row_even"], foreground=t["tree_fg"])
         tree.heading("original", text="Исходное значение")
         tree.heading("generated", text="Сгенерированное")
         tree.heading("user", text="Пользовательское")
@@ -1987,15 +1995,16 @@ class CodeTab(ttk.Frame):
         ttk.Button(filter_frame, text="Сбросить фильтр", command=clear_filter).pack(side=tk.LEFT, padx=5)
 
         # Подсказка о редактировании ячеек справа от фильтра
+        t = THEMES[get_saved_theme()]
         hint_lbl = tk.Label(
             filter_frame,
             text="✏️ Двойной клик по ячейке для редактирования (Ctrl+C, Ctrl+V, Enter — сохранить)",
             font=("Segoe UI", 9, "bold"),
-            bg="#0f172a",
-            fg="#38bdf8",
+            bg=t["badge_res_bg"],
+            fg=t["badge_res_fg"],
             padx=8,
             pady=3,
-            relief="groove"
+            relief="flat"
         )
         hint_lbl.pack(side=tk.LEFT, padx=(15, 5))
 
@@ -2008,8 +2017,9 @@ class CodeTab(ttk.Frame):
             columns = [col1, col2]
 
         tree = ttk.Treeview(frame, columns=columns, show="headings")
-        tree.tag_configure('odd', background="#0e182e")
-        tree.tag_configure('even', background="#131e36")
+        t = THEMES[get_saved_theme()]
+        tree.tag_configure('odd', background=t["row_odd"], foreground=t["tree_fg"])
+        tree.tag_configure('even', background=t["row_even"], foreground=t["tree_fg"])
 
         def sort_column(col, reverse=False):
             items = [(tree.set(item, col), item) for item in tree.get_children('')]
@@ -2074,7 +2084,7 @@ class CodeTab(ttk.Frame):
         btn_bar.pack(fill=tk.X, pady=5)
         ttk.Button(btn_bar, text="Закрыть", command=preview_window.destroy).pack(side=tk.BOTTOM, pady=2)
 
-        style_widget_tree(preview_window, "dark")
+        style_widget_tree(preview_window, get_saved_theme())
 
     # ========== Сохранение ==========
     def save_file(self):
@@ -2170,7 +2180,7 @@ class DescriptionTab(ttk.Frame):
         canvas.bind('<Configure>', lambda e: canvas.itemconfig(canvas_window, width=e.width))
 
         # ---------- Загрузка файла ----------
-        t = THEMES["dark"]
+        t = THEMES[get_saved_theme()]
         load_frame = ttk.LabelFrame(main_frame, text="1. Загрузка файла", padding="8")
         load_frame.pack(fill=tk.X, pady=(0, 6))
 
@@ -3888,15 +3898,16 @@ class DescriptionTab(ttk.Frame):
         ttk.Button(filter_frame, text="Сбросить фильтр", command=clear_filter).pack(side=tk.LEFT, padx=5)
 
         # Подсказка о редактировании ячеек справа от фильтра
+        t = THEMES[get_saved_theme()]
         hint_lbl = tk.Label(
             filter_frame,
             text="✏️ Двойной клик по ячейке для редактирования (Ctrl+C, Ctrl+V, Enter — сохранить)",
             font=("Segoe UI", 9, "bold"),
-            bg="#0f172a",
-            fg="#38bdf8",
+            bg=t["badge_res_bg"],
+            fg=t["badge_res_fg"],
             padx=8,
             pady=3,
-            relief="groove"
+            relief="flat"
         )
         hint_lbl.pack(side=tk.LEFT, padx=(15, 5))
 
@@ -3909,8 +3920,9 @@ class DescriptionTab(ttk.Frame):
             columns = [col1, col2]
 
         tree = ttk.Treeview(frame, columns=columns, show="headings")
-        tree.tag_configure('odd', background="#0e182e")
-        tree.tag_configure('even', background="#131e36")
+        t = THEMES[get_saved_theme()]
+        tree.tag_configure('odd', background=t["row_odd"], foreground=t["tree_fg"])
+        tree.tag_configure('even', background=t["row_even"], foreground=t["tree_fg"])
 
         def sort_column(col, reverse=False):
             items = [(tree.set(item, col), item) for item in tree.get_children('')]
@@ -3974,7 +3986,7 @@ class DescriptionTab(ttk.Frame):
         btn_bar.pack(fill=tk.X, pady=5)
         ttk.Button(btn_bar, text="Закрыть", command=preview_window.destroy).pack(side=tk.BOTTOM, pady=2)
 
-        style_widget_tree(preview_window, "dark")
+        style_widget_tree(preview_window, get_saved_theme())
 
     # ========== Сохранение ==========
     def save_file(self):
@@ -4004,7 +4016,7 @@ class BOMConverterApp:
         self.root.minsize(1000, 650)
 
         # Тема оформления
-        self.current_theme = get_system_theme()
+        self.current_theme = get_saved_theme()
         self.style = ttk.Style()
         self._setup_icon()
 
@@ -4098,6 +4110,7 @@ class BOMConverterApp:
 
     def toggle_theme(self):
         new_theme = "light" if self.current_theme == "dark" else "dark"
+        set_saved_theme(new_theme)
         self.apply_theme(new_theme)
 
 

@@ -38,7 +38,8 @@ import smd_engine
 from smd_engine import (
     THEMES, ToolTip, get_system_theme, set_window_titlebar_theme,
     apply_ttk_theme, show_feedback_dialog, show_faq_dialog, style_widget_tree,
-    enable_smooth_mousewheel, create_styled_toplevel
+    enable_smooth_mousewheel, create_styled_toplevel, get_saved_theme,
+    set_saved_theme, restart_application
 )
 
 # Импортируем модуль цветных иконок
@@ -116,8 +117,9 @@ class SMDHubApp:
         except Exception:
             pass
 
-        # Тема оформления — строго Dark Navy SaaS
-        self.current_theme = "dark"
+        # Тема оформления — загрузка сохраненного выбора (Dark Navy SaaS или Tech Slate Light)
+        self.active_theme_key = get_saved_theme()
+        self.current_theme = self.active_theme_key
         self.style = ttk.Style()
         self._setup_window_icon()
 
@@ -140,7 +142,7 @@ class SMDHubApp:
 
         # Построение интерфейса
         self._build_ui()
-        self.apply_theme("dark")
+        self.apply_theme(self.active_theme_key)
         enable_smooth_mousewheel(self.root)
 
     def _setup_window_icon(self):
@@ -166,19 +168,89 @@ class SMDHubApp:
                 except Exception:
                     pass
 
-    def apply_theme(self, theme_name: str = "dark"):
-        """Применяет тёмную SaaS тему ко всем элементам главного окна."""
+    def apply_theme(self, theme_name: str = None):
+        """Применяет тему оформления (Dark Navy или Tech Slate) ко всем элементам главного окна."""
+        if theme_name is None:
+            theme_name = getattr(self, "active_theme_key", "dark")
+        self.active_theme_key = theme_name
+        self.current_theme = theme_name
         t = THEMES[theme_name]
         self.root.configure(bg=t["bg_app"])
-        set_window_titlebar_theme(self.root, is_dark=True)
-        apply_ttk_theme(self.style, "dark")
-        style_widget_tree(self.root, "dark")
+        set_window_titlebar_theme(self.root, is_dark=t["is_dark"])
+        apply_ttk_theme(self.style, theme_name)
+        style_widget_tree(self.root, theme_name)
+
+        # Контейнеры рабочего пространства
+        if hasattr(self, 'layout_frame'):
+            self.layout_frame.configure(bg=t["bg_app"])
+        if hasattr(self, 'right_workspace'):
+            self.right_workspace.configure(bg=t["bg_app"])
+        if hasattr(self, 'pages_container'):
+            self.pages_container.configure(bg=t["bg_app"])
+
+        # Сайдбар
+        if hasattr(self, 'sidebar_frame'):
+            self.sidebar_frame.configure(bg=t["bg_sidebar"])
+        if hasattr(self, 'brand_frame'):
+            self.brand_frame.configure(bg=t["bg_sidebar"])
+        if hasattr(self, 'brand_left'):
+            self.brand_left.configure(bg=t["bg_sidebar"])
+        if hasattr(self, 'logo_title'):
+            self.logo_title.configure(bg=t["bg_sidebar"], fg=t["text_primary"])
+        if hasattr(self, 'logo_sub'):
+            self.logo_sub.configure(bg=t["bg_sidebar"], fg=t["text_muted"])
+        if hasattr(self, 'nav_items_frame'):
+            self.nav_items_frame.configure(bg=t["bg_sidebar"])
+
+        # Хедер
+        if hasattr(self, 'header_frame'):
+            self.header_frame.configure(bg=t["bg_header"])
+        if hasattr(self, 'header_tabs_frame'):
+            self.header_tabs_frame.configure(bg=t["bg_header"])
+        if hasattr(self, 'btn_theme'):
+            theme_txt = "☀️ Светлая" if self.active_theme_key == "dark" else "🌙 Тёмная"
+            self.btn_theme.configure(
+                text=f" {theme_txt}",
+                bg=t["btn_sec_bg"],
+                fg=t["btn_sec_fg"]
+            )
+        if hasattr(self, 'badge_db'):
+            self.badge_db.configure(bg=t["bg_card"], fg=t["text_header"])
+        if hasattr(self, 'btn_faq'):
+            self.btn_faq.configure(bg=t["btn_sec_bg"], fg=t["btn_sec_fg"])
+        if hasattr(self, 'btn_feedback'):
+            self.btn_feedback.configure(bg=t["btn_sec_bg"], fg=t["btn_sec_fg"])
+
+        # Навигация и пользователь
+        if hasattr(self, '_on_sidebar_leave'):
+            self._on_sidebar_leave()
+        if hasattr(self, '_update_user_display'):
+            self._update_user_display()
+
+        # Страницы и вкладки
+        if hasattr(self, 'show_page'):
+            self.show_page(self.active_page_id)
+        if hasattr(self, '_update_dashboard_file_status'):
+            self._update_dashboard_file_status()
+
+        # Обновляем Treeview в базе данных
+        if hasattr(self, 'database_tab') and hasattr(self.database_tab, 'tree'):
+            self.database_tab.tree.tag_configure('odd', background=t["row_odd"], foreground=t["tree_fg"])
+            self.database_tab.tree.tag_configure('even', background=t["row_even"], foreground=t["tree_fg"])
+            if hasattr(self.database_tab, 'refresh_tree'):
+                self.database_tab.refresh_tree()
+
+    def toggle_theme(self):
+        """Переключает тему оформления (dark <-> light), сохраняет настройку и мгновенно обновляет интерфейс."""
+        new_theme = "light" if self.active_theme_key == "dark" else "dark"
+        set_saved_theme(new_theme)
+        self.apply_theme(new_theme)
 
     # =========================================================================
     # Главная компоновка (Left Sidebar + Header + Main Content Area)
     # =========================================================================
     def _build_ui(self):
-        t = THEMES["dark"]
+        t = THEMES[self.active_theme_key]
 
         # Основной горизонтальный контейнер
         self.layout_frame = tk.Frame(self.root, bg=t["bg_app"])
@@ -219,7 +291,7 @@ class SMDHubApp:
     # Левый сайдбар (Dark Navy SaaS Sidebar)
     # =========================================================================
     def _build_sidebar(self, parent):
-        t = THEMES["dark"]
+        t = THEMES[self.active_theme_key]
         self.sidebar_frame = tk.Frame(parent, width=240, bg=t["bg_sidebar"])
         self.sidebar_frame.pack(side=tk.LEFT, fill=tk.Y)
         self.sidebar_frame.pack_propagate(False)
@@ -352,8 +424,8 @@ class SMDHubApp:
             w.bind("<Leave>", lambda e: self._on_user_card_hover(False))
 
     def _on_user_card_hover(self, entering: bool):
-        t = THEMES["dark"]
-        bg = "#1e293b" if entering else t["bg_sidebar"]
+        t = THEMES[self.active_theme_key]
+        bg = t["btn_sec_hover"] if entering else t["bg_sidebar"]
         if hasattr(self, 'user_card_widget'):
             self.user_card_widget.configure(bg=bg)
             for child in self.user_card_widget.winfo_children():
@@ -388,7 +460,7 @@ class SMDHubApp:
         dialog.transient(self.root)
         dialog.grab_set()
 
-        t = THEMES["dark"]
+        t = THEMES[self.active_theme_key]
         main_frame = ttk.Frame(dialog, padding="15")
         main_frame.pack(fill=tk.BOTH, expand=True)
 
@@ -515,7 +587,7 @@ class SMDHubApp:
             btn_box.pack(fill=tk.X)
             ttk.Button(btn_box, text="Войти", style="Accent.TButton", command=try_login).pack(side=tk.LEFT, padx=4)
             ttk.Button(btn_box, text="Отмена", command=pwd_win.destroy).pack(side=tk.LEFT, padx=4)
-            style_widget_tree(pwd_win, "dark")
+            style_widget_tree(pwd_win, self.active_theme_key)
 
         def on_delete_user(username: str, disp_name: str):
             if messagebox.askyesno("Удаление пользователя", f"Удалить аккаунт '{disp_name}' (@{username})?\nЭто действие необратимо.", parent=dialog):
@@ -548,7 +620,7 @@ class SMDHubApp:
             ).pack(side=tk.LEFT)
 
         ttk.Button(bottom_frame, text="Закрыть", command=dialog.destroy).pack(side=tk.RIGHT)
-        style_widget_tree(dialog, "dark")
+        style_widget_tree(dialog, self.active_theme_key)
 
     def _open_create_user_modal(self, parent_dialog, on_created_callback):
         modal = create_styled_toplevel(parent_dialog, "➕ Создание нового пользователя", "480x360", min_size=(440, 320))
@@ -612,7 +684,7 @@ class SMDHubApp:
         ttk.Button(btn_row, text="Создать аккаунт", style="Accent.TButton", command=save_user).pack(side=tk.LEFT, padx=4)
         ttk.Button(btn_row, text="Отмена", command=modal.destroy).pack(side=tk.LEFT, padx=4)
 
-        style_widget_tree(modal, "dark")
+        style_widget_tree(modal, self.active_theme_key)
 
     def toggle_sidebar(self):
         """Сворачивает сайдбар до компактных иконок или разворачивает обратно."""
@@ -721,20 +793,20 @@ class SMDHubApp:
         """
         if item_id not in self.nav_widgets:
             return
-        t = THEMES["dark"]
+        t = THEMES[self.active_theme_key]
         item = self.nav_widgets[item_id]
 
         if state == "active":
-            bg_col = "#1e2f4f"
-            fg_col = "#ffffff"
-            dot_col = "#38bdf8"
-            ind_col = "#38bdf8"
+            bg_col = t["nav_active_bg"]
+            fg_col = t["text_primary"] if not t["is_dark"] else "#ffffff"
+            dot_col = t["accent"]
+            ind_col = t["nav_active_border"]
             fnt_name = ("Segoe UI", 9, "bold")
         elif state == "hover":
-            bg_col = "#18243b"
-            fg_col = "#f8fafc"
-            dot_col = "#38bdf8"
-            ind_col = "#18243b"
+            bg_col = t["btn_sec_hover"]
+            fg_col = t["text_primary"]
+            dot_col = t["accent"]
+            ind_col = t["btn_sec_hover"]
             fnt_name = ("Segoe UI", 9)
         else: # normal
             bg_col = t["bg_sidebar"]
@@ -784,7 +856,7 @@ class SMDHubApp:
                 self._set_nav_item_visual(pid, "normal")
 
     def _add_nav_item(self, item_id: str, text: str, icon_key: str, command, tip_text: str = ""):
-        t = THEMES["dark"]
+        t = THEMES[self.active_theme_key]
         btn_frame = tk.Frame(self.nav_items_frame, bg=t["bg_sidebar"], cursor="hand2")
         btn_frame.pack(fill=tk.X, pady=2)
 
@@ -832,7 +904,7 @@ class SMDHubApp:
             w.bind("<Leave>", lambda e, i=item_id: self._on_nav_leave(i))
 
     def _add_nav_subitem(self, container, item_id: str, text: str, icon_key: str, command, tip_text: str = ""):
-        t = THEMES["dark"]
+        t = THEMES[self.active_theme_key]
         btn_frame = tk.Frame(container, bg=t["bg_sidebar"], cursor="hand2")
         btn_frame.pack(fill=tk.X, pady=1)
 
@@ -887,7 +959,7 @@ class SMDHubApp:
     # Верхний хедер с горизонтальными вкладками (Category Bar)
     # =========================================================================
     def _build_top_header(self, parent):
-        t = THEMES["dark"]
+        t = THEMES[self.active_theme_key]
         self.header_frame = tk.Frame(parent, height=52, bg=t["bg_header"], padx=16)
         self.header_frame.pack(fill=tk.X, side=tk.TOP)
         self.header_frame.pack_propagate(False)
@@ -937,7 +1009,7 @@ class SMDHubApp:
                 "underline": underline
             }
 
-        # Правая часть хедера: бейджи статуса и ссылки
+        # Правая часть хедера: бейджи статуса, кнопка темы и ссылки
         right_header = tk.Frame(self.header_frame, bg=t["bg_header"])
         right_header.pack(side=tk.RIGHT, fill=tk.Y)
 
@@ -946,8 +1018,8 @@ class SMDHubApp:
             right_header,
             text="📍 Конвейер: Шаг 1 (BOM)",
             font=("Segoe UI", 8, "bold"),
-            bg="#0c4a6e",
-            fg="#38bdf8",
+            bg=t["badge_res_bg"],
+            fg=t["badge_res_fg"],
             padx=8,
             pady=4,
             cursor="hand2"
@@ -971,6 +1043,23 @@ class SMDHubApp:
         self.badge_db.bind("<Button-1>", lambda e: self.show_page("database"))
         ToolTip(self.badge_db, "Открыть базу данных (database.db)")
 
+        # Кнопка переключения темы (Вариант 1: безопасный запуск)
+        theme_txt = "☀️ Светлая" if self.active_theme_key == "dark" else "🌙 Тёмная"
+        btn_theme = tk.Button(
+            right_header,
+            text=f" {theme_txt}",
+            font=("Segoe UI", 8, "bold"),
+            bg=t["btn_sec_bg"],
+            fg=t["btn_sec_fg"],
+            relief="flat",
+            padx=8,
+            pady=4,
+            cursor="hand2",
+            command=self.toggle_theme
+        )
+        btn_theme.pack(side=tk.LEFT, padx=3, pady=12)
+        ToolTip(btn_theme, "Сменить тему оформления (надежный перезапуск)")
+
         btn_faq = tk.Button(
             right_header,
             font=("Segoe UI", 8),
@@ -980,7 +1069,7 @@ class SMDHubApp:
             padx=8,
             pady=4,
             cursor="hand2",
-            command=lambda: show_faq_dialog(self.root, "dark")
+            command=lambda: show_faq_dialog(self.root, self.active_theme_key)
         )
         apply_button_icon(btn_faq, "book", "FAQ & Справка", size=14)
         btn_faq.pack(side=tk.LEFT, padx=3, pady=12)
@@ -994,7 +1083,7 @@ class SMDHubApp:
             padx=8,
             pady=4,
             cursor="hand2",
-            command=lambda: show_feedback_dialog(self.root, "dark")
+            command=lambda: show_feedback_dialog(self.root, self.active_theme_key)
         )
         apply_button_icon(btn_feedback, "mail", "Обратная связь", size=14)
         btn_feedback.pack(side=tk.LEFT, padx=(3, 6), pady=12)
@@ -1014,7 +1103,7 @@ class SMDHubApp:
 
     def _update_dashboard_file_status(self):
         """Обновляет индикаторы открытых файлов и бейджи конвейера в реальном времени."""
-        t = THEMES["dark"]
+        t = THEMES[self.active_theme_key]
         has_merged = bool(getattr(self, 'merged_pnp_path', None))
         has_bom = bool(getattr(self, 'unified_bom_path', None))
 
@@ -1023,20 +1112,20 @@ class SMDHubApp:
             if has_merged:
                 self.badge_pipeline.configure(
                     text="🟢 Конвейер: Шаг 3 (Сверка)",
-                    bg="#064e3b",
-                    fg="#34d399"
+                    bg=t["success_bg"],
+                    fg=t["success_fg"]
                 )
             elif has_bom:
                 self.badge_pipeline.configure(
                     text="🔵 Конвейер: Шаг 2 (P&P)",
-                    bg="#1e3a8a",
-                    fg="#60a5fa"
+                    bg=t["badge_vendor_bg"],
+                    fg=t["badge_vendor_fg"]
                 )
             else:
                 self.badge_pipeline.configure(
                     text="📍 Конвейер: Шаг 1 (BOM)",
-                    bg="#0c4a6e",
-                    fg="#38bdf8"
+                    bg=t["badge_res_bg"],
+                    fg=t["badge_res_fg"]
                 )
 
         # 2. Индикаторы файлов в карточках на Dashboard
@@ -1046,7 +1135,7 @@ class SMDHubApp:
                 self.lbl_dash_step1_file.configure(
                     text=f"📄 Загружен: {fname}",
                     fg=t["success_fg"],
-                    bg="#064e3b"
+                    bg=t["success_bg"]
                 )
             else:
                 self.lbl_dash_step1_file.configure(
@@ -1061,13 +1150,13 @@ class SMDHubApp:
                 self.lbl_dash_step2_file.configure(
                     text=f"📍 Сшит: {fname}",
                     fg=t["success_fg"],
-                    bg="#064e3b"
+                    bg=t["success_bg"]
                 )
             elif has_bom:
                 self.lbl_dash_step2_file.configure(
                     text="📍 BOM готов ➔ выберите P&P",
                     fg=t["text_header"],
-                    bg="#0c4a6e"
+                    bg=t["badge_res_bg"]
                 )
             else:
                 self.lbl_dash_step2_file.configure(
@@ -1081,7 +1170,7 @@ class SMDHubApp:
                 self.lbl_dash_step3_file.configure(
                     text="🛡️ Данные готовы к аудиту",
                     fg=t["success_fg"],
-                    bg="#064e3b"
+                    bg=t["success_bg"]
                 )
             else:
                 self.lbl_dash_step3_file.configure(
@@ -1095,7 +1184,7 @@ class SMDHubApp:
     # =========================================================================
     def show_page(self, page_id: str):
         self.active_page_id = page_id
-        t = THEMES["dark"]
+        t = THEMES[self.active_theme_key]
 
         # Прячем все страницы
         for pid, frame in self.pages.items():
@@ -1130,7 +1219,7 @@ class SMDHubApp:
     # Страница 0: Dashboard (Обзор состояния заказа)
     # =========================================================================
     def _build_page_dashboard(self, parent):
-        t = THEMES["dark"]
+        t = THEMES[self.active_theme_key]
         page = tk.Frame(parent, bg=t["bg_app"])
         self.pages["dashboard"] = page
 
@@ -1172,8 +1261,8 @@ class SMDHubApp:
             hero_top,
             text="ПРОИЗВОДСТВЕННЫЙ ТЕХНОЛОГИЧЕСКИЙ КОМПЛЕКС",
             font=("Segoe UI", 8, "bold"),
-            bg="#0c4a6e",
-            fg="#38bdf8",
+            bg=t["badge_res_bg"],
+            fg=t["badge_res_fg"],
             padx=10,
             pady=2
         ).pack(side=tk.LEFT)
@@ -1207,8 +1296,8 @@ class SMDHubApp:
             {
                 "step_num": "ШАГ 1",
                 "step_tag": "BOM • СПЕЦИФИКАЦИЯ",
-                "badge_bg": "#0c4a6e",
-                "badge_fg": "#38bdf8",
+                "badge_bg": t["badge_res_bg"],
+                "badge_fg": t["badge_res_fg"],
                 "icon": "step1",
                 "title": "Унификация спецификации (BOM)",
                 "purpose": "Интеллектуальное приведение перечней элементов и спецификаций из любых CAD-систем (Altium, KiCad, PCAD) к единому стандарту предприятия.",
@@ -1225,8 +1314,8 @@ class SMDHubApp:
             {
                 "step_num": "ШАГ 2",
                 "step_tag": "P&P • КООРДИНАТЫ",
-                "badge_bg": "#1e3a8a",
-                "badge_fg": "#60a5fa",
+                "badge_bg": t["badge_vendor_bg"],
+                "badge_fg": t["badge_vendor_fg"],
                 "icon": "step2",
                 "title": "Объединение P&P и BOM",
                 "purpose": "Сшивание файлов монтажных координат расстановщика (Centroid / Pick & Place) с унифицированной спецификацией BOM по позиционным обозначениям.",
@@ -1243,8 +1332,8 @@ class SMDHubApp:
             {
                 "step_num": "ШАГ 3",
                 "step_tag": "QA • АУДИТ И КОНТРОЛЬ",
-                "badge_bg": "#064e3b",
-                "badge_fg": "#34d399",
+                "badge_bg": t["success_bg"],
+                "badge_fg": t["success_fg"],
                 "icon": "step3",
                 "title": "Финальная сверка и контроль",
                 "purpose": "Комплексная трёхсторонняя верификация технологических данных перед непосредственной загрузкой программы в автомат SMD-монтажа.",
@@ -1451,7 +1540,7 @@ class SMDHubApp:
     # Страница 1: Шаг 1 — Унификация BOM
     # =========================================================================
     def _build_page_step1(self, parent):
-        t = THEMES["dark"]
+        t = THEMES[self.active_theme_key]
         page = tk.Frame(parent, bg=t["bg_app"])
         self.pages["step1"] = page
 
@@ -1546,7 +1635,7 @@ class SMDHubApp:
     # Страница 2: Шаг 2 — Объединение P&P + BOM
     # =========================================================================
     def _build_page_step2(self, parent):
-        t = THEMES["dark"]
+        t = THEMES[self.active_theme_key]
         page = tk.Frame(parent, bg=t["bg_app"])
         self.pages["step2"] = page
 
@@ -1615,7 +1704,7 @@ class SMDHubApp:
     # Страница 3: Шаг 3 — Финальная Сверка P&P с BOM
     # =========================================================================
     def _build_page_step3(self, parent):
-        t = THEMES["dark"]
+        t = THEMES[self.active_theme_key]
         page = tk.Frame(parent, bg=t["bg_app"])
         self.pages["step3"] = page
 
@@ -1658,7 +1747,7 @@ class SMDHubApp:
         Завершает текущую сессию создания файла и сбрасывает программу
         до состояния 'Только что открыта'. Показывает модальное окно с предупреждением.
         """
-        t = THEMES["dark"]
+        t = THEMES[self.active_theme_key]
 
         dialog = tk.Toplevel(self.root)
         dialog.title("⚠️ Завершение сессии и сброс программы")
@@ -1668,7 +1757,7 @@ class SMDHubApp:
         dialog.transient(self.root)
         dialog.grab_set()
         dialog.configure(bg=t["bg_app"])
-        set_window_titlebar_theme(dialog, True)
+        set_window_titlebar_theme(dialog, t["is_dark"])
 
         # Центрирование окна относительно главного приложения
         dialog.update_idletasks()
@@ -1806,7 +1895,7 @@ class SMDHubApp:
     # Страница 4: Сравнение P&P версий
     # =========================================================================
     def _build_page_compare_pnp(self, parent):
-        t = THEMES["dark"]
+        t = THEMES[self.active_theme_key]
         page = tk.Frame(parent, bg=t["bg_app"])
         self.pages["compare_pnp"] = page
 
@@ -1818,7 +1907,7 @@ class SMDHubApp:
     # Страница 5: Сверка спецификаций BOM
     # =========================================================================
     def _build_page_compare_bom(self, parent):
-        t = THEMES["dark"]
+        t = THEMES[self.active_theme_key]
         page = tk.Frame(parent, bg=t["bg_app"])
         self.pages["compare_bom"] = page
 
@@ -1830,7 +1919,7 @@ class SMDHubApp:
     # Страница 6: База данных соответствий
     # =========================================================================
     def _build_page_database(self, parent):
-        t = THEMES["dark"]
+        t = THEMES[self.active_theme_key]
         page = tk.Frame(parent, bg=t["bg_app"])
         self.pages["database"] = page
 
@@ -1853,9 +1942,9 @@ class SMDHubApp:
                 spec = importlib.util.spec_from_file_location("barcode_module", barcode_script)
                 mod = importlib.util.module_from_spec(spec)
                 spec.loader.exec_module(mod)
-                win = create_styled_toplevel(self.root, "📷 Barcode Decoder v1.1", "1040x820", "dark")
+                win = create_styled_toplevel(self.root, "📷 Barcode Decoder v1.1", "1040x820", self.active_theme_key)
                 app = mod.BarcodeDecoderApp(win)
-                style_widget_tree(win, "dark")
+                style_widget_tree(win, self.active_theme_key)
                 enable_smooth_mousewheel(win)
                 return
         except Exception as e:

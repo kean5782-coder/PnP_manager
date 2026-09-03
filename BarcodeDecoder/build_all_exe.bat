@@ -85,8 +85,11 @@ echo [4/4] Компиляция автономного BarcodeDecoder.exe...
     --icon "icon.ico" ^
     --add-data "icon.ico;." ^
     --add-data "icon.png;." ^
+    --add-data "FAQ.md;." ^
     --add-data "database.txt;." ^
     --add-data "smd_engine.py;." ^
+    --add-data "smd_icons.py;." ^
+    --add-data "assets;assets" ^
     --distpath "%DIST_DIR%" ^
     --workpath "%WORK_DIR%" ^
     "BarcodeDecoder_1.1.py"

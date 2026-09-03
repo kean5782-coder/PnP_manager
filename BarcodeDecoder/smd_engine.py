@@ -16,6 +16,8 @@ smd_engine.py — Единое ядро парсинга компонентов 
 import os
 import sys
 import re
+import json
+import subprocess
 import ctypes
 import webbrowser
 import urllib.parse
@@ -739,7 +741,7 @@ enable_high_dpi_awareness()
 
 
 # =============================================================================
-# Дизайн-система THEMES (Dark Navy SaaS Dashboard)
+# Дизайн-система THEMES (Dark Navy SaaS & Tech Slate Light)
 # =============================================================================
 THEMES = {
     "dark": {
@@ -794,66 +796,141 @@ THEMES = {
         "is_dark": True
     },
     "light": {
-        # Light mode mapped to same dark navy for complete consistency
-        "bg_app": "#0f172a",
-        "bg_sidebar": "#090d1a",
-        "bg_header": "#090d1a",
-        "bg_card": "#131e36",
-        "bg_card_inner": "#182644",
-        "bg_input": "#111c33",
-        "border": "#1e2f4f",
-        "border_focus": "#38bdf8",
-        "text_primary": "#f8fafc",
-        "text_secondary": "#94a3b8",
-        "text_header": "#7dd3fc",
-        "text_muted": "#64748b",
-        "accent": "#0ea5e9",
-        "accent_hover": "#38bdf8",
-        "accent_active": "#0284c7",
-        "accent_text": "#ffffff",
-        "btn_sec_bg": "#1e2f4f",
-        "btn_sec_fg": "#e2e8f0",
-        "btn_sec_hover": "#2b4169",
-        "nav_active_bg": "#1e2f4f",
-        "nav_active_border": "#38bdf8",
-        "badge_res_bg": "#0c4a6e",
-        "badge_res_fg": "#7dd3fc",
-        "badge_cap_bg": "#2e1065",
-        "badge_cap_fg": "#c084fc",
-        "badge_vendor_bg": "#1e3a8a",
-        "badge_vendor_fg": "#60a5fa",
-        "success_bg": "#064e3b",
-        "success_fg": "#34d399",
-        "error_bg": "#4c0519",
-        "error_fg": "#f43f5e",
-        "warning_bg": "#451a03",
-        "warning_fg": "#fbbf24",
-        "status_bg": "#131e36",
-        "tree_bg": "#131e36",
-        "tree_fg": "#f8fafc",
-        "tree_head_bg": "#0c1527",
-        "tree_head_fg": "#7dd3fc",
-        "tree_sel_bg": "#0369a1",
-        "tree_sel_fg": "#ffffff",
-        "row_odd": "#0e182e",
-        "row_even": "#131e36",
-        "scroll_trough": "#0e182e",
-        "scroll_thumb": "#1e2f4f",
-        "scroll_thumb_hover": "#2b4169",
-        "scroll_thumb_active": "#0ea5e9",
-        "scroll_arrow": "#64748b",
-        "is_dark": True
+        # Modern Tech Slate Light Palette (Linear / Apple Pro / Stripe inspired)
+        "bg_app": "#f8fafc",          # Мягкий сланец Slate-50 (исключает эффект 'белого листа')
+        "bg_sidebar": "#f1f5f9",      # Структурный Slate-100 для навигации
+        "bg_header": "#ffffff",       # Чистый белый верхний хедер
+        "bg_card": "#ffffff",         # Чистые белые контрастные карточки
+        "bg_card_inner": "#f1f5f9",   # Подложки блоков и внутренних карточек
+        "bg_input": "#ffffff",        # Поля ввода
+        "border": "#e2e8f0",          # Мягкие разделители Slate-200
+        "border_focus": "#2563eb",    # Кобальтовый фокус ввода
+        "text_primary": "#0f172a",    # Глубокий сланец (WCAG AAA, без резкости #000)
+        "text_secondary": "#475569",  # Четкий средний серый (Slate-600)
+        "text_header": "#1e3a8a",     # Благородный темно-синий для акцентных заголовков
+        "text_muted": "#64748b",      # Мягкий серый для сносок и подсказок
+        "accent": "#1d4ed8",          # Кобальтовый синий (WCAG AAA на белом тексте)
+        "accent_hover": "#1e40af",    # Темно-синий при наведении
+        "accent_active": "#172554",   # Глубокий синий при нажатии
+        "accent_text": "#ffffff",     # Белый текст кнопок
+        "btn_sec_bg": "#f1f5f9",      # Вторичная кнопка (Slate-100)
+        "btn_sec_fg": "#0f172a",      # Текст вторичной кнопки
+        "btn_sec_hover": "#e2e8f0",   # Наведение вторичной кнопки (Slate-200)
+        "nav_active_bg": "#e2e8f0",   # Активная плашка сайдбара
+        "nav_active_border": "#1d4ed8",# Синяя полоска активного пункта
+        "badge_res_bg": "#e0f2fe",    # Пастельный Sky-100 для резисторов
+        "badge_res_fg": "#0369a1",    # Контрастный Sky-700
+        "badge_cap_bg": "#f3e8ff",    # Пастельный Purple-100 для конденсаторов
+        "badge_cap_fg": "#7e22ce",    # Контрастный Purple-700
+        "badge_vendor_bg": "#dbeafe", # Пастельный Blue-100 для производителей
+        "badge_vendor_fg": "#1d4ed8", # Контрастный Blue-700
+        "success_bg": "#dcfce7",      # Emerald-100
+        "success_fg": "#15803d",      # Emerald-700
+        "error_bg": "#fee2e2",        # Red-100
+        "error_fg": "#b91c1c",        # Red-700
+        "warning_bg": "#fef3c7",      # Amber-100
+        "warning_fg": "#b45309",      # Amber-700
+        "status_bg": "#ffffff",       # Статус-бар
+        "tree_bg": "#ffffff",         # Таблицы данных
+        "tree_fg": "#0f172a",         # Текст таблиц
+        "tree_head_bg": "#f1f5f9",    # Шапка колонок таблиц
+        "tree_head_fg": "#1e293b",    # Текст заголовков колонок
+        "tree_sel_bg": "#dbeafe",     # Пастельное выделение строк
+        "tree_sel_fg": "#0f172a",     # Текст выделенной строки
+        "row_odd": "#f8fafc",         # Зебра нечетных строк (мягкий сланец)
+        "row_even": "#ffffff",        # Зебра четных строк (белый)
+        "scroll_trough": "#f1f5f9",   # Трек скроллбара
+        "scroll_thumb": "#cbd5e1",    # Ползунок скроллбара (Slate-300)
+        "scroll_thumb_hover": "#94a3b8", # Ползунок при наведении (Slate-400)
+        "scroll_thumb_active": "#1d4ed8",# Ползунок при перетаскивании
+        "scroll_arrow": "#64748b",    # Стрелки скроллбара
+        "is_dark": False
     }
 }
 
 
-def get_system_theme() -> str:
-    """Возвращает тёмную SaaS тему."""
+def get_settings_path() -> str:
+    """Возвращает путь к файлу настроек settings.json в %APPDATA%\\SMD_Hub."""
+    appdata = os.environ.get("APPDATA", os.path.expanduser("~"))
+    cfg_dir = os.path.join(appdata, "SMD_Hub")
+    try:
+        os.makedirs(cfg_dir, exist_ok=True)
+    except Exception:
+        pass
+    return os.path.join(cfg_dir, "settings.json")
+
+
+def get_saved_theme() -> str:
+    """Возвращает сохраненную тему оформления ('dark' или 'light'). По умолчанию 'dark'."""
+    try:
+        path = get_settings_path()
+        if os.path.exists(path):
+            with open(path, "r", encoding="utf-8") as f:
+                data = json.load(f)
+                theme = data.get("theme", "dark")
+                if theme in THEMES:
+                    return theme
+    except Exception:
+        pass
     return "dark"
 
 
+def set_saved_theme(theme_name: str):
+    """Сохраняет выбранную тему оформления в settings.json."""
+    if theme_name not in THEMES:
+        theme_name = "dark"
+    try:
+        path = get_settings_path()
+        data = {}
+        if os.path.exists(path):
+            try:
+                with open(path, "r", encoding="utf-8") as f:
+                    data = json.load(f)
+            except Exception:
+                data = {}
+        data["theme"] = theme_name
+        with open(path, "w", encoding="utf-8") as f:
+            json.dump(data, f, ensure_ascii=False, indent=2)
+    except Exception as e:
+        print("Warning: could not save theme setting:", e)
+
+
+def restart_application(root: tk.Tk = None):
+    """
+    Выполняет чистый безопасный перезапуск текущего приложения
+    для надежного применения выбранной темы без конфликтов стилей.
+    Корректно работает как в Python, так и в собранных .EXE (PyInstaller --onefile).
+    """
+    clean_env = os.environ.copy()
+    clean_env.pop('_MEIPASS2', None)
+    clean_env.pop('_MEIPASS', None)
+
+    is_frozen = getattr(sys, 'frozen', False)
+    exe_path = sys.executable
+
+    try:
+        if is_frozen:
+            subprocess.Popen([exe_path] + sys.argv[1:], env=clean_env)
+        else:
+            subprocess.Popen([exe_path] + sys.argv, env=clean_env)
+    except Exception as e:
+        print("Error restarting application:", e)
+
+    if root:
+        try:
+            root.destroy()
+        except Exception:
+            pass
+    sys.exit(0)
+
+
+def get_system_theme() -> str:
+    """Возвращает активную тему оформления (из настроек)."""
+    return get_saved_theme()
+
+
 def set_window_titlebar_theme(root: tk.Tk | tk.Toplevel, is_dark: bool = True):
-    """Применяет тёмную тему к заголовку окна Windows 10/11 через DWM API."""
+    """Применяет тёмную или светлую тему к заголовку окна Windows 10/11 через DWM API."""
     try:
         root.update_idletasks()
         hwnd = root.winfo_id()
@@ -874,9 +951,9 @@ def set_window_titlebar_theme(root: tk.Tk | tk.Toplevel, is_dark: bool = True):
                     pass
 
             # 35 = DWMWA_CAPTION_COLOR (Win11 build 22000+)
-            # COLORREF 0x00BBGGRR -> #090d1a -> R=0x09, G=0x0d, B=0x1a -> 0x001a0d09
+            # COLORREF 0x00BBGGRR -> dark: #090d1a -> 0x001a0d09; light: #ffffff -> 0x00ffffff
             try:
-                caption_color = ctypes.c_uint32(0x001a0d09)
+                caption_color = ctypes.c_uint32(0x001a0d09 if is_dark else 0x00ffffff)
                 ctypes.windll.dwmapi.DwmSetWindowAttribute(
                     h, 35, ctypes.byref(caption_color), ctypes.sizeof(caption_color)
                 )
@@ -1087,11 +1164,15 @@ def apply_ttk_theme(style: ttk.Style, theme_name: str = "dark"):
                     indicatorbackground=[("selected", t["accent"]), ("active", t["bg_card_inner"]), ("!disabled", t["bg_input"])])
 
 
-def style_widget_tree(widget, theme_name: str, parent_bg=None):
+def style_widget_tree(widget, theme_name: str = None, parent_bg=None):
     """
     Рекурсивно обходит всё дерево Tkinter виджетов и настраивает фоновые цвета,
     текст, кнопки, списки, поля ввода и холсты в соответствии с выбранной темой.
     """
+    if theme_name is None:
+        theme_name = get_saved_theme()
+    if theme_name not in THEMES:
+        theme_name = "dark"
     t = THEMES[theme_name]
     bg = parent_bg or t["bg_app"]
 
@@ -1099,26 +1180,43 @@ def style_widget_tree(widget, theme_name: str, parent_bg=None):
 
     try:
         if w_type in ("Frame", "Toplevel", "Tk"):
-            # Проверяем, не является ли это специальной карточкой
+            # Проверяем, не является ли это специальной карточкой или сайдбаром
             cur_bg = widget.cget("bg")
-            if cur_bg == t["bg_card"] or cur_bg == THEMES["dark"]["bg_card"] or cur_bg == THEMES["light"]["bg_card"]:
+            if cur_bg in (t["bg_card"], THEMES["dark"]["bg_card"], THEMES["light"]["bg_card"]):
                 bg = t["bg_card"]
-            elif cur_bg == t["bg_card_inner"] or cur_bg == THEMES["dark"]["bg_card_inner"] or cur_bg == THEMES["light"]["bg_card_inner"]:
+            elif cur_bg in (t["bg_card_inner"], THEMES["dark"]["bg_card_inner"], THEMES["light"]["bg_card_inner"]):
                 bg = t["bg_card_inner"]
+            elif cur_bg in (t["bg_sidebar"], THEMES["dark"]["bg_sidebar"], THEMES["light"]["bg_sidebar"]):
+                bg = t["bg_sidebar"]
+            elif cur_bg in (t["bg_header"], THEMES["dark"]["bg_header"], THEMES["light"]["bg_header"]):
+                bg = t["bg_header"]
             else:
                 bg = parent_bg or t["bg_app"]
             widget.configure(bg=bg)
+            if w_type == "Toplevel":
+                set_window_titlebar_theme(widget, is_dark=t["is_dark"])
 
         elif w_type == "Canvas":
             bg = parent_bg or t["bg_app"]
             widget.configure(bg=bg, highlightthickness=0)
 
         elif w_type == "Label":
-            # Не перетираем специальные бейджи и акцентные заголовки
-            cur_fg = widget.cget("fg")
-            if cur_fg not in (t["accent"], t["text_header"], t["text_muted"], t["success_fg"], t["error_fg"], t["warning_fg"], "#7dd3fc", "#93c5fd", "#38bdf8"):
-                widget.configure(fg=t["text_primary"])
-            widget.configure(bg=parent_bg or t["bg_app"])
+            lbl_txt = str(widget.cget("text"))
+            if "Двойной клик" in lbl_txt or "Двойной щелчок" in lbl_txt:
+                widget.configure(bg=t["badge_res_bg"], fg=t["badge_res_fg"], relief="flat")
+            else:
+                # Не перетираем специальные бейджи и акцентные заголовки
+                cur_fg = widget.cget("fg")
+                preserve_fgs = (
+                    t["accent"], t["text_header"], t["text_muted"], t["text_secondary"],
+                    t["success_fg"], t["error_fg"], t["warning_fg"],
+                    t["badge_res_fg"], t["badge_cap_fg"], t["badge_vendor_fg"],
+                    THEMES["dark"]["badge_res_fg"], THEMES["dark"]["badge_cap_fg"], THEMES["dark"]["badge_vendor_fg"],
+                    THEMES["light"]["badge_res_fg"], THEMES["light"]["badge_cap_fg"], THEMES["light"]["badge_vendor_fg"]
+                )
+                if cur_fg not in preserve_fgs:
+                    widget.configure(fg=t["text_primary"])
+                widget.configure(bg=parent_bg or t["bg_app"])
 
         elif w_type == "Labelframe":
             widget.configure(bg=parent_bg or t["bg_app"], fg=t["accent"], highlightbackground=t["border"], relief="groove")
@@ -1156,6 +1254,16 @@ def style_widget_tree(widget, theme_name: str, parent_bg=None):
             widget.configure(bg=parent_bg or t["bg_app"], fg=t["text_primary"],
                              activebackground=parent_bg or t["bg_app"], activeforeground=t["text_primary"],
                              selectcolor=t["accent"])
+
+        elif "treeview" in w_type.lower():
+            try:
+                widget.tag_configure('odd', background=t["row_odd"], foreground=t["tree_fg"])
+                widget.tag_configure('even', background=t["row_even"], foreground=t["tree_fg"])
+                widget.tag_configure('oddrow', background=t["row_odd"], foreground=t["tree_fg"])
+                widget.tag_configure('evenrow', background=t["row_even"], foreground=t["tree_fg"])
+                widget.tag_configure('selected', background=t["tree_sel_bg"], foreground=t["tree_sel_fg"])
+            except Exception:
+                pass
     except Exception:
         pass
 
@@ -1164,11 +1272,16 @@ def style_widget_tree(widget, theme_name: str, parent_bg=None):
         style_widget_tree(child, theme_name, parent_bg=bg)
 
 
-def create_styled_toplevel(parent, title: str, geometry: str = None, min_size: tuple = None, theme_name: str = "dark"):
+def create_styled_toplevel(parent, title: str, geometry: str = None, min_size: tuple = None, theme_name: str = None):
     """
-    Создает Toplevel окно с правильной темой (тёмный заголовок Windows,
-    фон в тон темы Dark Navy SaaS, минимальные размеры и умная прокрутка колесом мыши).
+    Создает Toplevel окно с правильной темой (адаптивный заголовок Windows DWM,
+    фон в тон активной темы, минимальные размеры и умная прокрутка колесом мыши).
     """
+    if theme_name is None:
+        theme_name = get_saved_theme()
+    if theme_name not in THEMES:
+        theme_name = "dark"
+
     win = tk.Toplevel(parent)
     win.title(title)
     if geometry:
@@ -1184,8 +1297,9 @@ def create_styled_toplevel(parent, title: str, geometry: str = None, min_size: t
 
     t = THEMES[theme_name]
     win.configure(bg=t["bg_app"])
-    set_window_titlebar_theme(win, is_dark=True)
-    win.after(25, lambda: set_window_titlebar_theme(win, is_dark=True))
+    is_dark = t["is_dark"]
+    set_window_titlebar_theme(win, is_dark=is_dark)
+    win.after(25, lambda: set_window_titlebar_theme(win, is_dark=is_dark))
     enable_smooth_mousewheel(win)
     return win
 
@@ -1438,17 +1552,195 @@ def show_faq_dialog(parent, current_theme="dark"):
     scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
     enable_smooth_mousewheel(txt)
 
-    # Настройка типографики
-    txt.tag_configure("h1", font=("Segoe UI", 16, "bold"), foreground="#38bdf8", spacing1=16, spacing3=8)
-    txt.tag_configure("h2", font=("Segoe UI", 13, "bold"), foreground="#60a5fa", spacing1=14, spacing3=6)
-    txt.tag_configure("h3", font=("Segoe UI", 11, "bold"), foreground="#93c5fd", spacing1=10, spacing3=4)
+    # Настройка типографики и тегов Markdown
+    txt.tag_configure("h1", font=("Segoe UI", 16, "bold"), foreground="#38bdf8", spacing1=18, spacing3=8)
+    txt.tag_configure("h2", font=("Segoe UI", 13, "bold"), foreground="#60a5fa", spacing1=16, spacing3=6)
+    txt.tag_configure("h3", font=("Segoe UI", 11, "bold"), foreground="#93c5fd", spacing1=12, spacing3=4)
     txt.tag_configure("body", font=("Segoe UI", 10), foreground="#f1f5f9" if t["is_dark"] else "#1e293b", spacing1=2, spacing3=2)
     txt.tag_configure("bold", font=("Segoe UI", 10, "bold"), foreground="#ffffff" if t["is_dark"] else "#000000")
-    txt.tag_configure("code", font=("Consolas", 10), foreground="#38bdf8", background="#070d1e" if t["is_dark"] else "#f1f5f9")
-    txt.tag_configure("table", font=("Consolas", 9), foreground="#7dd3fc" if t["is_dark"] else "#0369a1", background="#070d1e" if t["is_dark"] else "#f8fafc")
-    txt.tag_configure("quote", font=("Segoe UI", 9, "italic"), foreground="#fbbf24", background="#1e293b" if t["is_dark"] else "#fef3c7")
-    txt.tag_configure("bullet", font=("Segoe UI", 10), foreground="#e2e8f0" if t["is_dark"] else "#334155", lmargin1=20, lmargin2=35)
+    txt.tag_configure("italic", font=("Segoe UI", 10, "italic"), foreground="#cbd5e1" if t["is_dark"] else "#475569")
+    txt.tag_configure("bold_italic", font=("Segoe UI", 10, "bold italic"), foreground="#ffffff" if t["is_dark"] else "#000000")
+    txt.tag_configure("code", font=("Consolas", 10), foreground="#38bdf8", background="#0d1b38" if t["is_dark"] else "#f1f5f9")
+    txt.tag_configure("code_block", font=("Consolas", 9), foreground="#7dd3fc" if t["is_dark"] else "#0369a1", background="#070d1e" if t["is_dark"] else "#f8fafc", spacing1=1, spacing3=1, lmargin1=16, lmargin2=16)
+    txt.tag_configure("table", font=("Consolas", 9), foreground="#7dd3fc" if t["is_dark"] else "#0369a1", background="#070d1e" if t["is_dark"] else "#f8fafc", lmargin1=16, lmargin2=16)
+    txt.tag_configure("quote", font=("Segoe UI", 9, "italic"), foreground="#fbbf24", background="#1e293b" if t["is_dark"] else "#fef3c7", lmargin1=22, lmargin2=22, spacing1=3, spacing3=3)
+    txt.tag_configure("alert_tip", font=("Segoe UI", 9), foreground="#38bdf8", background="#0c2340" if t["is_dark"] else "#ecfeff", lmargin1=22, lmargin2=22, spacing1=4, spacing3=4)
+    txt.tag_configure("alert_note", font=("Segoe UI", 9), foreground="#93c5fd", background="#0f1f38" if t["is_dark"] else "#eff6ff", lmargin1=22, lmargin2=22, spacing1=4, spacing3=4)
+    txt.tag_configure("alert_warn", font=("Segoe UI", 9), foreground="#fbbf24", background="#2a1b0a" if t["is_dark"] else "#fffbeb", lmargin1=22, lmargin2=22, spacing1=4, spacing3=4)
+    txt.tag_configure("bullet", font=("Segoe UI", 10), foreground="#e2e8f0" if t["is_dark"] else "#334155", lmargin1=22, lmargin2=40, spacing1=2, spacing3=2)
+    txt.tag_configure("bullet_dot", font=("Segoe UI", 10, "bold"), foreground="#38bdf8" if t["is_dark"] else "#0284c7")
+    txt.tag_configure("num_list", font=("Segoe UI", 10), foreground="#e2e8f0" if t["is_dark"] else "#334155", lmargin1=22, lmargin2=42, spacing1=2, spacing3=2)
+    txt.tag_configure("num_digit", font=("Segoe UI", 10, "bold"), foreground="#60a5fa" if t["is_dark"] else "#2563eb")
+    txt.tag_configure("link", font=("Segoe UI", 10, "underline"), foreground="#38bdf8" if t["is_dark"] else "#0284c7")
+    txt.tag_configure("hr", font=("Segoe UI", 8), foreground="#334155" if t["is_dark"] else "#cbd5e1", spacing1=8, spacing3=8)
+    txt.tag_configure("heading_flash", background="#1e3a8a" if t["is_dark"] else "#bae6fd")
     txt.tag_configure("search_hit", background="#eab308", foreground="#000000")
+
+    # Система гиперссылок и якорной навигации
+    link_map = {}
+    anchor_map = {}
+
+    def norm_slug(s):
+        if not s:
+            return ""
+        s = s.lower().replace('&', '').replace('#', '')
+        return re.sub(r'[^a-z0-9а-яё]', '', s)
+
+    def register_anchor(heading_text, pos):
+        k1 = norm_slug(heading_text)
+        if k1:
+            anchor_map[k1] = pos
+        m = re.search(r"(\d+)", heading_text)
+        if m:
+            anchor_map["num_" + m.group(1)] = pos
+        text_only = re.sub(r"[\d\W]+", "", heading_text.lower())
+        if text_only:
+            anchor_map[text_only] = pos
+
+    def handle_link_click(url):
+        if url.startswith("#"):
+            target_key = norm_slug(url)
+            pos = anchor_map.get(target_key)
+            if not pos:
+                m = re.search(r"(\d+)", url)
+                if m:
+                    pos = anchor_map.get("num_" + m.group(1))
+            if not pos:
+                for ak, ap in anchor_map.items():
+                    if (target_key and target_key in ak) or (ak and ak in target_key):
+                        pos = ap
+                        break
+            if pos:
+                try:
+                    line_num = int(txt.index(pos).split('.')[0])
+                    total_lines = max(1, int(txt.index(tk.END).split('.')[0]))
+                    fraction = max(0.0, min(1.0, (line_num - 2) / total_lines))
+                    txt.yview_moveto(fraction)
+                    txt.tag_remove("heading_flash", "1.0", tk.END)
+                    txt.tag_add("heading_flash", f"{line_num}.0", f"{line_num}.end")
+                    dialog.after(1200, lambda: txt.tag_remove("heading_flash", "1.0", tk.END))
+                except Exception:
+                    txt.see(pos)
+        elif url.startswith("http://") or url.startswith("https://") or url.startswith("mailto:"):
+            try:
+                webbrowser.open(url)
+            except Exception:
+                pass
+
+    def on_txt_motion(event):
+        try:
+            idx = txt.index(f"@{event.x},{event.y}")
+            tags = txt.tag_names(idx)
+            is_link = any(t in link_map or t == "link" for t in tags)
+            txt.configure(cursor="hand2" if is_link else "")
+        except Exception:
+            pass
+
+    def on_txt_click(event):
+        try:
+            idx = txt.index(f"@{event.x},{event.y}")
+            tags = txt.tag_names(idx)
+            for t in tags:
+                if t in link_map:
+                    handle_link_click(link_map[t])
+                    return "break"
+        except Exception:
+            pass
+
+    txt.bind("<Motion>", on_txt_motion)
+    txt.bind("<Button-1>", on_txt_click)
+
+    # Регулярное выражение для инлайн-разметки (ссылки, код, жирный, курсив)
+    INLINE_PATTERN = re.compile(
+        r'(?P<link>\[(?P<link_text>[^\]]+)\]\((?P<link_url>[^\)]+)\))|'
+        r'(?P<code>`(?P<code_text>[^`]+)`)|'
+        r'(?P<bold_italic>\*\*\*(?P<bi_text>[^\*]+)\*\*\*)|'
+        r'(?P<bold>\*\*(?P<bold_text>[^\*]+)\*\*)|'
+        r'(?P<italic>\*(?P<italic_text>[^\*]+)\*)'
+    )
+
+    def insert_formatted_inline(line_str, default_tag, extra_tags=None):
+        extra = tuple(extra_tags) if extra_tags else ()
+        last_idx = 0
+        for m in INLINE_PATTERN.finditer(line_str):
+            start, end = m.span()
+            if start > last_idx:
+                plain = line_str[last_idx:start]
+                t_tags = (default_tag,) + extra if default_tag else extra
+                txt.insert(tk.END, plain, t_tags)
+            if m.group('link'):
+                ltext = m.group('link_text')
+                lurl = m.group('link_url')
+                lid = f"link_{len(link_map)}"
+                link_map[lid] = lurl
+                t_tags = ("link", lid) + extra
+                if default_tag:
+                    t_tags = (default_tag,) + t_tags
+                txt.insert(tk.END, ltext, t_tags)
+            elif m.group('code'):
+                ctext = m.group('code_text')
+                t_tags = ("code",) + extra
+                txt.insert(tk.END, ctext, t_tags)
+            elif m.group('bold_italic'):
+                bitext = m.group('bi_text')
+                t_tags = ("bold_italic",) + extra
+                if default_tag:
+                    t_tags = (default_tag,) + t_tags
+                txt.insert(tk.END, bitext, t_tags)
+            elif m.group('bold'):
+                btext = m.group('bold_text')
+                t_tags = ("bold",) + extra
+                if default_tag:
+                    t_tags = (default_tag,) + t_tags
+                txt.insert(tk.END, btext, t_tags)
+            elif m.group('italic'):
+                itext = m.group('italic_text')
+                t_tags = ("italic",) + extra
+                if default_tag:
+                    t_tags = (default_tag,) + t_tags
+                txt.insert(tk.END, itext, t_tags)
+            last_idx = end
+        if last_idx < len(line_str):
+            plain = line_str[last_idx:]
+            t_tags = (default_tag,) + extra if default_tag else extra
+            txt.insert(tk.END, plain, t_tags)
+
+    def format_table_block(table_lines):
+        rows = []
+        is_divider = []
+        for l in table_lines:
+            cells = [c.strip() for c in l.strip().strip('|').split('|')]
+            if all(re.match(r"^:?-+:?$", c) for c in cells if c):
+                is_divider.append(True)
+                rows.append(cells)
+            else:
+                is_divider.append(False)
+                clean_cells = [re.sub(r"[\*`]", "", c).strip() for c in cells]
+                rows.append(clean_cells)
+
+        if not rows:
+            return
+
+        num_cols = max(len(r) for r in rows)
+        for r in rows:
+            while len(r) < num_cols:
+                r.append("")
+
+        col_w = []
+        for c in range(num_cols):
+            max_len = 4
+            for i in range(len(rows)):
+                if not is_divider[i] and c < len(rows[i]):
+                    max_len = max(max_len, len(rows[i][c]))
+            col_w.append(max_len)
+
+        for i, r in enumerate(rows):
+            if is_divider[i]:
+                div_cells = ["-" * (col_w[c] + 2) for c in range(num_cols)]
+                txt.insert(tk.END, "  |" + "+".join(div_cells) + "|\n", "table")
+            else:
+                cells_str = [f" {r[c].ljust(col_w[c])} " for c in range(num_cols)]
+                txt.insert(tk.END, "  |" + "|".join(cells_str) + "|\n", "table")
 
     # Поиск и чтение FAQ.md
     base_dir = os.path.dirname(os.path.abspath(__file__))
@@ -1471,42 +1763,129 @@ def show_faq_dialog(parent, current_theme="dark"):
                 pass
 
     if faq_content:
+        lines = faq_content.splitlines()
         in_code = False
-        for raw_line in faq_content.splitlines():
+        idx = 0
+        n_lines = len(lines)
+
+        while idx < n_lines:
+            raw_line = lines[idx]
             line = raw_line.strip()
+            idx += 1
+
+            # Блоки кода ``` ... ```
             if line.startswith("```"):
                 in_code = not in_code
                 continue
+
             if in_code:
-                txt.insert(tk.END, raw_line + "\n", "code")
+                txt.insert(tk.END, raw_line + "\n", "code_block")
                 continue
+
+            # Пустая строка
+            if not line:
+                txt.insert(tk.END, "\n")
+                continue
+
+            # Таблицы (накапливаем смежные строки таблицы для ровного выравнивания)
+            if line.startswith("|"):
+                tbl_lines = [raw_line]
+                while idx < n_lines and lines[idx].strip().startswith("|"):
+                    tbl_lines.append(lines[idx])
+                    idx += 1
+                format_table_block(tbl_lines)
+                txt.insert(tk.END, "\n")
+                continue
+
+            # Горизонтальный разделитель
+            if re.match(r"^(\-{3,}|\*{3,}|_{3,})$", line):
+                txt.insert(tk.END, "─" * 68 + "\n\n", "hr")
+                continue
+
+            # Заголовки H1, H2, H3
             if line.startswith("# "):
-                txt.insert(tk.END, line[2:] + "\n", "h1")
+                h_text = line[2:].strip()
+                pos = txt.index("end-1c")
+                register_anchor(h_text, pos)
+                txt.insert(tk.END, h_text + "\n", "h1")
+                continue
             elif line.startswith("## "):
-                txt.insert(tk.END, "\n" + line[3:] + "\n", "h2")
+                h_text = line[3:].strip()
+                txt.insert(tk.END, "\n")
+                pos = txt.index("end-1c")
+                register_anchor(h_text, pos)
+                txt.insert(tk.END, h_text + "\n", "h2")
+                continue
             elif line.startswith("### "):
-                txt.insert(tk.END, "\n" + line[4:] + "\n", "h3")
-            elif line.startswith(">"):
-                txt.insert(tk.END, "   " + line[1:].strip() + "\n", "quote")
-            elif line.startswith("|"):
-                txt.insert(tk.END, raw_line + "\n", "table")
-            elif line.startswith("- ") or line.startswith("• "):
-                txt.insert(tk.END, "  • ", "bold")
-                parts = re.split(r"(\*\*.*?\*\*)", line[2:])
-                for p in parts:
-                    if p.startswith("**") and p.endswith("**"):
-                        txt.insert(tk.END, p[2:-2], ("bullet", "bold"))
-                    elif p:
-                        txt.insert(tk.END, p, "bullet")
+                h_text = line[4:].strip()
                 txt.insert(tk.END, "\n")
-            else:
-                parts = re.split(r"(\*\*.*?\*\*)", raw_line)
-                for p in parts:
-                    if p.startswith("**") and p.endswith("**"):
-                        txt.insert(tk.END, p[2:-2], ("body", "bold"))
-                    elif p:
-                        txt.insert(tk.END, p, "body")
+                pos = txt.index("end-1c")
+                register_anchor(h_text, pos)
+                txt.insert(tk.END, h_text + "\n", "h3")
+                continue
+
+            # Цитаты и специальные блоки-уведомления (> [!TIP], > [!NOTE], и т.д.)
+            if line.startswith(">"):
+                q_text = line[1:].strip()
+                alert_tag = "quote"
+                prefix = ""
+                if q_text.startswith("[!TIP]"):
+                    alert_tag = "alert_tip"
+                    prefix = "💡 СОВЕТ: "
+                    q_text = q_text[6:].strip()
+                elif q_text.startswith("[!NOTE]"):
+                    alert_tag = "alert_note"
+                    prefix = "ℹ️ ПРИМЕЧАНИЕ: "
+                    q_text = q_text[7:].strip()
+                elif q_text.startswith("[!WARNING]"):
+                    alert_tag = "alert_warn"
+                    prefix = "⚠️ ВНИМАНИЕ: "
+                    q_text = q_text[10:].strip()
+                elif q_text.startswith("[!IMPORTANT]"):
+                    alert_tag = "alert_warn"
+                    prefix = "❗ ВАЖНО: "
+                    q_text = q_text[12:].strip()
+
+                if prefix:
+                    txt.insert(tk.END, "   " + prefix, (alert_tag, "bold"))
+                    if q_text:
+                        insert_formatted_inline(q_text, alert_tag)
+                    txt.insert(tk.END, "\n")
+                else:
+                    txt.insert(tk.END, "   ", alert_tag)
+                    insert_inline_target = q_text
+                    insert_formatted_inline(insert_inline_target, alert_tag)
+                    txt.insert(tk.END, "\n")
+                continue
+
+            # Нумерованный список (1. , 2. )
+            num_m = re.match(r"^(\s*)(\d+)\.\s+(.*)$", raw_line)
+            if num_m:
+                lead_spaces = len(num_m.group(1))
+                num_str = num_m.group(2)
+                rest = num_m.group(3)
+                prefix_space = "    " if lead_spaces >= 2 else "  "
+                txt.insert(tk.END, f"{prefix_space}{num_str}. ", ("num_list", "num_digit"))
+                insert_formatted_inline(rest, "num_list")
                 txt.insert(tk.END, "\n")
+                continue
+
+            # Маркированный список (- , * , • )
+            bullet_m = re.match(r"^(\s*)([-*•])\s+(.*)$", raw_line)
+            if bullet_m:
+                lead_spaces = len(bullet_m.group(1))
+                rest = bullet_m.group(3)
+                if lead_spaces >= 2:
+                    txt.insert(tk.END, "    ◦ ", ("bullet", "bullet_dot"))
+                else:
+                    txt.insert(tk.END, "  • ", ("bullet", "bullet_dot"))
+                insert_formatted_inline(rest, "bullet")
+                txt.insert(tk.END, "\n")
+                continue
+
+            # Обычный абзац текста
+            insert_formatted_inline(raw_line, "body")
+            txt.insert(tk.END, "\n")
     else:
         txt.insert(tk.END, "Руководство оператора и FAQ\n\nФайл FAQ.md не найден в каталоге программы.", "h1")
 

@@ -17,7 +17,8 @@ import smd_engine
 from smd_engine import (
     THEMES, ToolTip, get_system_theme, set_window_titlebar_theme,
     apply_ttk_theme, show_feedback_dialog, show_faq_dialog,
-    style_widget_tree, create_styled_toplevel, enable_smooth_mousewheel
+    style_widget_tree, create_styled_toplevel, enable_smooth_mousewheel,
+    get_saved_theme, set_saved_theme, restart_application
 )
 
 
@@ -45,7 +46,7 @@ class MainApp:
         root.minsize(1050, 680)
 
         # Тема оформления
-        self.current_theme = get_system_theme()
+        self.current_theme = get_saved_theme()
         self.style = ttk.Style()
         self._setup_icon()
 
@@ -146,7 +147,8 @@ class MainApp:
 
     def toggle_theme(self):
         new_theme = "light" if self.current_theme == "dark" else "dark"
-        self.apply_theme(new_theme)
+        set_saved_theme(new_theme)
+        restart_application(self.root)
 
     def set_pnp_data(self, df, path="", notify_merge=True):
         """Обновляет общий PnP и уведомляет вкладки."""
@@ -223,7 +225,7 @@ class CheckTab(ttk.Frame):
         self.create_widgets()
 
     def create_widgets(self):
-        t = THEMES["dark"]
+        t = THEMES[get_saved_theme()]
         main_container = tk.Frame(self.scrollable_frame, bg=t["bg_app"])
         main_container.pack(fill=tk.BOTH, expand=True, padx=8, pady=6)
 
@@ -912,7 +914,7 @@ class CheckTab(ttk.Frame):
         only_bom = sum(1 for r in self.filtered_results if r[1] == "Только в BOM")
         mismatch = sum(1 for r in self.filtered_results if r[1] == "Несовпадение значений")
         ok = sum(1 for r in self.filtered_results if r[1] == "OK")
-        t = THEMES["dark"]
+        t = THEMES[get_saved_theme()]
         self.stats_label.config(
             text=f"Отфильтровано: {total}  |  OK: {ok}  |  Только в PNP: {only_pnp}  |  Только в BOM: {only_bom}  |  Несовпадений: {mismatch}",
             fg=t["accent"] if total > 0 else t["text_secondary"]
@@ -930,7 +932,7 @@ class CheckTab(ttk.Frame):
 
     # ---------- Диалоги для экспорта ----------
     def get_separator_dialog(self):
-        t = THEMES["dark"]
+        t = THEMES[get_saved_theme()]
         dialog = create_styled_toplevel(self.parent, "Выбор разделителя", "460x260", min_size=(420, 240))
         dialog.transient(self.parent)
         dialog.grab_set()
@@ -1017,12 +1019,12 @@ class CheckTab(ttk.Frame):
                                font=("Segoe UI", 9), relief="flat", padx=16, pady=5, cursor="hand2")
         btn_cancel.pack(side=tk.LEFT)
 
-        style_widget_tree(dialog, "dark")
+        style_widget_tree(dialog, get_saved_theme())
         self.parent.wait_window(dialog)
         return result["sep"]
 
     def get_replacement_name_dialog(self):
-        t = THEMES["dark"]
+        t = THEMES[get_saved_theme()]
         dialog = create_styled_toplevel(self.parent, "Замена пустых названий", "460x220", min_size=(400, 200))
         dialog.transient(self.parent)
         dialog.grab_set()
@@ -1069,7 +1071,7 @@ class CheckTab(ttk.Frame):
                                font=("Segoe UI", 9), relief="flat", padx=16, pady=5, cursor="hand2")
         btn_cancel.pack(side=tk.LEFT)
 
-        style_widget_tree(dialog, "dark")
+        style_widget_tree(dialog, get_saved_theme())
         self.parent.wait_window(dialog)
         return result["name"]
 
@@ -1248,8 +1250,9 @@ class CheckTab(ttk.Frame):
 
         cols = list(df.columns)
         tree = ttk.Treeview(frame, columns=cols, show="headings")
-        tree.tag_configure('odd', background="#0e182e")
-        tree.tag_configure('even', background="#131e36")
+        t = THEMES[get_saved_theme()]
+        tree.tag_configure('odd', background=t["row_odd"], foreground=t["tree_fg"])
+        tree.tag_configure('even', background=t["row_even"], foreground=t["tree_fg"])
 
         vsb = ttk.Scrollbar(frame, orient="vertical", command=tree.yview, style="Vertical.TScrollbar")
         hsb = ttk.Scrollbar(frame, orient="horizontal", command=tree.xview, style="Horizontal.TScrollbar")
@@ -1276,7 +1279,7 @@ class CheckTab(ttk.Frame):
                   foreground="gray").pack(side=tk.TOP, pady=2)
         ttk.Button(btn_bar, text="Закрыть", command=preview_window.destroy).pack(side=tk.BOTTOM, pady=4)
 
-        style_widget_tree(preview_window, "dark")
+        style_widget_tree(preview_window, get_saved_theme())
 
 
 # ==================== ВКЛАДКА "ОБЪЕДИНЕНИЕ P&P И BOM" ====================
@@ -1326,7 +1329,7 @@ class MergeTab(ttk.Frame):
         self.on_one_side_changed()
 
     def create_widgets(self):
-        t = THEMES["dark"]
+        t = THEMES[get_saved_theme()]
         main_frame = tk.Frame(self.scrollable_frame, bg=t["bg_app"], padx=8, pady=6)
         main_frame.pack(fill=tk.BOTH, expand=True)
 
@@ -2588,8 +2591,9 @@ class MergeTab(ttk.Frame):
 
         cols = list(df.columns)
         tree = ttk.Treeview(frame, columns=cols, show="headings")
-        tree.tag_configure('odd', background="#0e182e")
-        tree.tag_configure('even', background="#131e36")
+        t = THEMES[get_saved_theme()]
+        tree.tag_configure('odd', background=t["row_odd"], foreground=t["tree_fg"])
+        tree.tag_configure('even', background=t["row_even"], foreground=t["tree_fg"])
 
         vsb = ttk.Scrollbar(frame, orient="vertical", command=tree.yview, style="Vertical.TScrollbar")
         hsb = ttk.Scrollbar(frame, orient="horizontal", command=tree.xview, style="Horizontal.TScrollbar")
@@ -2616,7 +2620,7 @@ class MergeTab(ttk.Frame):
                   foreground="gray").pack(side=tk.TOP, pady=2)
         ttk.Button(btn_bar, text="Закрыть", command=preview_window.destroy).pack(side=tk.BOTTOM, pady=4)
 
-        style_widget_tree(preview_window, "dark")
+        style_widget_tree(preview_window, get_saved_theme())
 
 
 # ==================== ВКЛАДКА "СРАВНЕНИЕ PNP ВЕРСИЙ" ====================
@@ -2681,7 +2685,7 @@ class CompareTab(ttk.Frame):
         self.on_one_side_changed()
 
     def get_separator_dialog(self):
-        t = THEMES["dark"]
+        t = THEMES[get_saved_theme()]
         dialog = create_styled_toplevel(self.parent, "Выбор разделителя", "460x260", min_size=(420, 240))
         dialog.transient(self.parent)
         dialog.grab_set()
@@ -2768,12 +2772,12 @@ class CompareTab(ttk.Frame):
                                font=("Segoe UI", 9), relief="flat", padx=16, pady=5, cursor="hand2")
         btn_cancel.pack(side=tk.LEFT)
 
-        style_widget_tree(dialog, "dark")
+        style_widget_tree(dialog, get_saved_theme())
         self.parent.wait_window(dialog)
         return result["sep"]
 
     def create_widgets(self):
-        t = THEMES["dark"]
+        t = THEMES[get_saved_theme()]
         main_frame = tk.Frame(self.scrollable_frame, bg=t["bg_app"], padx=8, pady=6)
         main_frame.pack(fill=tk.BOTH, expand=True)
 
@@ -3905,7 +3909,7 @@ class CompareTab(ttk.Frame):
                   foreground="gray").pack(side=tk.TOP, pady=2)
         ttk.Button(btn_bar, text="Закрыть", command=preview_window.destroy).pack(side=tk.BOTTOM, pady=4)
 
-        style_widget_tree(preview_window, "dark")
+        style_widget_tree(preview_window, get_saved_theme())
 
 
 # ==================== ВКЛАДКА: СВЕРКА BOM ====================
@@ -3964,7 +3968,7 @@ class CompareBOMTab(ttk.Frame):
         self.create_widgets()
 
     def get_separator_dialog(self):
-        t = THEMES["dark"]
+        t = THEMES[get_saved_theme()]
         dialog = create_styled_toplevel(self.parent, "Выбор разделителя", "460x260", min_size=(420, 240))
         dialog.transient(self.parent)
         dialog.grab_set()
@@ -4051,12 +4055,12 @@ class CompareBOMTab(ttk.Frame):
                                font=("Segoe UI", 9), relief="flat", padx=16, pady=5, cursor="hand2")
         btn_cancel.pack(side=tk.LEFT)
 
-        style_widget_tree(dialog, "dark")
+        style_widget_tree(dialog, get_saved_theme())
         self.parent.wait_window(dialog)
         return result["sep"]
 
     def create_widgets(self):
-        t = THEMES["dark"]
+        t = THEMES[get_saved_theme()]
         main_frame = tk.Frame(self.scrollable_frame, bg=t["bg_app"], padx=8, pady=6)
         main_frame.pack(fill=tk.BOTH, expand=True)
 
@@ -4559,7 +4563,7 @@ class CompareBOMTab(ttk.Frame):
                   foreground="gray").pack(side=tk.TOP, pady=2)
         ttk.Button(btn_bar, text="Закрыть", command=parent.destroy).pack(side=tk.BOTTOM, pady=4)
 
-        style_widget_tree(parent, "dark")
+        style_widget_tree(parent, get_saved_theme())
 
     def show_preview_comparison(self):
         if not self.comparison_data:
@@ -4579,10 +4583,11 @@ class CompareBOMTab(ttk.Frame):
 
         columns = ("№", f"BOM 1 ({col1})", f"BOM 2 ({col2})", "Статус", "Различие")
         tree = ttk.Treeview(frame, columns=columns, show="headings")
-        tree.tag_configure('odd', background="#0e182e")
-        tree.tag_configure('even', background="#131e36")
-        tree.tag_configure('changed', background="#451a03", foreground="#fde047")
-        tree.tag_configure('unchanged', foreground="#6ee7b7")
+        t = THEMES[get_saved_theme()]
+        tree.tag_configure('odd', background=t["row_odd"], foreground=t["tree_fg"])
+        tree.tag_configure('even', background=t["row_even"], foreground=t["tree_fg"])
+        tree.tag_configure('changed', background="#fef3c7" if not t["is_dark"] else "#451a03", foreground="#b45309" if not t["is_dark"] else "#fde047")
+        tree.tag_configure('unchanged', foreground="#15803d" if not t["is_dark"] else "#6ee7b7")
 
         tree.heading("№", text="№")
         tree.column("№", width=55, anchor=tk.CENTER)
@@ -4613,7 +4618,7 @@ class CompareBOMTab(ttk.Frame):
         ttk.Label(btn_bar, text=f"Всего строк: {len(self.comparison_data)}", foreground="gray").pack(side=tk.TOP, pady=2)
         ttk.Button(btn_bar, text="Закрыть", command=preview_window.destroy).pack(side=tk.BOTTOM, pady=4)
 
-        style_widget_tree(preview_window, "dark")
+        style_widget_tree(preview_window, get_saved_theme())
 
 
 # ==================== ЗАПУСК ====================
