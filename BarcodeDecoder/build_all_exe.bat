@@ -49,6 +49,7 @@ echo [3/4] Компиляция Главного Лаунчера SMD_Hub.exe (�
     --icon "icon_hub.ico" ^
     --add-data "icon_hub.ico;." ^
     --add-data "icon_hub.png;." ^
+    --add-data "FAQ.md;." ^
     --add-data "database.txt;." ^
     --add-data "database.txt;Unification" ^
     --add-data "smd_engine.py;." ^

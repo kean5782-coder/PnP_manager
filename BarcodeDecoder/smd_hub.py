@@ -1523,6 +1523,14 @@ class SMDHubApp:
             if not self.unified_bom_path:
                 if messagebox.askyesno("Сохранение", "Унифицированный BOM ещё не сохранён на диск. Сохранить сейчас?"):
                     current_tab.save_file()
+            else:
+                # Гарантированно перезаписываем файл на диске с учетом всех ручных правок ячеек
+                try:
+                    current_tab.df.to_excel(self.unified_bom_path, index=False)
+                    self.unified_bom_df = current_tab.df
+                except Exception as e:
+                    print("Error syncing unified BOM file:", e)
+
             if self.unified_bom_path and hasattr(self, 'merge_tab'):
                 self.merge_tab.bom_file.set(self.unified_bom_path)
                 self.merge_tab.load_bom()

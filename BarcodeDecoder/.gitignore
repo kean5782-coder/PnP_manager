@@ -8,6 +8,7 @@ __pycache__/
 build/
 build_smd/
 build_hub/
+build_release/
 *.spec
 
 # Android Build & Gradle

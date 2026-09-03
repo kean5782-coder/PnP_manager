@@ -47,6 +47,183 @@ except Exception:
 
 
 # =============================================================================
+# Универсальный инлайн-редактор ячеек Treeview (Windows-стандарт: Ctrl+C, Ctrl+V, etc.)
+# =============================================================================
+def attach_cell_editor(tree, get_df_fn, get_columns_fn, on_change=None):
+    """
+    Добавляет возможность редактирования ячеек Treeview двойным кликом
+    со всеми возможностями Windows (копирование, вставка, вырезание, выделение всей строки/текста).
+    При изменении ячейки новое значение сразу же перезаписывается в DataFrame.
+    """
+    active_entry = [None]
+
+    def finish_edit(save=True):
+        if not active_entry[0]:
+            return
+        info = active_entry[0]
+        active_entry[0] = None
+        entry = info["entry"]
+        row_id = info["row_id"]
+        col_name = info["col_name"]
+        df_idx = info["df_idx"]
+
+        try:
+            if save:
+                new_val = entry.get()
+                tree.set(row_id, col_name, new_val)
+                df = get_df_fn()
+                if df is not None and df_idx is not None and df_idx in df.index:
+                    if col_name in df.columns:
+                        if df[col_name].dtype != object:
+                            df[col_name] = df[col_name].astype(object)
+                        df.at[df_idx, col_name] = new_val
+                if on_change:
+                    try:
+                        on_change(df_idx, col_name, new_val)
+                    except Exception:
+                        pass
+        except Exception as e:
+            print("Cell editor save error:", e)
+        finally:
+            try:
+                entry.destroy()
+            except Exception:
+                pass
+
+    def on_double_click(event):
+        if active_entry[0]:
+            finish_edit(save=True)
+
+        region = tree.identify("region", event.x, event.y)
+        if region != "cell":
+            return
+
+        row_id = tree.identify_row(event.y)
+        col_id = tree.identify_column(event.x)
+        if not row_id or not col_id:
+            return
+
+        try:
+            col_idx = int(col_id.replace("#", "")) - 1
+        except Exception:
+            return
+
+        cols = get_columns_fn()
+        if col_idx < 0 or col_idx >= len(cols):
+            return
+        col_name = cols[col_idx]
+
+        # Извлекаем точный индекс DataFrame из iid ('row_0', 'row_12', etc.)
+        if str(row_id).startswith("row_"):
+            try:
+                df_idx = int(str(row_id).replace("row_", ""))
+            except Exception:
+                df_idx = None
+        else:
+            try:
+                df_idx = int(row_id)
+            except Exception:
+                df_idx = None
+
+        bbox = tree.bbox(row_id, col_id)
+        if not bbox:
+            return
+        x, y, w, h = bbox
+
+        current_val = tree.set(row_id, col_name)
+
+        entry = tk.Entry(
+            tree,
+            font=("Segoe UI", 10),
+            bg="#0f172a",
+            fg="#ffffff",
+            insertbackground="#38bdf8",
+            selectbackground="#0284c7",
+            selectforeground="#ffffff",
+            relief="solid",
+            bd=1
+        )
+        entry.insert(0, str(current_val) if current_val is not None else "")
+        entry.place(x=x, y=y, width=w, height=h)
+        entry.focus_set()
+        entry.select_range(0, tk.END)
+
+        active_entry[0] = {
+            "entry": entry,
+            "row_id": row_id,
+            "col_name": col_name,
+            "df_idx": df_idx
+        }
+
+        def select_all(e=None):
+            entry.select_range(0, tk.END)
+            return "break"
+
+        def copy_text(e=None):
+            try:
+                if entry.select_present():
+                    sel = entry.selection_get()
+                    tree.clipboard_clear()
+                    tree.clipboard_append(sel)
+            except Exception:
+                pass
+            return "break"
+
+        def cut_text(e=None):
+            try:
+                if entry.select_present():
+                    sel = entry.selection_get()
+                    tree.clipboard_clear()
+                    tree.clipboard_append(sel)
+                    entry.delete(tk.SEL_FIRST, tk.SEL_LAST)
+            except Exception:
+                pass
+            return "break"
+
+        def paste_text(e=None):
+            try:
+                clip = tree.clipboard_get()
+                if entry.select_present():
+                    entry.delete(tk.SEL_FIRST, tk.SEL_LAST)
+                entry.insert(tk.INSERT, clip)
+            except Exception:
+                pass
+            return "break"
+
+        entry.bind("<Control-a>", select_all)
+        entry.bind("<Control-A>", select_all)
+        entry.bind("<Control-c>", copy_text)
+        entry.bind("<Control-C>", copy_text)
+        entry.bind("<Control-v>", paste_text)
+        entry.bind("<Control-V>", paste_text)
+        entry.bind("<Control-x>", cut_text)
+        entry.bind("<Control-X>", cut_text)
+
+        menu = tk.Menu(entry, tearoff=0, bg="#1e293b", fg="#ffffff", activebackground="#0284c7")
+        menu.add_command(label="✂ Вырезать (Ctrl+X)", command=cut_text)
+        menu.add_command(label="📋 Копировать (Ctrl+C)", command=copy_text)
+        menu.add_command(label="📥 Вставить (Ctrl+V)", command=paste_text)
+        menu.add_separator()
+        menu.add_command(label="🔲 Выделить всё (Ctrl+A)", command=select_all)
+
+        def show_context_menu(e):
+            menu.tk_popup(e.x_root, e.y_root)
+
+        entry.bind("<Button-3>", show_context_menu)
+
+        entry.bind("<Return>", lambda e: finish_edit(save=True))
+        entry.bind("<KP_Enter>", lambda e: finish_edit(save=True))
+        entry.bind("<Escape>", lambda e: finish_edit(save=False))
+
+        def on_focus_out(e):
+            tree.after(100, lambda: finish_edit(save=True) if active_entry[0] and active_entry[0]["entry"] == entry else None)
+
+        entry.bind("<FocusOut>", on_focus_out)
+
+    tree.bind("<Double-1>", on_double_click)
+
+
+# =============================================================================
 # Вкладка "База данных" (Просмотр, Редактирование, Импорт, Экспорт)
 # =============================================================================
 class DatabaseTab(ttk.Frame):
@@ -1779,7 +1956,7 @@ class CodeTab(ttk.Frame):
         filter_frame.pack(fill=tk.X, padx=5, pady=5)
 
         ttk.Label(filter_frame, text="Фильтр:").pack(side=tk.LEFT, padx=5)
-        filter_entry = ttk.Entry(filter_frame, width=40)
+        filter_entry = ttk.Entry(filter_frame, width=35)
         filter_entry.pack(side=tk.LEFT, padx=5)
 
         def clear_filter():
@@ -1787,6 +1964,19 @@ class CodeTab(ttk.Frame):
             update_tree()
 
         ttk.Button(filter_frame, text="Сбросить фильтр", command=clear_filter).pack(side=tk.LEFT, padx=5)
+
+        # Подсказка о редактировании ячеек справа от фильтра
+        hint_lbl = tk.Label(
+            filter_frame,
+            text="✏️ Двойной клик по ячейке для редактирования (Ctrl+C, Ctrl+V, Enter — сохранить)",
+            font=("Segoe UI", 9, "bold"),
+            bg="#0f172a",
+            fg="#38bdf8",
+            padx=8,
+            pady=3,
+            relief="groove"
+        )
+        hint_lbl.pack(side=tk.LEFT, padx=(15, 5))
 
         frame = ttk.Frame(preview_window, padding="5")
         frame.pack(fill=tk.BOTH, expand=True)
@@ -1831,7 +2021,7 @@ class CodeTab(ttk.Frame):
                 tree.delete(item)
             filter_text = filter_entry.get().strip().lower()
             inserted_count = 0
-            for _, row in self.df.iterrows():
+            for df_idx, row in self.df.iterrows():
                 values = [str(row[col]) if pd.notna(row[col]) else "" for col in columns]
                 if all(v.strip() == "" for v in values):
                     continue
@@ -1844,11 +2034,20 @@ class CodeTab(ttk.Frame):
                     if not found:
                         continue
                 tag = 'even' if inserted_count % 2 == 0 else 'odd'
-                tree.insert("", tk.END, values=values, tags=(tag,))
+                tree.insert("", tk.END, iid=f"row_{df_idx}", values=values, tags=(tag,))
                 inserted_count += 1
 
         filter_entry.bind('<KeyRelease>', lambda e: update_tree())
         update_tree()
+
+        def on_cell_changed(df_idx, col_name, new_val):
+            if hasattr(self, 'preview_tree'):
+                try:
+                    self.update_preview()
+                except Exception:
+                    pass
+
+        attach_cell_editor(tree, lambda: self.df, lambda: columns, on_change=on_cell_changed)
 
         btn_bar = ttk.Frame(preview_window, padding="5")
         btn_bar.pack(fill=tk.X, pady=5)
@@ -3635,7 +3834,7 @@ class DescriptionTab(ttk.Frame):
         filter_frame.pack(fill=tk.X, padx=5, pady=5)
 
         ttk.Label(filter_frame, text="Фильтр:").pack(side=tk.LEFT, padx=5)
-        filter_entry = ttk.Entry(filter_frame, width=40)
+        filter_entry = ttk.Entry(filter_frame, width=35)
         filter_entry.pack(side=tk.LEFT, padx=5)
 
         def clear_filter():
@@ -3643,6 +3842,19 @@ class DescriptionTab(ttk.Frame):
             update_tree()
 
         ttk.Button(filter_frame, text="Сбросить фильтр", command=clear_filter).pack(side=tk.LEFT, padx=5)
+
+        # Подсказка о редактировании ячеек справа от фильтра
+        hint_lbl = tk.Label(
+            filter_frame,
+            text="✏️ Двойной клик по ячейке для редактирования (Ctrl+C, Ctrl+V, Enter — сохранить)",
+            font=("Segoe UI", 9, "bold"),
+            bg="#0f172a",
+            fg="#38bdf8",
+            padx=8,
+            pady=3,
+            relief="groove"
+        )
+        hint_lbl.pack(side=tk.LEFT, padx=(15, 5))
 
         frame = ttk.Frame(preview_window, padding="5")
         frame.pack(fill=tk.BOTH, expand=True)
@@ -3687,7 +3899,7 @@ class DescriptionTab(ttk.Frame):
                 tree.delete(item)
             filter_text = filter_entry.get().strip().lower()
             inserted_count = 0
-            for _, row in self.df.iterrows():
+            for df_idx, row in self.df.iterrows():
                 if filter_text:
                     found = False
                     for col in columns:
@@ -3699,11 +3911,20 @@ class DescriptionTab(ttk.Frame):
                         continue
                 values = [str(row[col]) if pd.notna(row[col]) else "" for col in columns]
                 tag = 'even' if inserted_count % 2 == 0 else 'odd'
-                tree.insert("", tk.END, values=values, tags=(tag,))
+                tree.insert("", tk.END, iid=f"row_{df_idx}", values=values, tags=(tag,))
                 inserted_count += 1
 
         filter_entry.bind('<KeyRelease>', lambda e: update_tree())
         update_tree()
+
+        def on_cell_changed(df_idx, col_name, new_val):
+            if hasattr(self, 'tree') and hasattr(self, 'converted_column') and self.converted_column:
+                try:
+                    self.update_preview(self.converted_column)
+                except Exception:
+                    pass
+
+        attach_cell_editor(tree, lambda: self.df, lambda: columns, on_change=on_cell_changed)
 
         btn_bar = ttk.Frame(preview_window, padding="5")
         btn_bar.pack(fill=tk.X, pady=5)
