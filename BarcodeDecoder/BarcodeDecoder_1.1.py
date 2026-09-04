@@ -13,7 +13,7 @@ BarcodeDecoder v1.1 — Десктопное приложение для дек�
 import os
 import sys
 import tkinter as tk
-from tkinter import ttk, messagebox
+from tkinter import ttk
 import re
 import ctypes
 import webbrowser
@@ -51,39 +51,80 @@ def format_g(num: float) -> str:
 # =============================================================================
 def parse_russian_resistor_value(raw: str) -> str:
     """
-    Преобразует российское обозначение резистора (например, '1кОм', '4.7МОм', '100Ом', '10k', '4,7к')
-    в международный формат с суффиксами R/K/M.
-    Миллиомы (мОм) в текущей версии не поддерживаются.
+    Преобразует российское и международное обозначение резистора (ГОСТ 28883-90 / IEC 60062)
+    в канонический формат с суффиксами R/K/M.
+    
+    Поддерживаемые форматы:
+    - Буква как разделитель целой и дробной части (ГОСТ/IEC):
+      '4к7', '4k7' -> '4.7K'
+      '4R7', '4r7' -> '4.7R'
+      '1м5', '1m5', '1M5' -> '1.5M'
+      '0R22', 'R22' -> '0.22R'
+      'к47', 'k47' -> '0.47K'
+    - Суффиксная форма:
+      '100Ом', '100 ом', '100R' -> '100R'
+      '4.7кОм', '4,7ком', '4.7k' -> '4.7K'
+      '1МОм', '1M' -> '1M'
+    - Числа без букв:
+      '100' -> '100R'
+      '1500' -> '1.5K'
+      '0', '0R' -> '0R'
     """
-    raw = raw.lower().strip()
-    raw = raw.replace('ом', '')
-    raw = raw.replace('r', '')
+    original = raw.strip()
+    if not original:
+        return ""
     
-    # Регулярное выражение с поддержкой как кириллических (к, м), так и латинских (k, m) букв
-    match = re.match(r'^([\d.,]+)\s*([кkмm]?)', raw)
-    if not match:
-        return raw
-        
-    num_str = match.group(1).replace(',', '.')
-    unit = match.group(2)
+    s = original.lower().replace(' ', '')
+    s = s.replace('ом', '').replace('ohm', '').replace('ω', '')
     
-    try:
-        num = float(num_str)
-    except (ValueError, TypeError):
-        return raw
+    # Обработка перемычек / нулей
+    if s in ('0', '0r', '00', '000', '0000'):
+        return '0R'
+    
+    # 1. Формат ГОСТ/IEC с буквой-множителем на месте десятичной точки:
+    # Примеры: '4к7', '4k7', '4r7', '1м5', '1m5', '0r22', 'r22', 'к47', 'k47', 'м10'
+    m_mid = re.match(r'^(\d*)([rkmкkмm])(\d+)$', s)
+    if m_mid:
+        int_part = m_mid.group(1) or '0'
+        unit_char = m_mid.group(2)
+        dec_part = m_mid.group(3)
+        try:
+            val = float(f"{int_part}.{dec_part}")
+            if unit_char in ('к', 'k'):
+                return f"{format_g(val)}K"
+            elif unit_char in ('м', 'm'):
+                return f"{format_g(val)}M"
+            else:
+                return f"{format_g(val)}R"
+        except (ValueError, TypeError):
+            return original
 
-    if unit in ('к', 'k'):
-        return f"{format_g(num)}K"
-    elif unit in ('м', 'm'):
-        return f"{format_g(num)}M"
-    else:
-        # Автоматическое масштабирование Ом в К / М при больших числах
-        if num >= 1000000:
-            return f"{format_g(num / 1000000)}M"
-        elif num >= 1000:
-            return f"{format_g(num / 1000)}K"
+    # 2. Формат с суффиксом в конце: '4.7к', '4,7k', '100r', '10k', '1m', '100'
+    m_end = re.match(r'^([\d.,]+)\s*([rkmкkмm]?)$', s)
+    if m_end:
+        num_str = m_end.group(1).replace(',', '.')
+        unit_char = m_end.group(2)
+        try:
+            val = float(num_str)
+        except (ValueError, TypeError):
+            return original
+
+        if unit_char in ('к', 'k'):
+            return f"{format_g(val)}K"
+        elif unit_char in ('м', 'm'):
+            return f"{format_g(val)}M"
+        elif unit_char in ('r',):
+            return f"{format_g(val)}R"
         else:
-            return f"{format_g(num)}R"
+            # Масштабирование чистых чисел
+            if val >= 1000000:
+                return f"{format_g(val / 1000000)}M"
+            elif val >= 1000:
+                return f"{format_g(val / 1000)}K"
+            else:
+                return f"{format_g(val)}R"
+
+    return original
 
 
 def map_lookup(d: dict, key: str, default=None):
@@ -973,9 +1014,8 @@ def create_resistor_rules():
 # Главное приложение – декодер по коду с автоматической очисткой
 # =============================================================================
 from smd_engine import (
-    THEMES, enable_high_dpi_awareness, set_window_titlebar_theme,
-    show_faq_dialog, show_feedback_dialog, get_saved_theme, set_saved_theme,
-    restart_application
+    THEMES, set_window_titlebar_theme,
+    show_faq_dialog, show_feedback_dialog, get_saved_theme, set_saved_theme
 )
 
 try:
@@ -1735,6 +1775,11 @@ class BarcodeDecoderApp:
 
     def check_system_state_periodically(self):
         """Фоновый таймер проверки раскладки клавиатуры."""
+        try:
+            if not self.root.winfo_exists():
+                return
+        except Exception:
+            return
         self.update_layout_status()
         self.root.after(1000, self.check_system_state_periodically)
 

@@ -56,6 +56,7 @@ echo [3/4] Компиляция Главного Лаунчера SMD_Hub.exe (�
     --add-data "smd_icons.py;." ^
     --add-data "smd_auth.py;." ^
     --add-data "smd_db.py;." ^
+    --add-data "BarcodeDecoder_1.1.py;." ^
     --add-data "assets;assets" ^
     --add-data "Unification/Unification.py;Unification" ^
     --add-data "PnP_Manager/PnP_Manager.py;PnP_Manager" ^

@@ -1,6 +1,5 @@
 import os
 import sys
-import shutil
 import tkinter as tk
 from tkinter import ttk, filedialog, messagebox
 import pandas as pd
@@ -14,11 +13,11 @@ for p in (PARENT_DIR, CURRENT_DIR):
 
 import smd_engine
 from smd_engine import (
-    THEMES, ToolTip, get_system_theme, set_window_titlebar_theme,
+    THEMES, ToolTip, set_window_titlebar_theme,
     apply_ttk_theme, show_feedback_dialog, show_faq_dialog,
-    style_widget_tree, create_styled_toplevel, enable_smooth_mousewheel,
-    VendorRule, VendorParser, format_g, get_saved_theme, set_saved_theme,
-    restart_application
+    style_widget_tree, create_styled_toplevel,
+    VendorRule,
+    get_saved_theme, set_saved_theme
 )
 
 # =============================================================================
@@ -974,284 +973,10 @@ class DatabaseTab(ttk.Frame):
     
 
 # =============================================================================
-# НОВОЕ: парсинг российских обозначений резисторов (без миллиом)
+# Примечание: Классы VendorRule, VendorParser и функция parse_russian_resistor_value
+# импортируются напрямую из smd_engine.py для обеспечения единого стандарта
+# парсинга ГОСТ / IEC и 16 мировых производителей SMD компонентов.
 # =============================================================================
-def parse_russian_resistor_value(raw):
-    """Преобразует российское обозначение резистора (1кОм, 4.7МОм) в формат с R/K/M.
-       Миллиомы (мОм) не поддерживаются."""
-    raw = raw.lower().strip()
-    raw = raw.replace('ом', '')
-    raw = raw.replace('r', '')
-    match = re.match(r'([\d.,]+)\s*([ккм]?)', raw)
-    if not match:
-        return raw
-    num_str = match.group(1)
-    unit = match.group(2)
-    num_str = num_str.replace(',', '.')
-    try:
-        num = float(num_str)
-    except ValueError:
-        return raw
-    if unit in ('к', 'k'):
-        return f"{num:.3g}K"
-    elif unit in ('м', 'm'):
-        # миллиомы не используем, считаем мегаомами
-        return f"{num:.3g}M"
-    else:
-        if num >= 1000000:
-            return f"{num/1000000:.3g}M"
-        elif num >= 1000:
-            return f"{num/1000:.3g}K"
-        else:
-            return f"{num:.3g}R"
-
-
-# =============================================================================
-# Класс для хранения правила парсинга одного производителя (используется в CodeTab)
-# =============================================================================
-class VendorRule:
-    def __init__(self, name, comp_type, pattern, size_map, dielectric_map=None, voltage_map=None,
-                 tolerance_map=None, value_parser=None, suffix_map=None, is_resistor=False):
-        self.name = name
-        self.comp_type = comp_type
-        self.pattern = re.compile(pattern)
-        self.size_map = size_map
-        self.dielectric_map = dielectric_map or {}
-        self.voltage_map = voltage_map or {}
-        self.tolerance_map = tolerance_map or {}
-        self.value_parser = value_parser
-        self.suffix_map = suffix_map or {}
-        self.is_resistor = is_resistor
-
-    def match(self, code):
-        m = self.pattern.match(code)
-        if m:
-            return m.groupdict()
-        return None
-
-
-# =============================================================================
-# Парсер для преобразования кода в унифицированное имя (используется в CodeTab)
-# =============================================================================
-class VendorParser:
-    def __init__(self, rules):
-        self.rules = rules
-
-    def parse(self, code, vendor_name=None):
-        if vendor_name:
-            for rule in self.rules:
-                if rule.name.lower() == vendor_name.lower():
-                    groups = rule.match(code)
-                    if groups:
-                        return rule, groups
-            return None, None
-        else:
-            for rule in self.rules:
-                groups = rule.match(code)
-                if groups:
-                    return rule, groups
-            return None, None
-
-    def convert_to_unified(self, code, rule, groups):
-        if rule.is_resistor:
-            size_code = groups.get('size')
-            size = rule.size_map.get(size_code, size_code)
-            raw_value = groups.get('value') or groups.get('code')
-            if raw_value:
-                # ---- ДОБАВЛЕНО: очистка от лишних символов (тире, подчёркивания) ----
-                raw_value = raw_value.strip()
-                raw_value = raw_value.lstrip('-')
-                raw_value = raw_value.lstrip('_')
-                # ---------------------------------------------------------------
-                if rule.value_parser:
-                    value_str = rule.value_parser(raw_value)
-                else:
-                    value_str = self._parse_resistor_value(raw_value, rule.suffix_map)
-            else:
-                value_str = '?'
-            tolerance_code = groups.get('tolerance')
-            tolerance = rule.tolerance_map.get(tolerance_code, tolerance_code)
-            if value_str == '0R':
-                return f"R_{size}_0R_{tolerance}"
-            else:
-                return f"R_{size}_{value_str}_{tolerance}"
-        else:
-            size_code = groups.get('size')
-            size = rule.size_map.get(size_code, size_code)
-            dielectric_code = groups.get('dielectric')
-            dielectric = rule.dielectric_map.get(dielectric_code, dielectric_code)
-            raw_value = groups.get('code')
-            if raw_value:
-                if rule.value_parser:
-                    value_str = rule.value_parser(raw_value)
-                else:
-                    value_str = self._parse_capacitance_value(raw_value)
-            else:
-                value_str = '?'
-            voltage_code = groups.get('voltage')
-            if voltage_code and voltage_code in rule.voltage_map:
-                voltage = rule.voltage_map[voltage_code]
-            else:
-                voltage = '?'
-            return f"C_{size}_{dielectric}_{value_str}_{voltage}"
-        
-    def _parse_resistor_value(self, raw, suffix_map):
-        raw = raw.strip().upper()
-        raw = re.sub(r'Ω', '', raw)
-        raw = re.sub(r'(?i)ом', '', raw)
-
-        if raw == '000' or raw == '0' or raw == '0R':
-            return '0R'
-
-        match_inside = re.search(r'([KMR])(\d+)$', raw)
-        if match_inside and match_inside.start() < len(raw) - 1:
-            letter = match_inside.group(1)
-            num_part = raw[:match_inside.start()]
-            decimal_part = match_inside.group(2)
-            try:
-                val = float(f"{num_part}.{decimal_part}")
-            except:
-                val = 0
-            if letter == 'R':
-                return f"{val:.3g}R"
-            elif letter == 'K':
-                return f"{val:.3g}K"
-            elif letter == 'M':
-                return f"{val:.3g}M"
-            else:
-                return f"{val:.3g}R"
-
-        if raw[-1] in suffix_map:
-            suffix = raw[-1]
-            num_part = raw[:-1]
-            unit = suffix_map[suffix]
-            if 'R' in num_part:
-                num_part = num_part.replace('R', '.')
-            try:
-                val = float(num_part)
-            except:
-                val = 0
-            if unit in ('Ω', 'mΩ'):
-                if unit == 'mΩ':
-                    val = val / 1000.0
-                if val >= 1000000:
-                    return f"{val/1000000:.3g}M"
-                elif val >= 1000:
-                    return f"{val/1000:.3g}K"
-                else:
-                    return f"{val:.3g}R"
-            elif unit == 'KΩ':
-                return f"{val:.3g}K"
-            elif unit == 'MΩ':
-                return f"{val:.3g}M"
-            else:
-                return f"{num_part}{unit}"
-
-        if len(raw) == 3:
-            if raw[0] == 'R' or 'R' in raw:
-                raw = raw.replace('R', '.')
-                try:
-                    val = float(raw)
-                except:
-                    val = 0
-                if val < 1:
-                    return f"{val:.3g}R"
-                else:
-                    return f"{val:.3g}R"
-            else:
-                try:
-                    mantissa = int(raw[:2])
-                    multiplier = int(raw[2])
-                    val = mantissa * (10 ** multiplier)
-                except:
-                    return raw
-                if val >= 1000000:
-                    return f"{val/1000000:.3g}M"
-                elif val >= 1000:
-                    return f"{val/1000:.3g}K"
-                else:
-                    return f"{val:.3g}R"
-        elif len(raw) == 4:
-            if 'R' in raw:
-                raw = raw.replace('R', '.')
-                try:
-                    val = float(raw)
-                except:
-                    val = 0
-                if val < 1:
-                    return f"{val:.3g}R"
-                else:
-                    return f"{val:.3g}R"
-            else:
-                try:
-                    mantissa = int(raw[:3])
-                    multiplier = int(raw[3])
-                    val = mantissa * (10 ** multiplier)
-                except:
-                    return raw
-                if val >= 1000000:
-                    return f"{val/1000000:.3g}M"
-                elif val >= 1000:
-                    return f"{val/1000:.3g}K"
-                else:
-                    return f"{val:.3g}R"
-        else:
-            return raw
-
-    def _parse_capacitance_value(self, raw):
-        raw = raw.strip().upper()
-        if 'R' in raw:
-            raw = raw.replace('R', '.')
-            try:
-                val = float(raw)
-            except:
-                val = 0
-            if val < 1:
-                return f"{val:.2g}pF"
-            elif val < 1000:
-                if val.is_integer():
-                    return f"{int(val)}pF"
-                else:
-                    return f"{val:.2g}pF"
-            elif val < 1000000:
-                val_nf = val / 1000
-                if val_nf.is_integer():
-                    return f"{int(val_nf)}nF"
-                else:
-                    return f"{val_nf:.2g}nF"
-            else:
-                val_uf = val / 1000000
-                if val_uf.is_integer():
-                    return f"{int(val_uf)}uF"
-                else:
-                    return f"{val_uf:.2g}uF"
-        else:
-            if len(raw) == 3:
-                try:
-                    mantissa = int(raw[:2])
-                    multiplier = int(raw[2])
-                    val = mantissa * (10 ** multiplier)
-                except:
-                    return raw
-                if val < 1000:
-                    if val.is_integer():
-                        return f"{int(val)}pF"
-                    else:
-                        return f"{val:.2g}pF"
-                elif val < 1000000:
-                    val_nf = val / 1000
-                    if val_nf.is_integer():
-                        return f"{int(val_nf)}nF"
-                    else:
-                        return f"{val_nf:.2g}nF"
-                else:
-                    val_uf = val / 1000000
-                    if val_uf.is_integer():
-                        return f"{int(val_uf)}uF"
-                    else:
-                        return f"{val_uf:.2g}uF"
-            else:
-                return raw
 
 
 # =============================================================================
@@ -1650,7 +1375,7 @@ class CodeTab(ttk.Frame):
                             else:
                                 unified = code
                         converted.append(unified)
-                    except Exception as e:
+                    except Exception:
                         comp_type = getattr(rule, 'comp_type', 'resistor')
                         user_name = self.ask_user_for_name(code, comp_type)
                         if user_name is not None:
