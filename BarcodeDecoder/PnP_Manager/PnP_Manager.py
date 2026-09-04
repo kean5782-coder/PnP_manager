@@ -1,7 +1,13 @@
+"""
+PnP Manager — специализированный модуль для работы с координатами SMD расстановки (Pick and Place) и спецификациями (BOM).
+Включает объединение BOM и PnP, поиск расхождений, проверку статусов DNP,
+поиск и устранение дубликатов десигнаторов, а также сравнение ревизий файлов.
+"""
+
 import os
 import sys
 import tkinter as tk
-from tkinter import filedialog, messagebox, ttk, simpledialog
+from tkinter import filedialog, messagebox, ttk
 import pandas as pd
 import re
 from collections import defaultdict
@@ -13,11 +19,10 @@ for p in (PARENT_DIR, CURRENT_DIR):
     if p not in sys.path:
         sys.path.insert(0, p)
 
-import smd_engine
 from smd_engine import (
-    THEMES, ToolTip, get_system_theme, set_window_titlebar_theme,
+    THEMES, ToolTip, set_window_titlebar_theme,
     apply_ttk_theme, show_feedback_dialog, show_faq_dialog,
-    style_widget_tree, create_styled_toplevel, enable_smooth_mousewheel,
+    style_widget_tree, create_styled_toplevel,
     get_saved_theme, set_saved_theme, restart_application
 )
 
@@ -39,6 +44,7 @@ def is_coordinate_empty(value):
 
 # ==================== ОСНОВНОЕ ПРИЛОЖЕНИЕ ====================
 class MainApp:
+    """Главный класс приложения PnP Manager: координация вкладок, управление темами и общими данными."""
     def __init__(self, root):
         self.root = root
         root.title("PnP Manager — Менеджер координат и спецификаций SMD")
@@ -178,6 +184,7 @@ class MainApp:
 
 # ==================== ВКЛАДКА "СВЕРКА P&P И BOM" ====================
 class CheckTab(ttk.Frame):
+    """Вкладка сверки P&P с BOM: проверка корректности координат, DNP, поиск дубликатов и нестыковок."""
     def __init__(self, parent, main_app):
         self.parent = parent
         self.main_app = main_app
@@ -565,7 +572,6 @@ class CheckTab(ttk.Frame):
                 for idx in indices:
                     if idx not in df.index:
                         continue
-                    row = df.loc[idx]
                     display_text = f"Строка {idx+1}: {ref}"
                     rb = ttk.Radiobutton(frame, text=display_text, variable=var, value=str(idx))
                     rb.pack(anchor=tk.W)
@@ -1284,6 +1290,7 @@ class CheckTab(ttk.Frame):
 
 # ==================== ВКЛАДКА "ОБЪЕДИНЕНИЕ P&P И BOM" ====================
 class MergeTab(ttk.Frame):
+    """Вкладка объединения P&P и BOM: слияние данных расстановки со спецификацией по десигнаторам."""
     def __init__(self, parent, main_app):
         self.parent = parent
         self.main_app = main_app
@@ -1820,7 +1827,6 @@ class MergeTab(ttk.Frame):
                 for idx in indices:
                     if idx not in self.pnp_df.index:
                         continue
-                    row = self.pnp_df.loc[idx]
                     display_text = f"Строка {idx+1}: {ref}"
                     rb = ttk.Radiobutton(frame, text=display_text, variable=var, value=str(idx))
                     rb.pack(anchor=tk.W)
@@ -2625,6 +2631,7 @@ class MergeTab(ttk.Frame):
 
 # ==================== ВКЛАДКА "СРАВНЕНИЕ PNP ВЕРСИЙ" ====================
 class CompareTab(ttk.Frame):
+    """Вкладка сравнения версий P&P: выявление изменений координат, поворотов и компонентов между ревизиями."""
     def __init__(self, parent, main_app):
         self.parent = parent
         self.main_app = main_app
@@ -3311,7 +3318,6 @@ class CompareTab(ttk.Frame):
                 for idx in indices:
                     if idx not in df.index:
                         continue
-                    row = df.loc[idx]
                     display_text = f"Строка {idx+1}: {ref}"
                     rb = ttk.Radiobutton(frame, text=display_text, variable=var, value=str(idx))
                     rb.pack(anchor=tk.W)
@@ -3914,6 +3920,7 @@ class CompareTab(ttk.Frame):
 
 # ==================== ВКЛАДКА: СВЕРКА BOM ====================
 class CompareBOMTab(ttk.Frame):
+    """Вкладка сверки BOM: детальное сопоставление двух спецификаций и поиск расхождений."""
     def __init__(self, parent, main_app):
         self.parent = parent
         self.main_app = main_app
@@ -3940,7 +3947,8 @@ class CompareBOMTab(ttk.Frame):
                 self.canvas.yview_scroll(int(-1 * (event.delta / 120)), "units")
             except Exception:
                 pass
-        self.canvas.bind_all("<MouseWheel>", _on_mousewheel)
+        self.canvas.bind("<MouseWheel>", _on_mousewheel)
+        self.scrollable_frame.bind("<MouseWheel>", _on_mousewheel)
 
         # Переменные
         self.file1 = tk.StringVar()

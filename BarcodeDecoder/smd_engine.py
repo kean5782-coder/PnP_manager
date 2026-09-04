@@ -23,6 +23,7 @@ import webbrowser
 import urllib.parse
 import tkinter as tk
 from tkinter import ttk, messagebox
+from typing import Union, Optional, Tuple
 
 try:
     import winreg
@@ -52,36 +53,80 @@ def format_g(num: float) -> str:
 
 def parse_russian_resistor_value(raw: str) -> str:
     """
-    Преобразует российское обозначение резистора (например, '1кОм', '4.7МОм', '100Ом', '10k', '4,7к')
-    в международный формат с суффиксами R/K/M.
+    Преобразует российское и международное обозначение резистора (ГОСТ 28883-90 / IEC 60062)
+    в канонический формат с суффиксами R/K/M.
+    
+    Поддерживаемые форматы:
+    - Буква как разделитель целой и дробной части (ГОСТ/IEC):
+      '4к7', '4k7' -> '4.7K'
+      '4R7', '4r7' -> '4.7R'
+      '1м5', '1m5', '1M5' -> '1.5M'
+      '0R22', 'R22' -> '0.22R'
+      'к47', 'k47' -> '0.47K'
+    - Суффиксная форма:
+      '100Ом', '100 ом', '100R' -> '100R'
+      '4.7кОм', '4,7ком', '4.7k' -> '4.7K'
+      '1МОм', '1M' -> '1M'
+    - Числа без букв:
+      '100' -> '100R'
+      '1500' -> '1.5K'
+      '0', '0R' -> '0R'
     """
-    raw = raw.lower().strip()
-    raw = raw.replace('ом', '')
-    raw = raw.replace('r', '')
+    original = raw.strip()
+    if not original:
+        return ""
     
-    match = re.match(r'^([\d.,]+)\s*([кkмm]?)', raw)
-    if not match:
-        return raw
-        
-    num_str = match.group(1).replace(',', '.')
-    unit = match.group(2)
+    s = original.lower().replace(' ', '')
+    s = s.replace('ом', '').replace('ohm', '').replace('ω', '')
     
-    try:
-        num = float(num_str)
-    except (ValueError, TypeError):
-        return raw
+    # Обработка перемычек / нулей
+    if s in ('0', '0r', '00', '000', '0000'):
+        return '0R'
+    
+    # 1. Формат ГОСТ/IEC с буквой-множителем на месте десятичной точки:
+    # Примеры: '4к7', '4k7', '4r7', '1м5', '1m5', '0r22', 'r22', 'к47', 'k47', 'м10'
+    m_mid = re.match(r'^(\d*)([rkmкkмm])(\d+)$', s)
+    if m_mid:
+        int_part = m_mid.group(1) or '0'
+        unit_char = m_mid.group(2)
+        dec_part = m_mid.group(3)
+        try:
+            val = float(f"{int_part}.{dec_part}")
+            if unit_char in ('к', 'k'):
+                return f"{format_g(val)}K"
+            elif unit_char in ('м', 'm'):
+                return f"{format_g(val)}M"
+            else:
+                return f"{format_g(val)}R"
+        except (ValueError, TypeError):
+            return original
 
-    if unit in ('к', 'k'):
-        return f"{format_g(num)}K"
-    elif unit in ('м', 'm'):
-        return f"{format_g(num)}M"
-    else:
-        if num >= 1000000:
-            return f"{format_g(num / 1000000)}M"
-        elif num >= 1000:
-            return f"{format_g(num / 1000)}K"
+    # 2. Формат с суффиксом в конце: '4.7к', '4,7k', '100r', '10k', '1m', '100'
+    m_end = re.match(r'^([\d.,]+)\s*([rkmкkмm]?)$', s)
+    if m_end:
+        num_str = m_end.group(1).replace(',', '.')
+        unit_char = m_end.group(2)
+        try:
+            val = float(num_str)
+        except (ValueError, TypeError):
+            return original
+
+        if unit_char in ('к', 'k'):
+            return f"{format_g(val)}K"
+        elif unit_char in ('м', 'm'):
+            return f"{format_g(val)}M"
+        elif unit_char in ('r',):
+            return f"{format_g(val)}R"
         else:
-            return f"{format_g(num)}R"
+            # Масштабирование чистых чисел
+            if val >= 1000000:
+                return f"{format_g(val / 1000000)}M"
+            elif val >= 1000:
+                return f"{format_g(val / 1000)}K"
+            else:
+                return f"{format_g(val)}R"
+
+    return original
 
 
 def map_lookup(d: dict, key: str, default=None):
@@ -929,8 +974,11 @@ def get_system_theme() -> str:
     return get_saved_theme()
 
 
-def set_window_titlebar_theme(root: tk.Tk | tk.Toplevel, is_dark: bool = True):
-    """Применяет тёмную или светлую тему к заголовку окна Windows 10/11 через DWM API."""
+def set_window_titlebar_theme(root: Union[tk.Tk, tk.Toplevel], is_dark: bool = True):
+    """
+    Применяет тёмную или светлую тему к нативному заголовку окна Windows 10/11 через DWM API.
+    Атрибуты: 20 = DWMWA_USE_IMMERSIVE_DARK_MODE (Windows 11), 19 = Windows 10 (билд 18985+).
+    """
     try:
         root.update_idletasks()
         hwnd = root.winfo_id()
@@ -1272,11 +1320,26 @@ def style_widget_tree(widget, theme_name: str = None, parent_bg=None):
         style_widget_tree(child, theme_name, parent_bg=bg)
 
 
-def create_styled_toplevel(parent, title: str, geometry: str = None, min_size: tuple = None, theme_name: str = None):
+def create_styled_toplevel(
+    parent,
+    title: str,
+    geometry: Optional[str] = None,
+    min_size: Optional[Union[Tuple[int, int], str]] = None,
+    theme_name: Optional[str] = None
+) -> tk.Toplevel:
     """
     Создает Toplevel окно с правильной темой (адаптивный заголовок Windows DWM,
     фон в тон активной темы, минимальные размеры и умная прокрутка колесом мыши).
+    
+    Защита: если по ошибке тема оформления передана в min_size (как строка 'dark'/'light'),
+    она автоматически распознаётся как theme_name без падения приложения.
     """
+    # Защитная автокоррекция порядка аргументов
+    if isinstance(min_size, str):
+        if theme_name is None:
+            theme_name = min_size
+        min_size = None
+
     if theme_name is None:
         theme_name = get_saved_theme()
     if theme_name not in THEMES:
@@ -1286,8 +1349,13 @@ def create_styled_toplevel(parent, title: str, geometry: str = None, min_size: t
     win.title(title)
     if geometry:
         win.geometry(geometry)
-    if min_size:
-        win.minsize(min_size[0], min_size[1])
+
+    # Применение минимальных размеров
+    if min_size and isinstance(min_size, (tuple, list)) and len(min_size) >= 2:
+        try:
+            win.minsize(int(min_size[0]), int(min_size[1]))
+        except Exception:
+            pass
     elif geometry and "x" in geometry:
         try:
             w, h = map(int, geometry.split("+")[0].split("-")[0].split("x"))
@@ -1331,34 +1399,45 @@ class ToolTip:
 
     def _cancel(self):
         if self.after_id:
-            self.widget.after_cancel(self.after_id)
+            try:
+                self.widget.after_cancel(self.after_id)
+            except Exception:
+                pass
             self.after_id = None
 
     def _show_tip(self):
+        """Отображает всплывающее окно подсказки с защитой от уничтожения родительского виджета."""
         if self.tip_window or not self.text:
             return
         try:
+            if not self.widget.winfo_exists():
+                return
             x, y, cx, cy = self.widget.bbox("insert") or (0, 0, 0, 0)
+            x = x + self.widget.winfo_rootx() + 20
+            y = y + self.widget.winfo_rooty() + self.widget.winfo_height() + 5
+            
+            self.tip_window = tw = tk.Toplevel(self.widget)
+            tw.wm_overrideredirect(True)
+            tw.wm_geometry(f"+{x}+{y}")
+            
+            frame = tk.Frame(tw, background="#111214", highlightbackground="#5865f2", highlightthickness=1, padx=8, pady=5)
+            frame.pack()
+            label = tk.Label(
+                frame, text=self.text, justify=tk.LEFT, background="#111214", foreground="#f2f3f5",
+                font=("Segoe UI", 8), wraplength=350
+            )
+            label.pack()
         except Exception:
-            x, y = 0, 0
-        x = x + self.widget.winfo_rootx() + 20
-        y = y + self.widget.winfo_rooty() + self.widget.winfo_height() + 5
-        
-        self.tip_window = tw = tk.Toplevel(self.widget)
-        tw.wm_overrideredirect(True)
-        tw.wm_geometry(f"+{x}+{y}")
-        
-        frame = tk.Frame(tw, background="#111214", highlightbackground="#5865f2", highlightthickness=1, padx=8, pady=5)
-        frame.pack()
-        label = tk.Label(frame, text=self.text, justify=tk.LEFT, background="#111214", foreground="#f2f3f5",
-                         font=("Segoe UI", 8), wraplength=350)
-        label.pack()
+            self.tip_window = None
 
     def _hide_tip(self):
         tw = self.tip_window
         self.tip_window = None
         if tw:
-            tw.destroy()
+            try:
+                tw.destroy()
+            except Exception:
+                pass
 
 
 # =============================================================================

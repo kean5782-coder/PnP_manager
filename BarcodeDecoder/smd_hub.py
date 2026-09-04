@@ -16,10 +16,8 @@ smd_hub.py — Главный Лаунчер и Единая Интегриро�
 
 import os
 import sys
-import subprocess
 import tkinter as tk
 from tkinter import ttk, messagebox, filedialog
-import pandas as pd
 
 # Пути к модулям экосистемы
 CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -34,12 +32,11 @@ PNP_DIR = os.path.join(CURRENT_DIR, "PnP_Manager")
 if PNP_DIR not in sys.path:
     sys.path.insert(0, PNP_DIR)
 
-import smd_engine
 from smd_engine import (
-    THEMES, ToolTip, get_system_theme, set_window_titlebar_theme,
+    THEMES, ToolTip, set_window_titlebar_theme,
     apply_ttk_theme, show_feedback_dialog, show_faq_dialog, style_widget_tree,
     enable_smooth_mousewheel, create_styled_toplevel, get_saved_theme,
-    set_saved_theme, restart_application
+    set_saved_theme
 )
 
 # Импортируем модуль цветных иконок
@@ -430,9 +427,9 @@ class SMDHubApp:
             self.user_card_widget.configure(bg=bg)
             for child in self.user_card_widget.winfo_children():
                 try:
-                    child.configure(bg=bg)
+                    child["bg"] = bg
                     for sub in child.winfo_children():
-                        sub.configure(bg=bg)
+                        sub["bg"] = bg
                 except Exception:
                     pass
 
@@ -1240,11 +1237,6 @@ class SMDHubApp:
         canvas.bind("<Configure>", _on_canvas_configure)
         canvas.configure(yscrollcommand=v_scroll.set)
 
-        def _on_mousewheel(event):
-            if canvas.winfo_exists():
-                canvas.yview_scroll(int(-1 * (event.delta / 120)), "units")
-        canvas.bind_all("<MouseWheel>", _on_mousewheel)
-
         canvas.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
         v_scroll.pack(side=tk.RIGHT, fill=tk.Y)
 
@@ -1505,18 +1497,26 @@ class SMDHubApp:
                 "Локальный справочник соответствий и синонимов (database.db). Быстрый поиск, добавление правил нормализации и корпоративных артикулов компонентов.",
                 "Открыть базу данных ➔",
                 "database"
+            ),
+            (
+                "rocket",
+                "Barcode Decoder v1.1",
+                "Декодирование заводских маркировок катушек SMD и 2D-кодов DataMatrix / QR (EIA/CEA-863). Распознавание номиналов, диэлектриков, напряжений и допусков.",
+                "Запустить декодер ➔",
+                "barcode"
             )
         ]
 
         for s_icon, s_title, s_desc, s_btn, s_target in services_data:
             s_card = tk.Frame(services_container, bg=t["bg_card"], padx=18, pady=14, highlightbackground=t["border"], highlightthickness=1)
-            s_card.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=6)
+            s_card.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=4)
 
             card_title_lbl = tk.Label(s_card, font=("Segoe UI", 10, "bold"), bg=t["bg_card"], fg=t["text_header"])
             apply_label_icon(card_title_lbl, s_icon, s_title, size=20)
             card_title_lbl.pack(anchor="w")
-            tk.Label(s_card, text=s_desc, font=("Segoe UI", 8), bg=t["bg_card"], fg=t["text_secondary"], wraplength=340, justify=tk.LEFT).pack(anchor="w", pady=(6, 12), fill=tk.BOTH, expand=True)
+            tk.Label(s_card, text=s_desc, font=("Segoe UI", 8), bg=t["bg_card"], fg=t["text_secondary"], wraplength=260, justify=tk.LEFT).pack(anchor="w", pady=(6, 12), fill=tk.BOTH, expand=True)
 
+            cmd = self.open_barcode_decoder if s_target == "barcode" else (lambda target=s_target: self.show_page(target))
             s_btn_w = tk.Button(
                 s_card,
                 text=s_btn,
@@ -1526,10 +1526,10 @@ class SMDHubApp:
                 activebackground=t["btn_sec_hover"],
                 activeforeground=t["text_primary"],
                 relief="flat",
-                padx=12,
+                padx=10,
                 pady=8,
                 cursor="hand2",
-                command=lambda target=s_target: self.show_page(target)
+                command=cmd
             )
             s_btn_w.pack(side=tk.BOTTOM, fill=tk.X)
 
@@ -1580,7 +1580,10 @@ class SMDHubApp:
         ToolTip(self.btn_step1_next, "Сохранить результат унификации и автоматически подставить BOM в Шаг 2")
 
     def _patch_unification_save(self, tab, tab_type):
-        orig_save = tab.save_file
+        """
+        Переопределяет метод сохранения в табах унификации (CodeTab / DescriptionTab)
+        для автоматического обновления состояния сквозного конвейера и передачи в Шаг 2.
+        """
         def wrapped_save():
             if tab.df is None:
                 messagebox.showwarning("Предупреждение", "Нет данных для сохранения.")
@@ -1588,7 +1591,7 @@ class SMDHubApp:
             file_path = filedialog.asksaveasfilename(
                 defaultextension=".xlsx",
                 filetypes=[("Excel files", "*.xlsx")],
-                title="Сохранить унифицированный BOM"
+                title=f"Сохранить унифицированный BOM ({tab_type})"
             )
             if not file_path:
                 return
@@ -1596,6 +1599,7 @@ class SMDHubApp:
                 tab.df.to_excel(file_path, index=False)
                 self.unified_bom_path = file_path
                 self.unified_bom_df = tab.df
+                self._update_dashboard_file_status()
                 messagebox.showinfo("Успех", f"Унифицированный BOM сохранён:\n{file_path}\n\nФайл готов к передаче в Шаг 2 (Объединение).")
             except Exception as e:
                 messagebox.showerror("Ошибка", f"Не удалось сохранить файл:\n{e}")
@@ -1942,8 +1946,14 @@ class SMDHubApp:
                 spec = importlib.util.spec_from_file_location("barcode_module", barcode_script)
                 mod = importlib.util.module_from_spec(spec)
                 spec.loader.exec_module(mod)
-                win = create_styled_toplevel(self.root, "📷 Barcode Decoder v1.1", "1040x820", self.active_theme_key)
-                app = mod.BarcodeDecoderApp(win)
+                win = create_styled_toplevel(
+                    self.root,
+                    "📷 Barcode Decoder v1.1",
+                    "1040x820",
+                    min_size=(860, 640),
+                    theme_name=self.active_theme_key
+                )
+                self.barcode_app = mod.BarcodeDecoderApp(win)
                 style_widget_tree(win, self.active_theme_key)
                 enable_smooth_mousewheel(win)
                 return
@@ -1956,8 +1966,9 @@ class SMDHubApp:
 # Точка входа программы
 # =============================================================================
 def main():
+    """Точка входа: инициализация графической подсистемы Tkinter и запуск главного цикла."""
     root = tk.Tk()
-    app = SMDHubApp(root)
+    _app = SMDHubApp(root)  # noqa: F841
     root.mainloop()
 
 
