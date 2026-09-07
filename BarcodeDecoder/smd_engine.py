@@ -308,7 +308,7 @@ class VendorParser:
     def convert_to_unified(self, code: str, rule: VendorRule, groups: dict) -> str:
         """
         Формирует стандартное унифицированное имя компонента:
-        R_<Размер>_<Номинал>_<Погрешность> или C_<Размер>_<Диэлектрик>_<Емкость>_<Напряжение>
+        R_<Размер>_<Номинал>_<Погрешность> или C_<Размер>_<Диэлектрик>_<Емкость>_<Напряжение>_<Допуск>
         """
         if rule.is_resistor:
             size_code = groups.get('size') or groups.get('cga_size') or ''
@@ -350,7 +350,12 @@ class VendorParser:
                 value_str = '?'
             voltage_code = groups.get('voltage') or ''
             voltage = map_lookup(rule.voltage_map, voltage_code, '?')
-            return f"C_{size}_{dielectric}_{value_str}_{voltage}"
+            tolerance_code = groups.get('tolerance') or ''
+            tolerance = map_lookup(rule.tolerance_map, tolerance_code, tolerance_code.upper())
+            if tolerance:
+                return f"C_{size}_{dielectric}_{value_str}_{voltage}_{tolerance}"
+            else:
+                return f"C_{size}_{dielectric}_{value_str}_{voltage}"
 
     def _parse_resistor_value(self, raw: str, suffix_map: dict) -> str:
         raw = raw.strip().upper()
@@ -514,7 +519,8 @@ def create_capacitor_rules():
     taiyo_size_map = {'021': '008004', '042': '01005', '063': '0201', '105': '0402', '107': '0603', '212': '0805', '316': '1206', '325': '1210', '432': '1812'}
     taiyo_dielectric = {'BJ': 'X5R', 'B7': 'X7R', 'C6': 'X6S', 'C7': 'X7S', 'LD': 'X5R', 'CG': 'C0G', 'UJ': 'U2J', 'UK': 'U2K'}
     taiyo_voltage = {'P': '2.5V', 'A': '4V', 'J': '6.3V', 'L': '10V', 'E': '16V', 'T': '25V', 'G': '35V', 'U': '50V', 'H': '100V', 'Q': '250V', 'S': '630V', 'X': '2000V'}
-    rules.append(VendorRule('TaiyoYuden', 'capacitor', taiyo_pattern, taiyo_size_map, dielectric_map=taiyo_dielectric, voltage_map=taiyo_voltage, is_resistor=False))
+    taiyo_tolerance = {'A': '0.05pF', 'B': '0.10pF', 'C': '0.25pF', 'D': '0.5pF', 'F': '1%', 'G': '2%', 'J': '5%', 'K': '10%', 'M': '20%', 'Z': '+80%/-20%'}
+    rules.append(VendorRule('TaiyoYuden', 'capacitor', taiyo_pattern, taiyo_size_map, dielectric_map=taiyo_dielectric, voltage_map=taiyo_voltage, tolerance_map=taiyo_tolerance, is_resistor=False))
 
     # 4. Murata
     dielectric_keys = ['X7R', 'X5R', 'X6S', 'X7S', 'X8R', 'Y5V', 'C0G', 'U2J', '5C', 'R7', 'R6', 'C7', 'R9', 'C8', 'R8', 'X6T', 'X5S', 'X7T', 'X8L', 'X8G', 'X8P', 'NP0', 'NPO']

@@ -1561,7 +1561,7 @@ class CodeTab(ttk.Frame):
         return True, {}
 
     def _validate_capacitor_name(self, name):
-        pattern = r'^C_(?P<size>\d{4})_(?P<dielectric>[A-Z0-9]+)_(?P<value>\d*\.?\d*[uUnNpP]?F)_(?P<voltage>\d*\.?\d*[A-Z]*V?)$'
+        pattern = r'^C_(?P<size>\d{4})_(?P<dielectric>[A-Z0-9]+)_(?P<value>\d*\.?\d*[uUnNpP]?F)_(?P<voltage>\d*\.?\d*[A-Z]*V?)(?:_(?P<tolerance>[^_\s]+))?$'
         m = re.match(pattern, name)
         if not m:
             return False, {}
@@ -1600,9 +1600,10 @@ class CodeTab(ttk.Frame):
             default_diel = parts[2] if len(parts) > 2 else ''
             default_value = parts[3] if len(parts) > 3 else ''
             default_volt = parts[4] if len(parts) > 4 else ''
-            labels = ['Размер', 'Диэлектрик', 'Номинал', 'Напряжение']
-            default_values = [default_size, default_diel, default_value, default_volt]
-            keys = ['size', 'dielectric', 'value', 'voltage']
+            default_tol = parts[5] if len(parts) > 5 else ''
+            labels = ['Размер', 'Диэлектрик', 'Номинал', 'Напряжение', 'Допуск']
+            default_values = [default_size, default_diel, default_value, default_volt, default_tol]
+            keys = ['size', 'dielectric', 'value', 'voltage', 'tolerance']
 
         info_frame = ttk.Frame(dialog)
         info_frame.pack(fill=tk.X, padx=10, pady=5)
@@ -1641,7 +1642,11 @@ class CodeTab(ttk.Frame):
                     diel = entries['dielectric'].get().strip()
                     value = entries['value'].get().strip()
                     volt = entries['voltage'].get().strip()
-                    new_name = f"C_{size}_{diel}_{value}_{volt}" if size and diel and value and volt else current_name
+                    tol = entries['tolerance'].get().strip() if 'tolerance' in entries else ''
+                    if tol:
+                        new_name = f"C_{size}_{diel}_{value}_{volt}_{tol}" if size and diel and value and volt else current_name
+                    else:
+                        new_name = f"C_{size}_{diel}_{value}_{volt}" if size and diel and value and volt else current_name
             preview_label.config(text="Предпросмотр: " + new_name)
 
         for entry in entries.values():
@@ -1665,8 +1670,9 @@ class CodeTab(ttk.Frame):
                     diel = entries['dielectric'].get().strip()
                     value = entries['value'].get().strip()
                     volt = entries['voltage'].get().strip()
+                    tol = entries['tolerance'].get().strip() if 'tolerance' in entries else ''
                     if size and diel and value and volt:
-                        result['new_name'] = f"C_{size}_{diel}_{value}_{volt}"
+                        result['new_name'] = f"C_{size}_{diel}_{value}_{volt}_{tol}" if tol else f"C_{size}_{diel}_{value}_{volt}"
             dialog.destroy()
 
         def on_skip():
@@ -2722,9 +2728,10 @@ class DescriptionTab(ttk.Frame):
             default_diel = parts[2] if len(parts) > 2 else ''
             default_value = parts[3] if len(parts) > 3 else ''
             default_volt = parts[4] if len(parts) > 4 else ''
-            labels = ['Размер', 'Диэлектрик', 'Номинал', 'Напряжение']
-            default_values = [default_size, default_diel, default_value, default_volt]
-            keys = ['size', 'dielectric', 'value', 'voltage']
+            default_tol = parts[5] if len(parts) > 5 else ''
+            labels = ['Размер', 'Диэлектрик', 'Номинал', 'Напряжение', 'Допуск']
+            default_values = [default_size, default_diel, default_value, default_volt, default_tol]
+            keys = ['size', 'dielectric', 'value', 'voltage', 'tolerance']
 
         info_frame = ttk.Frame(dialog)
         info_frame.pack(fill=tk.X, padx=10, pady=5)
@@ -2763,7 +2770,11 @@ class DescriptionTab(ttk.Frame):
                     diel = entries['dielectric'].get().strip()
                     value = entries['value'].get().strip()
                     volt = entries['voltage'].get().strip()
-                    new_name = f"C_{size}_{diel}_{value}_{volt}" if size and diel and value and volt else current_name
+                    tol = entries['tolerance'].get().strip() if 'tolerance' in entries else ''
+                    if tol:
+                        new_name = f"C_{size}_{diel}_{value}_{volt}_{tol}" if size and diel and value and volt else current_name
+                    else:
+                        new_name = f"C_{size}_{diel}_{value}_{volt}" if size and diel and value and volt else current_name
             preview_label.config(text="Предпросмотр: " + new_name)
 
         for entry in entries.values():
@@ -2787,8 +2798,9 @@ class DescriptionTab(ttk.Frame):
                     diel = entries['dielectric'].get().strip()
                     value = entries['value'].get().strip()
                     volt = entries['voltage'].get().strip()
+                    tol = entries['tolerance'].get().strip() if 'tolerance' in entries else ''
                     if size and diel and value and volt:
-                        result['new_name'] = f"C_{size}_{diel}_{value}_{volt}"
+                        result['new_name'] = f"C_{size}_{diel}_{value}_{volt}_{tol}" if tol else f"C_{size}_{diel}_{value}_{volt}"
             dialog.destroy()
 
         def on_skip():
