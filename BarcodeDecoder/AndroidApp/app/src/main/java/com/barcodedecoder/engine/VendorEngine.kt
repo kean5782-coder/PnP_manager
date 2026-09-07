@@ -333,7 +333,13 @@ class VendorParser(val rules: List<VendorRule>) {
             }
             val voltageCode = groups["voltage"] ?: ""
             val voltage = rule.voltageMap[voltageCode] ?: "?"
-            "C_${size}_${dielectric}_${valueStr}_${voltage}"
+            val toleranceCode = groups["tolerance"] ?: ""
+            val tolerance = rule.toleranceMap[toleranceCode] ?: toleranceCode
+            if (tolerance.isNotEmpty()) {
+                "C_${size}_${dielectric}_${valueStr}_${voltage}_${tolerance}"
+            } else {
+                "C_${size}_${dielectric}_${valueStr}_${voltage}"
+            }
         }
     }
 
@@ -516,6 +522,7 @@ object RuleFactory {
                 sizeMap = mapOf("021" to "008004", "042" to "01005", "063" to "0201", "105" to "0402", "107" to "0603", "212" to "0805", "316" to "1206", "325" to "1210", "432" to "1812"),
                 dielectricMap = mapOf("BJ" to "X5R", "B7" to "X7R", "C6" to "X6S", "C7" to "X7S", "LD" to "X5R", "CG" to "C0G", "UJ" to "U2J", "UK" to "U2K"),
                 voltageMap = mapOf("P" to "2.5V", "A" to "4V", "J" to "6.3V", "L" to "10V", "E" to "16V", "T" to "25V", "G" to "35V", "U" to "50V", "H" to "100V", "Q" to "250V", "S" to "630V", "X" to "2000V"),
+                toleranceMap = mapOf("A" to "0.05pF", "B" to "0.10pF", "C" to "0.25pF", "D" to "0.5pF", "F" to "1%", "G" to "2%", "J" to "5%", "K" to "10%", "M" to "20%", "Z" to "+80%/-20%"),
                 isResistor = false
             )
         )

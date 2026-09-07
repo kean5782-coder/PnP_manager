@@ -7,7 +7,7 @@ BarcodeDecoder v1.1 — Десктопное приложение для дек�
 Автоматически очищает префиксы и суффиксы катушек (1P, Q, 1T, суффиксы упаковок и партий)
 и формирует унифицированное наименование компонента по стандарту:
   Резисторы:   R_<Размер>_<Номинал>_<Погрешность> (например, R_0603_10K_1%, R_0402_0R)
-  Конденсаторы: C_<Размер>_<Диэлектрик>_<Емкость>_<Напряжение> (например, C_0603_X7R_100nF_50V)
+  Конденсаторы: C_<Размер>_<Диэлектрик>_<Емкость>_<Напряжение>_<Допуск> (например, C_0402_NPO_100pF_25V_1%)
 """
 
 import os
@@ -384,7 +384,12 @@ class VendorParser:
                 value_str = '?'
             voltage_code = groups.get('voltage') or ''
             voltage = map_lookup(rule.voltage_map, voltage_code, '?')
-            return f"C_{size}_{dielectric}_{value_str}_{voltage}"
+            tolerance_code = groups.get('tolerance') or ''
+            tolerance = map_lookup(rule.tolerance_map, tolerance_code, tolerance_code.upper())
+            if tolerance:
+                return f"C_{size}_{dielectric}_{value_str}_{voltage}_{tolerance}"
+            else:
+                return f"C_{size}_{dielectric}_{value_str}_{voltage}"
 
     # ---------- Парсинг значений резисторов (стандартный, для импортных) ----------
     def _parse_resistor_value(self, raw: str, suffix_map: dict) -> str:
@@ -593,8 +598,13 @@ def create_capacitor_rules():
         'T': '25V', 'G': '35V', 'U': '50V', 'H': '100V', 'Q': '250V',
         'S': '630V', 'X': '2000V'
     }
+    taiyo_tolerance = {
+        'A': '0.05pF', 'B': '0.10pF', 'C': '0.25pF', 'D': '0.5pF',
+        'F': '1%', 'G': '2%', 'J': '5%', 'K': '10%', 'M': '20%', 'Z': '+80%/-20%'
+    }
     rules.append(VendorRule('TaiyoYuden', 'capacitor', taiyo_pattern, taiyo_size_map,
                             dielectric_map=taiyo_dielectric, voltage_map=taiyo_voltage,
+                            tolerance_map=taiyo_tolerance,
                             is_resistor=False))
 
     # 4. Murata (расширенный список диэлектриков и серий)

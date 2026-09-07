@@ -23,99 +23,99 @@ class VendorEngineTest {
     fun testCapacitorCCTC() {
         val result = parser.parse("TCC0603COG101J500")
         assertNotNull("Should parse CCTC capacitor", result)
-        assertEquals("C_0603_C0G_100pF_50V", result!!.unifiedName)
+        assertEquals("C_0603_C0G_100pF_50V_5%", result!!.unifiedName)
 
         val x7r = parser.parse("TCC0805X7R104K250")
         assertNotNull("Should parse CCTC X7R capacitor", x7r)
-        assertEquals("C_0805_X7R_100nF_25V", x7r!!.unifiedName)
+        assertEquals("C_0805_X7R_100nF_25V_10%", x7r!!.unifiedName)
     }
 
     @Test
     fun testCapacitorKemet() {
         val result = parser.parse("C0603C104K5RACTU")
         assertNotNull("Should parse Kemet capacitor", result)
-        assertEquals("C_0603_X7R_100nF_50V", result!!.unifiedName)
+        assertEquals("C_0603_X7R_100nF_50V_10%", result!!.unifiedName)
 
         val c0g = parser.parse("C0402C101J5GACTU")
         assertNotNull("Should parse Kemet C0G capacitor", c0g)
-        assertEquals("C_0402_C0G_100pF_50V", c0g!!.unifiedName)
+        assertEquals("C_0402_C0G_100pF_50V_5%", c0g!!.unifiedName)
     }
 
     @Test
     fun testCapacitorTaiyoYuden() {
         val result = parser.parse("EMK105BJ104KV-F")
         assertNotNull("Should parse Taiyo Yuden capacitor", result)
-        assertEquals("C_0402_X5R_100nF_16V", result!!.unifiedName)
+        assertEquals("C_0402_X5R_100nF_16V_10%", result!!.unifiedName)
 
         val c0g = parser.parse("UMK107CG101JZ-T")
         assertNotNull("Should parse Taiyo Yuden C0G capacitor", c0g)
-        assertEquals("C_0603_C0G_100pF_50V", c0g!!.unifiedName)
+        assertEquals("C_0603_C0G_100pF_50V_5%", c0g!!.unifiedName)
     }
 
     @Test
     fun testCapacitorMurata() {
         val result = parser.parse("GRM155R71C104KA88D")
         assertNotNull("Should parse Murata capacitor", result)
-        assertEquals("C_0402_X7R_100nF_16V", result!!.unifiedName)
+        assertEquals("C_0402_X7R_100nF_16V_10%", result!!.unifiedName)
 
         val auto = parser.parse("GCM188R71H104KA57D")
         assertNotNull("Should parse Murata automotive capacitor", auto)
-        assertEquals("C_0603_X7R_100nF_50V", auto!!.unifiedName)
+        assertEquals("C_0603_X7R_100nF_50V_10%", auto!!.unifiedName)
 
         val gqm = parser.parse("GQM1885C1H101JB01D")
         assertNotNull("Should parse Murata GQM series Hi-Q capacitor", gqm)
-        assertEquals("C_0603_C0G_100pF_50V", gqm!!.unifiedName)
+        assertEquals("C_0603_C0G_100pF_50V_5%", gqm!!.unifiedName)
 
         val gcj = parser.parse("GCJ21BR71H104KA01L")
         assertNotNull("Should parse Murata GCJ series automotive capacitor", gcj)
-        assertEquals("C_0805_X7R_100nF_50V", gcj!!.unifiedName)
+        assertEquals("C_0805_X7R_100nF_50V_10%", gcj!!.unifiedName)
     }
 
     @Test
     fun testCapacitorSamsung() {
         val result = parser.parse("CL10B104KB8NNNC")
         assertNotNull("Should parse Samsung capacitor", result)
-        assertEquals("C_0603_X7R_100nF_50V", result!!.unifiedName)
+        assertEquals("C_0603_X7R_100nF_50V_10%", result!!.unifiedName)
 
         val c0g = parser.parse("CL05C101JB5NNNC")
         assertNotNull("Should parse Samsung C0G capacitor", c0g)
-        assertEquals("C_0402_C0G_100pF_50V", c0g!!.unifiedName)
+        assertEquals("C_0402_C0G_100pF_50V_5%", c0g!!.unifiedName)
     }
 
     @Test
     fun testCapacitorTDK() {
         val std = parser.parse("C1608X7R1C104K080AA")
         assertNotNull("Should parse TDK standard capacitor", std)
-        assertEquals("C_0603_X7R_100nF_16V", std!!.unifiedName)
+        assertEquals("C_0603_X7R_100nF_16V_10%", std!!.unifiedName)
 
         val cga = parser.parse("CGA3E2X7R1H104K080AA")
         assertNotNull("Should parse TDK CGA automotive capacitor", cga)
-        assertEquals("C_0603_X7R_100nF_50V", cga!!.unifiedName)
+        assertEquals("C_0603_X7R_100nF_50V_10%", cga!!.unifiedName)
     }
 
     @Test
     fun testCapacitorAVX() {
         val result = parser.parse("06035C104KAT2A")
         assertNotNull("Should parse AVX MLCC capacitor", result)
-        assertEquals("C_0603_X7R_100nF_50V", result!!.unifiedName)
+        assertEquals("C_0603_X7R_100nF_50V_10%", result!!.unifiedName)
 
         val cog = parser.parse("06035A101JAT2A")
         assertNotNull("Should parse AVX C0G capacitor", cog)
-        assertEquals("C_0603_C0G_100pF_50V", cog!!.unifiedName)
+        assertEquals("C_0603_C0G_100pF_50V_5%", cog!!.unifiedName)
     }
 
     @Test
     fun testCapacitorWalsin() {
         val result = parser.parse("0603B104K500CT")
         assertNotNull("Should parse Walsin capacitor", result)
-        assertEquals("C_0603_X7R_100nF_50V", result!!.unifiedName)
+        assertEquals("C_0603_X7R_100nF_50V_10%", result!!.unifiedName)
     }
 
     @Test
     fun testCapacitorYageo() {
         val result = parser.parse("CC0603KRX7R9BB104")
         assertNotNull("Should parse Yageo capacitor", result)
-        assertEquals("C_0603_X7R_100nF_50V", result!!.unifiedName)
+        assertEquals("C_0603_X7R_100nF_50V_10%", result!!.unifiedName)
     }
 
     // =========================================================================
@@ -286,16 +286,16 @@ class VendorEngineTest {
         // ACTU — 4 символа суффикса, ранее не проходил из-за {0,2}
         val actu = parser.parse("C0805C106M8PACTU")
         assertNotNull("Should parse KEMET with full ACTU suffix", actu)
-        assertEquals("C_0805_X5R_10uF_10V", actu!!.unifiedName)
+        assertEquals("C_0805_X5R_10uF_10V_20%", actu!!.unifiedName)
 
         val auto = parser.parse("C0603C104K5RAUTO")
         assertNotNull("Should parse KEMET with AUTO suffix", auto)
-        assertEquals("C_0603_X7R_100nF_50V", auto!!.unifiedName)
+        assertEquals("C_0603_X7R_100nF_50V_10%", auto!!.unifiedName)
 
         // 2 символа — базовый случай, должен продолжать работать
         val tu = parser.parse("C0805C225K4PTU")
         assertNotNull("Should parse KEMET with 2-char suffix TU", tu)
-        assertEquals("C_0805_X5R_2.2uF_16V", tu!!.unifiedName)
+        assertEquals("C_0805_X5R_2.2uF_16V_10%", tu!!.unifiedName)
     }
 
     // =========================================================================
@@ -377,7 +377,7 @@ class VendorEngineTest {
         // Samsung DataMatrix with slash delimiter and prefix
         val composite = parser.parse("CLCITDT/CL05B104KA5NNNC")
         assertNotNull("Should parse Samsung composite DataMatrix", composite)
-        assertEquals("C_0402_X7R_100nF_25V", composite!!.unifiedName)
+        assertEquals("C_0402_X7R_100nF_25V_10%", composite!!.unifiedName)
     }
 
     @Test
@@ -393,12 +393,12 @@ class VendorEngineTest {
         // TDK with (1P) prefix and thickness suffix
         val tdk1 = parser.parse("(1P)C2012X5R1V226M125AC")
         assertNotNull("Should parse TDK with (1P) prefix", tdk1)
-        assertEquals("C_0805_X5R_22uF_35V", tdk1!!.unifiedName)
+        assertEquals("C_0805_X5R_22uF_35V_20%", tdk1!!.unifiedName)
 
         // TDK 16V 22uF
         val tdk2 = parser.parse("C2012X5R1C226K")
         assertNotNull("Should parse TDK 16V capacitor", tdk2)
-        assertEquals("C_0805_X5R_22uF_16V", tdk2!!.unifiedName)
+        assertEquals("C_0805_X5R_22uF_16V_10%", tdk2!!.unifiedName)
     }
 
     @Test
@@ -429,17 +429,17 @@ class VendorEngineTest {
         // 4. TDK ITEM prefix
         val tdkItem = parser.parse("TDK ITEM: C2012X5R1V226MT000N")
         assertNotNull("Should parse TDK ITEM prefix", tdkItem)
-        assertEquals("C_0805_X5R_22uF_35V", tdkItem!!.unifiedName)
+        assertEquals("C_0805_X5R_22uF_35V_20%", tdkItem!!.unifiedName)
 
         // 5. ITEM(1P) : prefix
         val item1p = parser.parse("ITEM(1P) : C2012X5R1V226MT000N")
         assertNotNull("Should parse ITEM(1P) prefix", item1p)
-        assertEquals("C_0805_X5R_22uF_35V", item1p!!.unifiedName)
+        assertEquals("C_0805_X5R_22uF_35V_20%", item1p!!.unifiedName)
 
         // 6. CUST PROD ID(P) : prefix
         val custProd = parser.parse("CUST PROD ID(P) : C2012X5R1V226M125AC")
         assertNotNull("Should parse CUST PROD ID(P) prefix", custProd)
-        assertEquals("C_0805_X5R_22uF_35V", custProd!!.unifiedName)
+        assertEquals("C_0805_X5R_22uF_35V_20%", custProd!!.unifiedName)
 
         // 7. Yageo 12.7K 1% from Google Lens photo
         val lensYageo = parser.parse("RC0402FR-0712K7L")
@@ -449,16 +449,16 @@ class VendorEngineTest {
         // 8. Murata 100uF 4V MLCC
         val murata100u = parser.parse("GRM21BC80G107ME15L")
         assertNotNull("Should parse GRM21BC80G107ME15L", murata100u)
-        assertEquals("C_0805_X6S_100uF_4V", murata100u!!.unifiedName)
+        assertEquals("C_0805_X6S_100uF_4V_20%", murata100u!!.unifiedName)
 
         // 9. Yageo CC 1uF 6.3V MLCC
         val yageo1u = parser.parse("CC0402KRX7R5BB105")
         assertNotNull("Should parse CC0402KRX7R5BB105", yageo1u)
-        assertEquals("C_0402_X7R_1uF_6.3V", yageo1u!!.unifiedName)
+        assertEquals("C_0402_X7R_1uF_6.3V_10%", yageo1u!!.unifiedName)
 
         // 10. Samsung 100nF 25V MLCC
         val samsung100n = parser.parse("CL05B104KA5NNNC")
         assertNotNull("Should parse CL05B104KA5NNNC", samsung100n)
-        assertEquals("C_0402_X7R_100nF_25V", samsung100n!!.unifiedName)
+        assertEquals("C_0402_X7R_100nF_25V_10%", samsung100n!!.unifiedName)
     }
 }
