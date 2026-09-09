@@ -31,6 +31,9 @@ local.properties
 # Keystores, Keys and Secrets
 *.pem
 *.key
+*.jks
+*.keystore
+release-key.jks
 rustore_config.json
 rustore_secrets.json
 

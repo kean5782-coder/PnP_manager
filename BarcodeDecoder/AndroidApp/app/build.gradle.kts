@@ -36,6 +36,13 @@ val (appVersionCode, appVersionName) = run {
     Pair(vCode, "$major.$minor")
 }
 
+val localProperties = Properties().apply {
+    val localPropertiesFile = rootProject.file("local.properties")
+    if (localPropertiesFile.exists()) {
+        FileInputStream(localPropertiesFile).use { load(it) }
+    }
+}
+
 android {
     namespace = "com.barcodedecoder"
     compileSdk = 34
@@ -53,19 +60,32 @@ android {
         }
     }
 
+    val releaseKeyFile = rootProject.file("release-key.jks")
+    val hasReleaseKey = releaseKeyFile.exists()
+
     signingConfigs {
         create("release") {
-            storeFile = file("${rootProject.projectDir}/release-key.jks")
-            storePassword = "REDACTED"
-            keyAlias = "barcodedecoder"
-            keyPassword = "REDACTED"
+            if (hasReleaseKey) {
+                storeFile = releaseKeyFile
+                storePassword = localProperties.getProperty("RELEASE_STORE_PASSWORD")
+                    ?: System.getenv("RELEASE_STORE_PASSWORD")
+                    ?: ""
+                keyAlias = localProperties.getProperty("RELEASE_KEY_ALIAS")
+                    ?: System.getenv("RELEASE_KEY_ALIAS")
+                    ?: "barcodedecoder"
+                keyPassword = localProperties.getProperty("RELEASE_KEY_PASSWORD")
+                    ?: System.getenv("RELEASE_KEY_PASSWORD")
+                    ?: ""
+            }
         }
     }
 
     buildTypes {
         release {
             isMinifyEnabled = false
-            signingConfig = signingConfigs.getByName("release")
+            if (hasReleaseKey) {
+                signingConfig = signingConfigs.getByName("release")
+            }
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
